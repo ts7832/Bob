@@ -115,10 +115,49 @@ def parse_boxes(text):
     return out
 
 
+ROOMS_PROMPT = ("List every room or space name printed on this floor plan, in whatever language it is written, exactly as "
+                "printed (for example OLOHUONE, KEITTIO, WC, Bedroom 2). Skip dimensions, notes and title-block text. "
+                'Output a JSON list like [{"bbox_2d": [x1, y1, x2, y2], "label": "...", "area": 25.0}] where bbox_2d is the '
+                "box around the printed name and area is the room area printed next to it as a number, or null if none is printed.")
+
+
+def parse_rooms(text, w, h):
+    import re
+    out = []
+    for m in re.finditer(r'\{[^{}]*?"bbox_2d"\s*:\s*\[\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*\][^{}]*?\}', text):
+        try:
+            d = json.loads(m.group(0))
+        except Exception:
+            continue
+        b = [float(g) for g in m.groups()]
+        out.append(dict(label=str(d.get("label", "")).strip(), area=d.get("area"),
+                        bbox=[round(b[0] * w / 1000, 1), round(b[1] * h / 1000, 1), round(b[2] * w / 1000, 1), round(b[3] * h / 1000, 1)]))
+    return out
+
+
+def _rooms(model, gpu, long_side, files):
+    """The model reads the room names (and printed areas) off the image: an open list, not a fixed set of classes."""
+    from PIL import Image
+    items = [(f, open(f, "rb").read(), ROOMS_PROMPT) for f in files]
+    print(f"{len(items)} drawings; model {model} on {gpu}")
+    res = run.remote(download.remote(model), items, long_side, GROUND_SYSTEM, 3000)
+    out = {}
+    for f, a, fin in zip(files, res.pop("answers"), res.pop("finish")):
+        w, h = Image.open(f).size
+        out[f] = dict(size=[w, h], truncated=fin == "length", rooms=parse_rooms(a, w, h), raw=a[:4000])
+        print(os.path.basename(f), "| truncated" if fin == "length" else "", "|", [(r["label"], r["area"]) for r in out[f]["rooms"]])
+    res["files"] = out
+    dst = ROOT / "data" / "predictions" / f"vlm_rooms_{model.split('/')[-1]}.json"
+    json.dump(res, open(dst, "w"), indent=1)
+    print(f"load {res['load_s']}s | batch {res['batch_s']}s | {res['seq_s_per_query']}s per single drawing -> {dst}")
+
+
 @APP.local_entrypoint()
-def main(model: str = "Qwen/Qwen3-VL-8B-Instruct", long_side: int = 1536, mode: str = "count"):
+def main(model: str = "Qwen/Qwen3-VL-8B-Instruct", long_side: int = 1536, mode: str = "count", files: str = ""):
     gpu = GPU
     ds = ROOT / "junction-dataset-preview"
+    if mode == "rooms":  # --files a.png,b.png
+        return _rooms(model, gpu, long_side, [f for f in files.split(",") if f])
     plans = list(json.load(open(ROOT / "data/predictions/frontier_blind_sample.json")))
     Q = [json.loads(l) for l in open(ds / "questions.jsonl")]
     Q = [q for q in Q if q["path"] in plans and q["question"].startswith("How many")]

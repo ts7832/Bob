@@ -1,0 +1,371 @@
+{
+ "load_s": 142.0,
+ "batch_s": 40.4,
+ "seq_s_per_query": 34.86,
+ "prompt_tokens": [
+  2224,
+  2448
+ ],
+ "files": {
+  "junction-dataset-preview/data/cubicasa5k/high_quality_architectural-16.png": {
+   "size": [
+    1031,
+    678
+   ],
+   "truncated": false,
+   "rooms": [
+    {
+     "label": "VARASTO",
+     "area": 3.0,
+     "bbox": [
+      47.4,
+      184.4,
+      105.2,
+      199.3
+     ]
+    },
+    {
+     "label": "SAUNA",
+     "area": 3.5,
+     "bbox": [
+      280.4,
+      187.8,
+      323.7,
+      199.3
+     ]
+    },
+    {
+     "label": "APUK-PUKUH",
+     "area": 9.0,
+     "bbox": [
+      417.6,
+      187.8,
+      495.9,
+      199.3
+     ]
+    },
+    {
+     "label": "OLOHUONE",
+     "area": 25.0,
+     "bbox": [
+      659.8,
+      187.8,
+      737.2,
+      199.3
+     ]
+    },
+    {
+     "label": "MAKUHUONE",
+     "area": 11.0,
+     "bbox": [
+      879.4,
+      187.8,
+      964.0,
+      199.3
+     ]
+    },
+    {
+     "label": "WC",
+     "area": 3.0,
+     "bbox": [
+      937.2,
+      347.1,
+      958.8,
+      358.0
+     ]
+    },
+    {
+     "label": "PESUH",
+     "area": 7.0,
+     "bbox": [
+      293.8,
+      341.7,
+      332.0,
+      352.6
+     ]
+    },
+    {
+     "label": "ETEINEN",
+     "area": 17.5,
+     "bbox": [
+      507.3,
+      343.7,
+      574.3,
+      355.3
+     ]
+    },
+    {
+     "label": "AUTOTALLI",
+     "area": 21.0,
+     "bbox": [
+      82.5,
+      455.6,
+      159.8,
+      467.8
+     ]
+    },
+    {
+     "label": "VAR",
+     "area": 3.5,
+     "bbox": [
+      299.0,
+      457.6,
+      319.6,
+      467.8
+     ]
+    },
+    {
+     "label": "TK",
+     "area": 2.0,
+     "bbox": [
+      383.5,
+      457.6,
+      396.9,
+      467.8
+     ]
+    },
+    {
+     "label": "KEITTIO",
+     "area": 11.5,
+     "bbox": [
+      516.5,
+      457.6,
+      574.3,
+      469.2
+     ]
+    },
+    {
+     "label": "HUONE",
+     "area": 8.0,
+     "bbox": [
+      672.2,
+      459.7,
+      719.6,
+      471.2
+     ]
+    },
+    {
+     "label": "VH",
+     "area": 5.0,
+     "bbox": [
+      788.7,
+      459.7,
+      809.3,
+      471.2
+     ]
+    },
+    {
+     "label": "HUONE",
+     "area": 9.5,
+     "bbox": [
+      891.8,
+      459.7,
+      938.2,
+      471.2
+     ]
+    }
+   ],
+   "raw": "```json\n[\n  {\n    \"bbox_2d\": [46, 272, 102, 294],\n    \"label\": \"VARASTO\",\n    \"area\": 3.0\n  },\n  {\n    \"bbox_2d\": [272, 277, 314, 294],\n    \"label\": \"SAUNA\",\n    \"area\": 3.5\n  },\n  {\n    \"bbox_2d\": [405, 277, 481, 294],\n    \"label\": \"APUK-PUKUH\",\n    \"area\": 9.0\n  },\n  {\n    \"bbox_2d\": [640, 277, 715, 294],\n    \"label\": \"OLOHUONE\",\n    \"area\": 25.0\n  },\n  {\n    \"bbox_2d\": [853, 277, 935, 294],\n    \"label\": \"MAKUHUONE\",\n    \"area\": 11.0\n  },\n  {\n    \"bbox_2d\": [909, 512, 930, 528],\n    \"label\": \"WC\",\n    \"area\": 3.0\n  },\n  {\n    \"bbox_2d\": [285, 504, 322, 520],\n    \"label\": \"PESUH\",\n    \"area\": 7.0\n  },\n  {\n    \"bbox_2d\": [492, 507, 557, 524],\n    \"label\": \"ETEINEN\",\n    \"area\": 17.5\n  },\n  {\n    \"bbox_2d\": [80, 672, 155, 690],\n    \"label\": \"AUTOTALLI\",\n    \"area\": 21.0\n  },\n  {\n    \"bbox_2d\": [290, 675, 310, 690],\n    \"label\": \"VAR\",\n    \"area\": 3.5\n  },\n  {\n    \"bbox_2d\": [372, 675, 385, 690],\n    \"label\": \"TK\",\n    \"area\": 2.0\n  },\n  {\n    \"bbox_2d\": [501, 675, 557, 692],\n    \"label\": \"KEITTIO\",\n    \"area\": 11.5\n  },\n  {\n    \"bbox_2d\": [652, 678, 698, 695],\n    \"label\": \"HUONE\",\n    \"area\": 8.0\n  },\n  {\n    \"bbox_2d\": [765, 678, 785, 695],\n    \"label\": \"VH\",\n    \"area\": 5.0\n  },\n  {\n    \"bbox_2d\": [865, 678, 910, 695],\n    \"label\": \"HUONE\",\n    \"area\": 9.5\n  }\n]\n```"
+  },
+  "junction-dataset-preview/data/cubicasa5k/colorful-11397.png": {
+   "size": [
+    475,
+    650
+   ],
+   "truncated": false,
+   "rooms": [
+    {
+     "label": "TERASSI",
+     "area": null,
+     "bbox": [
+      167.2,
+      16.2,
+      203.3,
+      27.3
+     ]
+    },
+    {
+     "label": "PAIVEKE",
+     "area": null,
+     "bbox": [
+      384.8,
+      98.8,
+      421.8,
+      109.2
+     ]
+    },
+    {
+     "label": "OH + RT + K",
+     "area": null,
+     "bbox": [
+      307.8,
+      303.6,
+      353.9,
+      313.3
+     ]
+    },
+    {
+     "label": "JK",
+     "area": null,
+     "bbox": [
+      255.6,
+      315.2,
+      268.4,
+      325.0
+     ]
+    },
+    {
+     "label": "Ku",
+     "area": null,
+     "bbox": [
+      260.3,
+      396.5,
+      274.6,
+      406.2
+     ]
+    },
+    {
+     "label": "PK",
+     "area": null,
+     "bbox": [
+      299.2,
+      410.8,
+      311.1,
+      419.2
+     ]
+    },
+    {
+     "label": "uuni",
+     "area": null,
+     "bbox": [
+      324.4,
+      410.8,
+      339.6,
+      419.2
+     ]
+    },
+    {
+     "label": "mko jk",
+     "area": null,
+     "bbox": [
+      324.4,
+      422.5,
+      345.8,
+      430.3
+     ]
+    },
+    {
+     "label": "KPH",
+     "area": null,
+     "bbox": [
+      326.8,
+      475.8,
+      344.4,
+      484.2
+     ]
+    },
+    {
+     "label": "MH",
+     "area": null,
+     "bbox": [
+      345.8,
+      589.5,
+      358.6,
+      598.0
+     ]
+    },
+    {
+     "label": "Var.",
+     "area": null,
+     "bbox": [
+      179.6,
+      388.7,
+      195.7,
+      397.8
+     ]
+    },
+    {
+     "label": "H",
+     "area": null,
+     "bbox": [
+      187.6,
+      289.2,
+      195.7,
+      297.7
+     ]
+    },
+    {
+     "label": "H",
+     "area": null,
+     "bbox": [
+      31.8,
+      328.2,
+      39.4,
+      336.7
+     ]
+    },
+    {
+     "label": "Teka.",
+     "area": null,
+     "bbox": [
+      30.9,
+      396.5,
+      49.9,
+      404.3
+     ]
+    },
+    {
+     "label": "KHH+PH",
+     "area": null,
+     "bbox": [
+      78.4,
+      451.8,
+      109.2,
+      459.6
+     ]
+    },
+    {
+     "label": "Sauna",
+     "area": null,
+     "bbox": [
+      34.2,
+      585.0,
+      58.0,
+      592.8
+     ]
+    },
+    {
+     "label": "ET+porras",
+     "area": null,
+     "bbox": [
+      150.6,
+      588.2,
+      187.6,
+      596.0
+     ]
+    },
+    {
+     "label": "1. keros",
+     "area": null,
+     "bbox": [
+      165.3,
+      622.0,
+      211.4,
+      633.8
+     ]
+    },
+    {
+     "label": "2. keros",
+     "area": null,
+     "bbox": [
+      391.9,
+      625.3,
+      437.9,
+      637.0
+     ]
+    }
+   ],
+   "raw": "```json\n[\n  {\n    \"bbox_2d\": [352, 25, 428, 42],\n    \"label\": \"TERASSI\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [810, 152, 888, 168],\n    \"label\": \"PAIVEKE\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [648, 467, 745, 482],\n    \"label\": \"OH + RT + K\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [538, 485, 565, 500],\n    \"label\": \"JK\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [548, 610, 578, 625],\n    \"label\": \"Ku\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [630, 632, 655, 645],\n    \"label\": \"PK\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [683, 632, 715, 645],\n    \"label\": \"uuni\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [683, 650, 728, 662],\n    \"label\": \"mko jk\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [688, 732, 725, 745],\n    \"label\": \"KPH\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [728, 907, 755, 920],\n    \"label\": \"MH\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [378, 598, 412, 612],\n    \"label\": \"Var.\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [395, 445, 412, 458],\n    \"label\": \"H\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [67, 505, 83, 518],\n    \"label\": \"H\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [65, 610, 105, 622],\n    \"label\": \"Teka.\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [165, 695, 230, 707],\n    \"label\": \"KHH+PH\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [72, 900, 122, 912],\n    \"label\": \"Sauna\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [317, 905, 395, 917],\n    \"label\": \"ET+porras\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [348, 957, 445, 975],\n    \"label\": \"1. keros\",\n    \"area\": null\n  },\n  {\n    \"bbox_2d\": [825, 962, 922, 980],\n    \"label\": \"2. keros\",\n    \"area\": null\n  }\n]\n```"
+  }
+ }
+}

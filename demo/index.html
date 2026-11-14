@@ -80,7 +80,7 @@
 </section>
 <script>
 const NS = "http://www.w3.org/2000/svg";
-let current = null, svgEl = null, baseVB = null, hlLayer = null, planLayer = null, planOn = true;
+let current = null, svgEl = null, baseVB = null, hlLayer = null, planLayer = null, planOn = true, namesLayer = null;
 // what the converter can find: label, colour, group. Rooms are filled areas, symbols are boxes.
 const KINDS = {
   door:["Doors","#2563eb","Openings"], window:["Windows","#0d9488","Openings"],
@@ -173,6 +173,7 @@ async function open(d) {
   else { v.innerHTML = `<p style='padding:20px;color:#888'>${esc(r.note || "No drawing to show for this file.")}</p>`; svgEl = null; return; }
   baseVB = svgEl.getAttribute("viewBox").split(/[ ,]+/).map(Number);
   planLayer = el("g", {id:"plan"}, svgEl);
+  namesLayer = el("g", {id:"names"}, svgEl);
   hlLayer = el("g", {id:"hl"}, svgEl);
   enableZoom(svgEl);
   try { const p = await (await fetch("/api/plan?path=" + encodeURIComponent(d.path))).json(); if (current === d && !p.error) showPlan(p, d); } catch (e) {}
@@ -183,7 +184,7 @@ function showPlan(p, d) {
   const warn = p.fit && (p.fit.level === "weak" || p.fit.level === "none")
     ? `<div class="warn"><b>Unfamiliar drawing style.</b> ${esc(p.fit.note.charAt(0).toUpperCase() + p.fit.note.slice(1))}.</div>` : "";
   if (!p.drawable) return;
-  if (!p.items.length) { document.getElementById("found").innerHTML = warn ? `<h3>Floor plan found on this drawing</h3>${warn}` : ""; return; }
+  if (!p.items.length) { document.getElementById("found").innerHTML = (warn ? `<h3>Floor plan found on this drawing</h3>${warn}` : "") + namesCard(p); wireNames(d); showNames(p.names); return; }
   const u = Math.max(baseVB[2], baseVB[3]) / 900, AREA = new Set(["Rooms", "Layout"]);
   const order = Object.keys(KINDS), layers = {}, stats = {};
   p.items.slice().sort((a, b) => (AREA.has((KINDS[b.type] || [])[2]) ? 1 : 0) - (AREA.has((KINDS[a.type] || [])[2]) ? 1 : 0)).forEach(it => {
@@ -217,16 +218,51 @@ function showPlan(p, d) {
   document.getElementById("found").innerHTML = `<h3>Floor plan found on this drawing</h3>${warn}<div class="card" style="margin-top:0">${html}
     <div class="meta" style="margin-top:9px">${esc(p.kind)}${p.scale ? " · scale: " + esc(p.scale) : ""}${p.texts ? ` · ${p.texts} printed texts read` : ""}</div>
     <div class="meta">${det ? "“Detected” items come from a trained detector and are not deterministic; hover one for its confidence." : "Everything here was read from the file itself."} Click a row to hide or show it.</div>
-    <div style="margin-top:8px"><a href="/api/sheet?path=${encodeURIComponent(d.path)}" download="${esc(d.title.split(" (")[0])}.sheet.json">Download as unified sheet (JSON)</a></div></div>`;
+    <div style="margin-top:8px"><a href="/api/sheet?path=${encodeURIComponent(d.path)}" download="${esc(d.title.split(" (")[0])}.sheet.json">Download as unified sheet (JSON)</a></div></div>${namesCard(p)}`;
+  wireNames(d); showNames(p.names);
   document.querySelectorAll("#found .frow").forEach(row => row.onclick = () => {
     const off = row.classList.toggle("off"); layers[row.dataset.type]?.setAttribute("display", off ? "none" : "inline"); });
   planOn = true; planLayer.setAttribute("opacity", hlLayer.childNodes.length ? .18 : 1);  // an answer may already be showing
   const b = document.getElementById("planbtn"); b.hidden = false; b.textContent = "Hide found plan";
 }
 
+// Room names printed on an image, read by a vision model (an open list: whatever the drawing says, in any language).
+function namesCard(p) {
+  if (!p.can_read_names) return "";
+  const n = p.names;
+  if (!n) return `<div class="card" id="namescard"><div class="meta">The detector only knows a fixed list of room types. The names printed on the drawing can be read by a vision model.</div>
+    <button class="ask" id="readnames" style="background:#7c3aed">Read room names and areas</button><div class="meta" style="margin-top:6px">Runs on a cloud GPU: about half a minute, up to three when it has to start up.</div></div>`;
+  if (n.error) return `<div class="card" id="namescard"><div class="warn">${esc(n.error)}</div></div>`;
+  const rows = n.rooms.map(r => `<div class="frow" style="cursor:default"><i style="border-color:#7c3aed;background:#7c3aed22"></i><span>${esc(r.label)}</span><b style="min-width:70px">${r.area == null ? "" : r.area + " m²"}</b></div>`).join("");
+  const total = n.rooms.reduce((s, r) => s + (r.area || 0), 0), withArea = n.rooms.filter(r => r.area != null).length;
+  return `<div class="card" id="namescard"><div class="fgroup" style="margin-top:0">Names printed on the drawing (${n.rooms.length})</div>${rows || '<div class="meta">No room name was found.</div>'}
+    ${withArea ? `<div class="meta" style="margin-top:8px">${withArea} printed area(s), ${Math.round(total * 100) / 100} m² in total.</div>` : ""}
+    <div class="meta" style="margin-top:6px"><b>READ</b> · not deterministic · read by a vision model (${esc((n.model || "").split("/").pop())}); it can misread a letter or a digit, so each name is boxed on the drawing for checking.${n.truncated ? " The list was cut off and may be incomplete." : ""}</div></div>`;
+}
+
+function wireNames(d) {
+  const b = document.getElementById("readnames"); if (!b) return;
+  b.onclick = async () => {
+    b.disabled = true; b.textContent = "Reading the drawing…"; b.style.opacity = .6;
+    let n; try { n = await (await fetch("/api/read", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({path:d.path})})).json(); } catch (e) { n = {error:String(e)}; }
+    if (current !== d) return;
+    document.getElementById("namescard").outerHTML = namesCard({can_read_names:true, names:n}); showNames(n);
+  };
+}
+
+function showNames(n) {
+  if (!namesLayer) return; namesLayer.innerHTML = "";
+  if (!n || !n.rooms) return;
+  const u = Math.max(baseVB[2], baseVB[3]) / 900;
+  n.rooms.forEach(r => { const [x0, y0, x1, y1] = r.bbox, m = u * 2;
+    const node = el("rect", {x:x0 - m, y:y0 - m, width:x1 - x0 + 2 * m, height:y1 - y0 + 2 * m, rx:u, fill:"none", stroke:"#7c3aed", "stroke-width":u * 1.6}, namesLayer);
+    el("title", {}, node).textContent = `${r.label}${r.area == null ? "" : " · " + r.area + " m²"} · read by a vision model`; });
+}
+
 function togglePlan() {
   if (!planLayer) return;
   planOn = !planOn; planLayer.setAttribute("display", planOn ? "inline" : "none"); planLayer.setAttribute("opacity", 1);
+  namesLayer?.setAttribute("display", planOn ? "inline" : "none");
   document.getElementById("planbtn").textContent = planOn ? "Hide found plan" : "Show found plan";
 }
 

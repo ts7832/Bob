@@ -1,0 +1,311 @@
+{
+ "load_s": 106.5,
+ "batch_s": 16.6,
+ "seq_s_per_query": 16.34,
+ "prompt_tokens": [
+  2224,
+  2448
+ ],
+ "files": {
+  "junction-dataset-preview/data/cubicasa5k/high_quality_architectural-16.png": {
+   "size": [
+    1031,
+    678
+   ],
+   "truncated": false,
+   "rooms": [
+    {
+     "label": "SAUNA",
+     "area": 3.5,
+     "bbox": [
+      278.4,
+      187.8,
+      322.7,
+      200.0
+     ]
+    },
+    {
+     "label": "APUK-PUKUH",
+     "area": 9.0,
+     "bbox": [
+      417.6,
+      187.8,
+      499.0,
+      200.0
+     ]
+    },
+    {
+     "label": "OLOHUONE",
+     "area": 25.0,
+     "bbox": [
+      659.8,
+      187.8,
+      737.2,
+      200.0
+     ]
+    },
+    {
+     "label": "MAKUHUONE",
+     "area": 11.0,
+     "bbox": [
+      878.4,
+      187.8,
+      961.9,
+      200.0
+     ]
+    },
+    {
+     "label": "PESUH",
+     "area": 7.0,
+     "bbox": [
+      292.8,
+      342.4,
+      329.9,
+      354.6
+     ]
+    },
+    {
+     "label": "ETEINEN",
+     "area": 17.5,
+     "bbox": [
+      507.3,
+      342.4,
+      575.3,
+      354.6
+     ]
+    },
+    {
+     "label": "VAR",
+     "area": 3.5,
+     "bbox": [
+      299.0,
+      457.6,
+      324.8,
+      469.9
+     ]
+    },
+    {
+     "label": "TK",
+     "area": 2.0,
+     "bbox": [
+      383.5,
+      457.6,
+      406.2,
+      469.9
+     ]
+    },
+    {
+     "label": "KEITTIO",
+     "area": 11.5,
+     "bbox": [
+      517.6,
+      457.6,
+      573.2,
+      469.9
+     ]
+    },
+    {
+     "label": "HUONE",
+     "area": 8.0,
+     "bbox": [
+      672.2,
+      457.6,
+      719.6,
+      469.9
+     ]
+    },
+    {
+     "label": "HUONE",
+     "area": 9.5,
+     "bbox": [
+      890.8,
+      457.6,
+      941.3,
+      469.9
+     ]
+    },
+    {
+     "label": "WC",
+     "area": 3.0,
+     "bbox": [
+      938.2,
+      347.1,
+      957.8,
+      358.7
+     ]
+    },
+    {
+     "label": "VARASTO",
+     "area": 3.0,
+     "bbox": [
+      46.4,
+      185.1,
+      105.2,
+      197.3
+     ]
+    },
+    {
+     "label": "TIKAS",
+     "area": null,
+     "bbox": [
+      46.4,
+      105.8,
+      79.4,
+      117.3
+     ]
+    },
+    {
+     "label": "AUTOTALLI",
+     "area": 21.0,
+     "bbox": [
+      82.5,
+      454.3,
+      160.8,
+      466.5
+     ]
+    },
+    {
+     "label": "TAKKA",
+     "area": null,
+     "bbox": [
+      585.6,
+      205.4,
+      639.2,
+      225.1
+     ]
+    }
+   ],
+   "raw": "```json\n[\n    {\"bbox_2d\": [270, 277, 313, 295], \"label\": \"SAUNA\", \"area\": 3.5},\n    {\"bbox_2d\": [405, 277, 484, 295], \"label\": \"APUK-PUKUH\", \"area\": 9.0},\n    {\"bbox_2d\": [640, 277, 715, 295], \"label\": \"OLOHUONE\", \"area\": 25.0},\n    {\"bbox_2d\": [852, 277, 933, 295], \"label\": \"MAKUHUONE\", \"area\": 11.0},\n    {\"bbox_2d\": [284, 505, 320, 523], \"label\": \"PESUH\", \"area\": 7.0},\n    {\"bbox_2d\": [492, 505, 558, 523], \"label\": \"ETEINEN\", \"area\": 17.5},\n    {\"bbox_2d\": [290, 675, 315, 693], \"label\": \"VAR\", \"area\": 3.5},\n    {\"bbox_2d\": [372, 675, 394, 693], \"label\": \"TK\", \"area\": 2.0},\n    {\"bbox_2d\": [502, 675, 556, 693], \"label\": \"KEITTIO\", \"area\": 11.5},\n    {\"bbox_2d\": [652, 675, 698, 693], \"label\": \"HUONE\", \"area\": 8.0},\n    {\"bbox_2d\": [864, 675, 913, 693], \"label\": \"HUONE\", \"area\": 9.5},\n    {\"bbox_2d\": [910, 512, 929, 529], \"label\": \"WC\", \"area\": 3.0},\n    {\"bbox_2d\": [45, 273, 102, 291], \"label\": \"VARASTO\", \"area\": 3.0},\n    {\"bbox_2d\": [45, 156, 77, 173], \"label\": \"TIKAS\"},\n    {\"bbox_2d\": [80, 670, 156, 688], \"label\": \"AUTOTALLI\", \"area\": 21.0},\n    {\"bbox_2d\": [568, 303, 620, 332], \"label\": \"TAKKA\"}\n]\n```"
+  },
+  "junction-dataset-preview/data/cubicasa5k/colorful-11397.png": {
+   "size": [
+    475,
+    650
+   ],
+   "truncated": false,
+   "rooms": [
+    {
+     "label": "TERASSI",
+     "area": null,
+     "bbox": [
+      168.2,
+      16.9,
+      202.3,
+      26.6
+     ]
+    },
+    {
+     "label": "PARVEKE",
+     "area": null,
+     "bbox": [
+      384.3,
+      98.2,
+      421.8,
+      107.9
+     ]
+    },
+    {
+     "label": "Tekn.",
+     "area": null,
+     "bbox": [
+      30.4,
+      394.6,
+      49.9,
+      404.3
+     ]
+    },
+    {
+     "label": "KHH+PH",
+     "area": null,
+     "bbox": [
+      77.4,
+      449.8,
+      110.2,
+      459.6
+     ]
+    },
+    {
+     "label": "Var.",
+     "area": null,
+     "bbox": [
+      178.1,
+      388.1,
+      194.8,
+      397.8
+     ]
+    },
+    {
+     "label": "El+porras",
+     "area": null,
+     "bbox": [
+      150.6,
+      587.6,
+      187.6,
+      597.4
+     ]
+    },
+    {
+     "label": "Sauna",
+     "area": null,
+     "bbox": [
+      33.2,
+      584.4,
+      57.0,
+      594.1
+     ]
+    },
+    {
+     "label": "1. kerros",
+     "area": null,
+     "bbox": [
+      164.3,
+      622.7,
+      210.4,
+      632.5
+     ]
+    },
+    {
+     "label": "2. kerros",
+     "area": null,
+     "bbox": [
+      391.9,
+      626.0,
+      437.9,
+      635.7
+     ]
+    },
+    {
+     "label": "OH + RT + K",
+     "area": null,
+     "bbox": [
+      307.3,
+      302.9,
+      353.4,
+      312.6
+     ]
+    },
+    {
+     "label": "KPH",
+     "area": null,
+     "bbox": [
+      327.3,
+      474.5,
+      345.8,
+      484.2
+     ]
+    },
+    {
+     "label": "MH",
+     "area": null,
+     "bbox": [
+      346.3,
+      588.9,
+      359.6,
+      598.6
+     ]
+    }
+   ],
+   "raw": "```json\n[\n    {\"bbox_2d\": [354, 26, 426, 41], \"label\": \"TERASSI\", \"area\": null},\n    {\"bbox_2d\": [809, 151, 888, 166], \"label\": \"PARVEKE\", \"area\": null},\n    {\"bbox_2d\": [64, 607, 105, 622], \"label\": \"Tekn.\", \"area\": null},\n    {\"bbox_2d\": [163, 692, 232, 707], \"label\": \"KHH+PH\", \"area\": null},\n    {\"bbox_2d\": [375, 597, 410, 612], \"label\": \"Var.\", \"area\": null},\n    {\"bbox_2d\": [317, 904, 395, 919], \"label\": \"El+porras\", \"area\": null},\n    {\"bbox_2d\": [70, 899, 120, 914], \"label\": \"Sauna\", \"area\": null},\n    {\"bbox_2d\": [346, 958, 443, 973], \"label\": \"1. kerros\", \"area\": null},\n    {\"bbox_2d\": [825, 963, 922, 978], \"label\": \"2. kerros\", \"area\": null},\n    {\"bbox_2d\": [647, 466, 744, 481], \"label\": \"OH + RT + K\", \"area\": null},\n    {\"bbox_2d\": [689, 730, 728, 745], \"label\": \"KPH\", \"area\": null},\n    {\"bbox_2d\": [729, 906, 757, 921], \"label\": \"MH\", \"area\": null}\n]\n```"
+  }
+ }
+}

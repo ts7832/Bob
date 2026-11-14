@@ -108,15 +108,22 @@ def plan(path):
         add(e, e.get("cls") or e.get("type") or "element", "linework" if e.get("exact") else "detector")
     for r in sheet.get("rooms", []):
         if r.get("cls"):  # room type found by the detector
-            add(r, r["cls"], "detector")
+            add(r, r["cls"], "detector", area_m2=r.get("area_m2"), area_source=r.get("area_source"))
         else:  # room read from the sheet's own text and outlines
             label = " ".join(str(v) for v in (r.get("number"), r.get("name")) if v)
             add(r, "room", "read", label, area_m2=r.get("area_m2"), area_source=r.get("area_source"))
+    for wl in sheet.get("walls", []):  # wall segments found by the segmentation model (images only)
+        add(wl, "wall", "detector")
     for f in sheet.get("floors", []):
         add(f, "floor", "detector")
     for u in sheet.get("units_list", []):
         add(u, "apartment", "read", u.get("label"))
-    return dict(drawable=True, kind=kind, scale=scale, items=items, texts=len(sheet.get("texts", [])),
+    names = None
+    if sheet.get("source_type") == "raster":  # room names read off the image by the vision model, if that was run
+        from drawqa import reader
+        names = reader.cached(resolve(path))
+    return dict(drawable=True, kind=kind, scale=scale, items=items, texts=len(sheet.get("texts", [])), names=names,
+                can_read_names=sheet.get("source_type") == "raster",
                 linework=sheet.get("linework_notes") or {}, fit=sheet.get("detector_fit") or {})
 
 
@@ -205,6 +212,14 @@ class H(BaseHTTPRequestHandler):
                 if name:
                     d["title"] = d["title"].replace(os.path.basename(OPENED[d["path"]]), os.path.basename(name), 1)
                 return self._send(200, d)
+            except Exception as e:
+                traceback.print_exc()
+                return self._send(500, {"error": str(e)})
+        if u.path == "/api/read":  # run the room-name reader (vision model on a Modal GPU) on an opened image
+            try:
+                from drawqa import reader
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                return self._send(200, reader.read_rooms(resolve(body["path"])))
             except Exception as e:
                 traceback.print_exc()
                 return self._send(500, {"error": str(e)})
