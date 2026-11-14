@@ -1,0 +1,130 @@
+
+DATASET QUESTIONS, by source (every question with a number for an answer; scans: the 241 test plans)
+                                     questions  patterns only  with Jev router  read by Jev
+  swiss_dwellings                        37584          98.5%            98.5%            0
+  cubicasa5k                              4270          85.0%            85.0%            0
+  ifc_models                              3062          74.2%            90.9%          644
+  opening_design                            48          31.2%            43.8%            8
+  ALL                                    44964          95.5%            96.6%          652
+
+DATASET QUESTIONS, by kind of question
+                                     questions  patterns only  with Jev router  read by Jev
+  count:rooms_of_a_type                  14275          98.9%            98.9%            0
+  area:one_room                           6147          91.6%            97.7%          411
+  area:apartment                          3750          96.0%            96.0%            0
+  count:window                            2656          89.8%            90.0%           19
+  count:door                              2585          95.2%            96.0%           24
+  count:fixtures:wc                       2560          98.8%            98.8%            0
+  count:fixtures:sink                     2558          97.1%            97.1%            0
+  area:whole_floor                        2155          94.6%            94.9%            8
+  count:apartments                        2080          99.8%            99.8%            0
+  area:rooms_of_a_type                    2038          99.7%            99.7%            0
+  count:fixtures:bathtub                  1794          99.3%            99.3%            0
+  count:fixtures:shower                    644          61.2%            61.2%            0
+  count:floors                             482          97.9%            97.9%            0
+  count:fixtures:shower_or_bathtub         454          85.0%            85.0%            0
+  count:all_rooms                          137          68.6%            92.0%           35
+  unlabelled                                99           0.0%            20.2%           66
+  count:stair                               96          79.2%            95.8%           20
+  count:wall                                90          74.4%            90.0%           18
+  volume:slab                               72          87.5%            87.5%            9
+  volume:wall                               66          90.9%           100.0%            6
+  length:wall                               64          90.6%           100.0%            6
+  area:wall                                 64          90.6%           100.0%            6
+  count:column                              63          69.8%            88.9%           18
+  count:beam                                25          84.0%            84.0%            4
+  count:fixtures:any                        10          30.0%            30.0%            2
+  ALL                                    44964          95.5%            96.6%          652
+
+HELD-OUT REWORDINGS (reworded:haiku), by kind
+                                     questions  patterns only  with Jev router  read by Jev
+  count:all_rooms                           96          19.8%            88.5%           73
+  count:window                              88          40.9%            69.3%           37
+  count:door                                88          70.5%            98.9%           25
+  count:wall                                88          15.9%            94.3%           71
+  count:rooms_of_a_type                     72          36.1%            97.2%           44
+  area:whole_floor                          72           4.2%            45.8%           30
+  length:wall                               64          21.9%            95.3%           50
+  volume:slab                               64          39.1%            93.8%           39
+  area:one_room                             56          46.4%            91.1%           25
+  area:wall                                 56          55.4%            80.4%           20
+  count:stair                               56          12.5%            91.1%           47
+  area:apartment                            56          57.1%            89.3%           18
+  count:column                              48           8.3%            70.8%           41
+  volume:wall                               40          45.0%            97.5%           22
+  count:fixtures:any                        24           4.2%            25.0%           10
+  count:beam                                24           8.3%            62.5%           17
+  count:apartments                          16          37.5%            37.5%            0
+  count:fixtures:shower_or_bathtub           8          25.0%            25.0%            0
+  area:rooms_of_a_type                       8          50.0%            87.5%            3
+  count:fixtures:sink                        8          37.5%            75.0%            3
+  count:fixtures:shower                      8           0.0%             0.0%            0
+  ALL                                     1040          32.2%            81.9%          575
+
+HELD-OUT REWORDINGS (reworded:qwen), by kind
+                                     questions  patterns only  with Jev router  read by Jev
+  count:all_rooms                           96          11.5%            68.8%           78
+  count:window                              88          38.6%            60.2%           30
+  count:door                                88          58.0%            89.8%           36
+  count:wall                                88           3.4%            71.6%           79
+  count:rooms_of_a_type                     72          12.5%            86.1%           56
+  area:whole_floor                          72          11.1%            26.4%           25
+  length:wall                               64          17.2%            35.9%           36
+  volume:slab                               64          17.2%            39.1%           47
+  area:one_room                             56          35.7%            57.1%           20
+  area:wall                                 56          12.5%            46.4%           42
+  area:apartment                            56          62.5%            82.1%           12
+  count:stair                               55           7.3%            70.9%           43
+  count:column                              48          10.4%            39.6%           35
+  volume:wall                               40          37.5%            62.5%           21
+  count:fixtures:any                        24           4.2%            12.5%            4
+  count:beam                                24           4.2%            25.0%           18
+  count:apartments                          16          50.0%            50.0%            0
+  count:fixtures:shower_or_bathtub           8          25.0%            25.0%            0
+  area:rooms_of_a_type                       8          12.5%            25.0%            2
+  count:fixtures:sink                        8          37.5%            50.0%            1
+  count:fixtures:shower                      8           0.0%             0.0%            0
+  ALL                                     1039          23.1%            57.9%          585
+
+CONFIDENCE vs CORRECTNESS (engine's own confidence on answers it gave)
+  dataset: 44818 answers with a confidence | AUROC 0.704 | confidence gap 1.8 points
+     stated 0.2-0.3: n=     4  mean stated  28.5%  actually right   0.0%
+     stated 0.3-0.4: n=   172  mean stated  32.9%  actually right  45.3%
+     stated 0.4-0.5: n=   252  mean stated  44.3%  actually right  45.2%
+     stated 0.5-0.6: n=   750  mean stated  51.4%  actually right  76.5%
+     stated 0.6-0.7: n=   342  mean stated  65.0%  actually right  78.9%
+     stated 0.7-0.8: n=   738  mean stated  74.9%  actually right  89.2%
+     stated 0.8-0.9: n=  1324  mean stated  84.6%  actually right  95.3%
+     stated 0.9-1.0: n= 41236  mean stated  98.9%  actually right  98.2%
+     answer only the most confident: top 50% -> 98.0% right | top 80% -> 98.2% right | top 90% -> 98.2% right | top 100% -> 96.9% right
+  reworded:haiku: 934 answers with a confidence | AUROC 0.515 | confidence gap 7.7 points
+     stated 0.5-0.6: n=    10  mean stated  50.0%  actually right  60.0%
+     stated 0.7-0.8: n=     2  mean stated  72.0%  actually right 100.0%
+     stated 0.8-0.9: n=     8  mean stated  80.0%  actually right 100.0%
+     stated 0.9-1.0: n=   914  mean stated  99.0%  actually right  91.5%
+     answer only the most confident: top 50% -> 91.6% right | top 80% -> 90.5% right | top 90% -> 91.2% right | top 100% -> 91.2% right
+  reworded:qwen: 822 answers with a confidence | AUROC 0.495 | confidence gap 25.7 points
+     stated 0.5-0.6: n=     7  mean stated  50.0%  actually right  57.1%
+     stated 0.7-0.8: n=     2  mean stated  72.0%  actually right 100.0%
+     stated 0.8-0.9: n=     8  mean stated  80.0%  actually right 100.0%
+     stated 0.9-1.0: n=   805  mean stated  99.0%  actually right  73.0%
+     answer only the most confident: top 50% -> 70.1% right | top 80% -> 68.9% right | top 90% -> 71.6% right | top 100% -> 73.2% right
+
+JEV ROUTER: its probability vs whether the final answer was right (questions it read)
+  dataset: 652 questions read by the Jev router | answer right  78.7% | AUROC 0.822
+     router probability 0.5-0.7: n=   58  answer right  37.9%
+     router probability 0.7-0.9: n=   42  answer right  33.3%
+     router probability 0.9-1.0: n=  552  answer right  86.4%
+  reworded:haiku: 575 questions read by the Jev router | answer right  89.7% | AUROC 0.603
+     router probability 0.5-0.7: n=   14  answer right  64.3%
+     router probability 0.7-0.9: n=    1  answer right   0.0%
+     router probability 0.9-1.0: n=  560  answer right  90.5%
+  reworded:qwen: 585 questions read by the Jev router | answer right  61.9% | AUROC 0.735
+     router probability 0.5-0.7: n=   45  answer right  22.2%
+     router probability 0.7-0.9: n=   61  answer right  44.3%
+     router probability 0.9-1.0: n=  479  answer right  67.8%
+
+NOT ANSWERED
+  dataset: read by {'pattern router': 44231, 'nobody': 81, 'jev router': 652}; engine errors 1
+  reworded:haiku: read by {'pattern router': 429, 'nobody': 36, 'jev router': 575}; engine errors 0
+  reworded:qwen: read by {'pattern router': 336, 'jev router': 585, 'nobody': 118}; engine errors 0
