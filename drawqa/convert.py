@@ -140,6 +140,7 @@ def estimate_scale_from_doors(sheet):
 
 
 def convert(path, page=0, use_detector=True):
+    use_detector = use_detector and os.environ.get("DRAWQA_DETECT", "1") == "1"  # 0: text, scale and tables only (light)
     kind = sniff(path)
     if kind == "pdf":
         from . import pdfsheet
@@ -170,6 +171,14 @@ def convert(path, page=0, use_detector=True):
     if img is not None and use_detector and detect.available():
         from .postprocess import apply, detector_fit
         raw = raw_detections(path, page, img)
+        # how the detector ran (drawqa/detect.py): a very large sheet gets one orientation only; said in every answer.
+        # Rebuilt from the sheet size, so it is also right when the detections came from the disk cache.
+        h_, w_ = img.shape[:2]
+        n_tiles = len(detect.tiles(w_, h_)) if max(w_, h_) > detect.TILE * 1.2 else 1
+        if (os.environ.get("DRAWQA_TTA") == "1" or detect.tuned().get("tta")) and n_tiles > getattr(detect, "TTA_MAX_TILES", 10 ** 9):
+            sheet["detector_note"] = (detect.last_info.get("note") if getattr(detect, "last_info", None) and detect.last_info.get("note") else
+                                      f"the detector looked at this sheet in one orientation only ({n_tiles} tiles), while its thresholds "
+                                      "were tuned on four, so it may find somewhat fewer symbols than on smaller drawings")
         sheet["detector_fit"] = detector_fit(raw, detect.thresholds())
         dets = apply(raw, detect.thresholds(), detect.tuned().get("rules"))
         if kind == "pdf" and vector and os.environ.get("DRAWQA_SNAP", "1") == "1":
@@ -179,20 +188,24 @@ def convert(path, page=0, use_detector=True):
         sheet["detector_classes"] = sorted(detect.thresholds()) or None  # what this detector was trained to find
         if not (sheet.get("scale") or {}).get("m_per_px"):
             sheet["scale"] = estimate_scale_from_doors(sheet) or sheet.get("scale")
-    from . import segment
-    # walls and room outlines: only where the sheet has none of its own (images, scanned PDFs). The model was trained
-    # on scanned apartment plans read whole, so it is not run on vector sheets, which carry exact outlines anyway.
-    if img is not None and use_detector and segment.available() and sheet.get("kind") in ("image", "scanned pdf") \
-            and os.environ.get("DRAWQA_OUTLINES", "1") == "1":
-        from . import ocr
-        if ocr.available() and not sheet.get("texts"):  # an image has no text layer: read what is printed on it
+    from . import segment, ocr
+    if img is not None and sheet.get("kind") in ("image", "scanned pdf"):
+        # an image has no text layer: read what is printed on it (tags, notes, names, scale bar), with or without the
+        # detector (DRAWQA_DETECT=0 gives a light, text-only sheet)
+        if ocr.available() and not sheet.get("texts"):
             sheet["texts"] = [dict(id=f"t{i}", found_by="ocr", **t) for i, t in enumerate(raw_texts(path, page, img))]
-        scale_from_text(sheet, img)  # before outlines: their areas use the scale
-        add_outlines(sheet, raw_outlines(path, page, img))
+        if sheet.get("texts"):
+            scale_from_text(sheet, img)  # before outlines: their areas use the scale
+        # walls and room outlines: only where the sheet has none of its own. The model was trained on scanned apartment
+        # plans read whole, so it is not run on vector sheets, which carry exact outlines anyway.
+        if use_detector and segment.available() and os.environ.get("DRAWQA_OUTLINES", "1") == "1":
+            add_outlines(sheet, raw_outlines(path, page, img))
     elif img is not None and kind == "pdf" and sheet.get("texts"):  # vector PDF: check the printed scale it read
         scale_from_text(sheet, img, dpi=pdfsheet.DPI)
     if kind == "pdf" and sheet.get("texts"):  # US-style room labels ("BEDROOM" / "218 SF")
         add_printed_room_labels(sheet)
+    if kind == "pdf" and vector:
+        add_door_arcs(sheet, pg)
     sheet["format"] = "drawqa-sheet/1"
     return sheet
 
@@ -288,6 +301,16 @@ def printed_areas(sheet):
     for a in ocr.room_areas(sheet.get("texts", [])):
         if not any(abs(a["area_m2"] - o["area_m2"]) < 0.051 and dist(a["bbox"], o["bbox"]) <= reach for o in seen):
             out.append(dict(a, by="OCR"))
+    # US-style labels read by OCR: the room's name over "218 SF" (the m2 readers above do not know square feet)
+    try:
+        from . import tags
+        for x in tags.printed_room_areas(sheet.get("texts", []))["rooms"]:
+            m2 = round(x["value"] * SQFT_M2, 6) if x["unit"] == "sqft" else x["value"]
+            if not any(abs(m2 - o["area_m2"]) < 0.051 and dist(x["area_bbox"], o["bbox"]) <= reach for o in out):
+                out.append(dict(area_m2=m2, bbox=x["area_bbox"], text=f"{x['name']} {x['value']:g} {'SF' if x['unit'] == 'sqft' else 'm2'}",
+                                by="OCR", sure=True, name=x["name"], drawing_unit=x["unit"]))
+    except Exception:  # a sheet whose labels cannot be paired keeps the readers above
+        pass
     return out
 
 
@@ -330,9 +353,11 @@ def add_rooms_without_outline(sheet, areas):
                  and r["bbox"][0] <= cx <= r["bbox"][2] and r["bbox"][1] <= cy <= r["bbox"][3]]
         if boxes:  # the detector's typed room box for this room: it takes the printed area
             r = min(boxes, key=lambda r: (r["bbox"][2] - r["bbox"][0]) * (r["bbox"][3] - r["bbox"][1]))
-            r.update(area_m2=a["area_m2"], area_source=src, printed_text=a["text"], outdoor=r.get("cls") in ("balcony", "terrace"))
+            r.update(area_m2=a["area_m2"], area_source=src, printed_text=a["text"], outdoor=r.get("cls") in ("balcony", "terrace"),
+                     **({"name": a["name"], "drawing_unit": a.get("drawing_unit")} if a.get("name") else {}))
             continue
         sheet["rooms"].append(dict(id=f"printed{i}", cls="unlabelled", bbox=a["bbox"], area_m2=a["area_m2"], printed_text=a["text"],
+                                   **({"name": a["name"], "drawing_unit": a.get("drawing_unit")} if a.get("name") else {}),
                                    area_source=src, outdoor=any(w in a["text"].lower() for w in OUTDOOR_WORDS)))
 
 
@@ -377,6 +402,34 @@ def name_meaning(label):
     return hits[0] if len(set(hits)) == 1 else None  # two different meanings in one name: say nothing
 
 
+def ocr_room_names(sheet):
+    """Room names read by OCR on an image: name-like text lines grouped when printed under each other in one block
+    ("Secondary" / "Classroom" / "(Severe Needs)"), and kept only when the block sits inside a room outline. Dimensions,
+    numbers, areas and long notes are not names. -> [dict(label, bbox)] in the vision reader's format."""
+    from . import segment, tags
+    polys = [r["polygon"] for r in sheet.get("rooms", []) if r.get("polygon")]
+    if not polys:
+        return []
+    T = [t for t in sheet.get("texts", []) if t.get("bbox") and tags._name_like(t["text"])
+         and len(t["text"].split()) <= 4 and not re.search(r"\d{2,}", t["text"])]
+    T.sort(key=lambda t: (t["bbox"][1], t["bbox"][0]))
+    blocks = []
+    for t in T:
+        b = t["bbox"]
+        h = b[3] - b[1]
+        cx = (b[0] + b[2]) / 2
+        for k in blocks:  # the next line of a block: just below it, centred about the same
+            kb = k["bbox"]
+            if -0.2 * h <= b[1] - kb[3] <= 1.3 * h and abs(cx - (kb[0] + kb[2]) / 2) < 0.75 * max(b[2] - b[0], kb[2] - kb[0]):
+                k["label"] += " " + t["text"].strip()
+                k["bbox"] = [min(kb[0], b[0]), kb[1], max(kb[2], b[2]), b[3]]
+                break
+        else:
+            blocks.append(dict(label=t["text"].strip(), bbox=list(b)))
+    inside = lambda bb: any(segment._inside((bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2, [list(p) for p in P]) for P in polys)
+    return [k for k in blocks if inside(k["bbox"])]
+
+
 def attach_printed_names(sheet):
     """Room names printed on an image, as read by the vision model (drawqa/reader.py; only when someone ran it, then
     cached) -> each name goes to the room outline it is printed in (the smallest one), or to the detector's room box when
@@ -393,6 +446,9 @@ def attach_printed_names(sheet):
         key = (f, os.path.getmtime(f)) if names is not None else None
     except Exception:
         names, key = None, None
+    by = "a vision model"
+    if not names and sheet.get("texts"):  # no vision-model reading: the room names OCR read, inside the room outlines
+        names, key, by = ocr_room_names(sheet), ("ocr", len(sheet["texts"])), "OCR"
     if not names or sheet.get("_printed_names_key") == key:
         return
     for r in sheet.get("rooms", []):  # a new reading replaces the previous one
@@ -418,8 +474,29 @@ def attach_printed_names(sheet):
         printed.append(dict(label=label, bbox=n["bbox"], area=n.get("area"), room=room["id"] if room else None,
                             room_cls=room.get("cls") if room else None, meaning=name_meaning(label)))
     sheet["printed_names"] = printed
-    sheet["printed_names_model"] = "a vision model"
+    sheet["printed_names_model"] = by
+    if by == "OCR":  # OCR also reads notes and title blocks: only names that sit in a room count as room names
+        sheet["printed_names"] = [n for n in printed if n["room"] is not None]
     sheet["_printed_names_key"] = key
+
+
+def add_door_arcs(sheet, pg):
+    """Doors from their swing arcs in the PDF's own linework (drawqa/doorarcs.py): exact geometry in any drawing style.
+    On the 65 Swiss preview PDFs the count equals the CAD file's distinct door positions on 35 plans and is within one
+    door on 59 (1,494 doors against 1,498). Needs the sheet's scale (a door is an arc of door-like radius)."""
+    from . import pdfsheet, doorarcs
+    mpp = (sheet.get("scale") or {}).get("m_per_px")
+    if not mpp:
+        return
+    try:
+        r = doorarcs.doors(pg, mpp * pdfsheet.DPI / 72)
+    except Exception as e:
+        sheet.setdefault("notes", []).append(f"door arcs failed: {type(e).__name__}: {e}")
+        return
+    k = pdfsheet.DPI / 72  # PDF points -> sheet pixels
+    sheet["door_arcs"] = dict(count=len(r["doors"]), swings=r["swings"],
+                              doors=[dict(bbox=[round(v * k, 1) for v in d["bbox_pt"]], width_m=d["radius_m"], double=d["double"])
+                                     for d in r["doors"]])
 
 
 SQFT_M2 = 0.09290304
@@ -531,6 +608,8 @@ def calibrate_scale_from_areas(sheet):
             confirmed_bare += 1
         used.update(id(a) for a in ins)
         r.update(area_m2=printed, area_source=f"printed area read by {by} ({how})", printed_text=" + ".join(a["text"] for a in ins), outline_area_m2=outline_m2)
+        if any(a.get("name") for a in ins):  # US labels carry the room name and the sheet's unit
+            r.update(name=" + ".join(a["name"] for a in ins if a.get("name")), drawing_unit=ins[0].get("drawing_unit"))
     if confirmed_bare >= 3:  # bare numbers are room areas on this sheet: the ones that found no room are probably rooms too
         loose = [x["area_m2"] for x in areas if not x.get("sure", True) and id(x) not in used]  # in no outline, or in a
         if loose:                                             # room whose outline contradicts them or holds another area

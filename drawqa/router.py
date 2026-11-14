@@ -60,6 +60,20 @@ ARITHMETIC = (r"\b(minus|plus|times|multipl\w*\s+by|divided\s+by|subtract\w*|ded
 # (a minus right after a foot or inch mark is a US dimension, 3'-0", not arithmetic)
 
 
+GENERIC_PLACE = (r"(?:whole\s+|entire\s+)?(?:floor|building|plan|floor\s*plan|apartment|flat|unit|house|storey|story|level|sheet|"
+                 r"drawing|dwelling|model)s?|(?:all\s+)?(?:indoor\s+|numbered\s+|interior\s+)?rooms")
+
+
+def names_specific_room(question):
+    """The room phrase a question names ("the total area OF THE SECONDARY CLASSROOMS", "skirting FOR THE LIBRARY"), or
+    None when it names none or only the whole floor / plan / building."""
+    q = re.sub(r"\(.*?\)", " ", question)
+    m = re.search(r"\b(?:of|for|in)\s+(?:the|all\s+the)\s+([A-Za-z][\w\-' ]{2,40}?)(?=\s+(?:on|in|of|at|for|need|needs|require|requires|have|has)\b|\s*[?,.]|\s*$)", q, re.I)
+    if not m or re.fullmatch(GENERIC_PLACE, m.group(1).strip(), re.I):
+        return None
+    return m.group(1).strip()
+
+
 def parse(question):
     q = question.strip()
     if re.search(ARITHMETIC, q, re.I):  # "total area minus 10": the pattern tools cannot do the arithmetic; the model passes it on
@@ -141,6 +155,8 @@ def parse(question):
             if intent == "count_rooms_class" and cls != "sauna" and re.search(rx, re.sub(r"\(.*?\)", "", q), re.I):
                 return dict(intent="class_area", cls=cls)
         if re.search(r"total|gesamte|totale", q, re.I):
+            if names_specific_room(q):  # "total area of the secondary classrooms": named rooms, not the whole floor
+                return dict(intent="unknown")
             return dict(intent="floor_area")
     if re.search(r"\b(scale|ma(ss|ß)stab|[ée]chelle|scala|mittakaava)\b", q, re.I) and not is_count and not is_area:
         return dict(intent="scale")

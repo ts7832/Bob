@@ -54,9 +54,38 @@ SETS = {
 }
 
 
+DL = os.path.expanduser("~/Downloads/")
+# Stoa's example sheets (2026-11-14, images; answers checked on the sheet). Run text-only: DRAWQA_DETECT=0 is set for
+# these sets, so they are light (no detector, no wall model; the OCR text layer is cached after the first read).
+STOA = {
+    "piping": (DL + "us_aw_078-24-28_march_2020_p096.png", [
+        ("How many check valves are there?", 5),  # CV-1..CV-5; the sheet says "(TYP. OF 5)"
+        ("How many FSCV valves are shown?", 7),
+        ("What size is the suction header?", 16.0),  # 16" SUCTION HEADER
+        ("What does note 4 say?", ("contains", "MICRONIC FILTER")),
+        ("How many check valves and FSCV valves are there in total?", 12),
+        ("What is the pressure in the suction header?", "refuse"),
+    ]),
+    "dorm": (DL + "us_daf_dorm_sd_drawings_april_2026_p003.png", [
+        ("What is the area of the west wing dormitory?", 6095),
+        ("What is the total area of the second floor?", 26562),
+        ("How many dorms are there on the first floor?", 48),
+        ("What is the total area of the second floor in square metres?", 2467.7),
+    ]),
+    "slab": (DL + "us_aw_078-24-33_p056.png", [
+        ("What are the slab areas by type?", ("contains", "61.7")),
+        ("What does note 1 say?", ("contains", "TRENCH")),
+    ]),
+}
+for k, v in STOA.items():
+    SETS[k] = v
+
+
 def check(answer, expect):
     if expect is None:
         return "  (read)"
+    if isinstance(expect, tuple) and expect[0] == "contains":
+        return "  ok" if expect[1].lower() in str(answer).lower() else f"  WRONG: should contain {expect[1]!r}"
     if expect == "refuse":
         return "  ok" if answer is None else "  WRONG: should refuse"
     if isinstance(expect, (int, float)) and isinstance(answer, (int, float)):
@@ -65,6 +94,8 @@ def check(answer, expect):
 
 
 def run(name):
+    if name in STOA:
+        os.environ["DRAWQA_DETECT"] = "0"
     from drawqa.solve import solve
     path, questions = SETS[name]
     print(f"== {name}: {path}", flush=True)

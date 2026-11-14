@@ -50,7 +50,21 @@ def counting_readings(els, cls):
 
 
 def _count_openings(sheet, els, cls):
+    arcs = sheet.get("door_arcs") if cls == "door" else None
+    fit = sheet.get("detector_fit") or {}
+    if arcs and arcs.get("count") and (not els or fit.get("level") in ("weak", "none") or fit.get("missing") == "door"):
+        # the detector does not know this drawing's door symbols, but the PDF's own swing arcs say where the doors are
+        ev = [dict(id=f"arc{i}", shape="box", bbox=d["bbox"], label=str(i + 1)) for i, d in enumerate(arcs["doors"])]
+        dbl = sum(1 for d in arcs["doors"] if d["double"])
+        return dict(answer=arcs["count"], unit="count", evidence=ev, door_arcs=True,
+                    explanation=f"Counted {arcs['count']} doors from their swing arcs in the PDF's own linework (each numbered on the "
+                                f"drawing; {dbl} double door(s) count once; {arcs['swings']} swings in all)."
+                                + (f" The detector found {len(els)} door symbol(s) here: it does not recognise this drawing's style."
+                                   if sheet.get("model") == "element detector" else " The symbol detector was not run on this sheet."))
     res = _count(sheet, els, cls)
+    if arcs and arcs.get("count") is not None:  # the PDF's swing arcs as a second, independent count
+        res["explanation"] += (f" Door swings drawn in the PDF itself: {arcs['count']} doors (double doors once; "
+                               f"{arcs['swings']} swings), from exact geometry.")
     readings = counting_readings(els, cls)
     if readings:
         res["counting"] = readings
@@ -90,7 +104,7 @@ def _sum_areas(sheet, rooms, what):
         return dict(answer=total, unit="m2", evidence=ev, area_sources=[r.get("area_source") for r in rooms], elements_used=rooms,
                     drawing_unit="sqft", explanation=f"{what}: {terms} = {total / 0.09290304:.0f} SF, as printed.{left_out}")
     return dict(answer=total, unit="m2", evidence=ev, area_sources=[r.get("area_source") for r in rooms], elements_used=rooms,
-                explanation=f"{what}: {terms} = {total:.2f} m².{left_out}")
+                explanation=f"{what}: {terms} = {total:.2f} m².{left_out}{_merged_note(rooms)}")
 
 
 ASSUMED_HEIGHT = 2.5  # m; a common room height. Used only when the question gives none, and always said in the answer
@@ -146,6 +160,16 @@ def _perimeters(sheet, intent):
     return None, (round(sum(p for _, p in done), 2), done, missing, what)
 
 
+def _merged_note(rooms):
+    """Outlines that hold several printed room names probably span several rooms (the wall model merged them)."""
+    big = [r for r in rooms if len(r.get("names") or []) > 1]
+    if not big:
+        return ""
+    return (f" Warning: {len(big)} outline(s) hold several printed room names ("
+            + "; ".join(" / ".join(r["names"][:4]) for r in big[:3])
+            + "), so each probably spans more than one room and its measure includes neighbours.")
+
+
 def _room_tag(r):
     return " ".join(str(x) for x in (r.get("number"), r.get("name") or ROOM_WORDS.get(r.get("cls"), r.get("cls"))) if x)
 
@@ -160,7 +184,7 @@ def _room_perimeter(sheet, intent):
     return dict(answer=total, unit="m", evidence=[_shape(sheet, r, f"{p:.2f} m") for r, p in done], elements_used=[r for r, _ in done],
                 area_sources=[_outline_source(sheet)],
                 explanation=f"Perimeter of {what}: " + " + ".join(f"{p:.2f} ({_room_tag(r)})" for r, p in done) + f" = {total:.2f} m, "
-                            f"measured along each room's outline (wall faces; door openings are not subtracted).{left}")
+                            f"measured along each room's outline (wall faces; door openings are not subtracted).{left}{_merged_note([r for r, _ in done])}")
 
 
 def _height(intent):
@@ -245,8 +269,9 @@ def _printed_label_count(sheet, label):
         return dict(answer=0, unit="count", evidence=[], read_names=True,
                     explanation=f"0: no room name '{label}' was read on this drawing (names were read by a vision model, "
                                 f"which can misread a letter).")
+    by = sheet.get("printed_names_model") or "a vision model"
     return dict(answer=len(hits), unit="count", evidence=ev, read_names=True,
-                explanation=f"Counted {len(hits)} printed room name(s) '{label}', read by a vision model; each one is boxed "
+                explanation=f"Counted {len(hits)} printed room name(s) '{label}', read by {by}; each one is boxed "
                             f"on the drawing for checking.")
 
 
@@ -254,8 +279,12 @@ def _name_check(sheet, cls, counted):
     """The detector's count of a room type, checked against the names printed on the drawing (when they were read):
     names that mean this type (MAKUUH, MH = bedroom) printed in rooms the detector did not give this type. Changes no
     answer; says what the names suggest, so a missed room is not silent."""
-    names = [n for n in sheet.get("printed_names", []) if n.get("meaning") == ("sauna" if cls == "sauna_room" else cls)]
+    allp = sheet.get("printed_names", [])
+    names = [n for n in allp if n.get("meaning") == ("sauna" if cls == "sauna_room" else cls)]
     if not names:
+        if len(allp) >= 5 and counted:  # the sheet names its rooms, and none of the names means this type
+            return (f" Check: none of the {len(allp)} room names printed on the drawing means {ROOM_WORDS.get(cls, cls)}, so "
+                    f"what the detector found may be another kind of room or object.")
         return ""
     rooms = {}
     for n in names:  # one room per outline (MH + a corrected ASKARTELU in one room = one), loose names one each
@@ -311,6 +340,8 @@ def _text_tool(sheet, intent):
             img = sheet.get("source") if sheet.get("source_type") == "raster" else None  # traced on the image when there is one
             res = slabs.answer(texts, img=img, m_per_px=_m_per_unit(sheet))
             res.pop("detail", None)
+            if isinstance(res.get("answer"), str):  # a listing that already says "m2" for each type
+                res["unit"] = None
             if res.get("answer") is not None:  # callout words and dimensions are read; which region a callout covers is judged
                 res.update(tier="estimated",
                            basis="slab types and dimension numbers are read from the sheet; the region each callout covers is "
@@ -334,7 +365,7 @@ def _text_tool(sheet, intent):
                                        + (f"; the first {len(shown)} are shown" if len(lines) > len(shown) else "") + ".")
             elif it == "read_value":
                 from .convert import name_key
-                want = name_key(label)
+                want = name_key(re.sub(r"\s*\([^)]*\)\s*$", "", label))  # "FIRST FLOOR (DORMS)" as listed -> FIRST FLOOR
                 kv = tags.key_values(texts)
                 hit = [x for x in kv if name_key(x.get("key") or x.get("label") or "") == want] or \
                       [x for x in kv if want and want in name_key(x.get("key") or x.get("label") or "")]

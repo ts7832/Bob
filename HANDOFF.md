@@ -352,6 +352,21 @@ word is a table question (`mentions_table_values`), except when the patterns rea
 `tools/freeform_check.py swiss|scan|ifc`: about 30 Stoa-style questions, 20 with known answers. Swiss and BIM passed
 in full at about 15:00; the two scan misses found after that were fixed and re-checked one by one, not in a full run.
 
+**Reading the drawing's own text (evening, for Stoa's example sheets).** Stoa's examples are large CAD-drawn sheets
+(UK school plan, US dorm plan, US foundation/slab plan, US piping plan; 9934-14000 px images) and test files may be
+any format. These tools work on the sheet's list of texts, whatever produced it (PDF text layer, OCR, CAD text):
+- `textlayer.py`: OCR of big images in native-resolution 2000 px tiles (piping plan: 24 -> 54 of ~56 tags).
+- `scalebar.py`: scale from the bar measured on the image, the printed scale + paper size, and dimension strings;
+  on the four sheets they agree within 0.1%. `convert.scale_from_text` uses it; `pdfsheet` imperial scales fixed.
+- `tags.py`: tag inventory with gaps and the sheet's own definitions, pipe sizes, find-text, numbered notes,
+  "label = value" lists, and US room labels (name over "218 SF", unit totals "(762 SF)").
+- `slabs.py`: slab callouts and area per type, tier estimated (callout-to-region assignment is judged).
+- Question tools: `count_tags`, `find_text`, `read_value`, `pipe_size`, `slab_areas`, `count_rooms`; tier "read".
+- Checks: Stoa example questions (`tools/freeform_check.py piping|dorm|slab`, text-only with `DRAWQA_DETECT=0`):
+  12 / 12. Gold set (teammates' judge-style drafts): 60 / 83 at first; the 9 US floor-plan misses then 9 / 9.
+- Units and arithmetic from the question are done by code (`solve._finalize`); US sheets answer in SF.
+- `DRAWQA_DETECT=0`: a light, text-only conversion (no detector, no wall model): OCR text, scale, tables.
+
 **Not done.** Walls and outlines are not produced for vector PDFs (they carry exact outlines; the model was trained
 on scans read whole). The licence question in section 7 now also
 covers RapidOCR (Apache-2.0) and the Anthropic SDK (MIT), which are fine, and still Ultralytics (AGPL).

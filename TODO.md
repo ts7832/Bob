@@ -4,6 +4,32 @@ Read this first, then `README.md` (rules, how it works, measurements) and `HANDO
 walls, areas and free-form questions). Written at 14:31, updated at 15:15 (section "Changes 14:31-15:15" and tasks
 1-4, 8). Re-check anything marked "check".
 
+## Changes 17:40-20:30 (session B; branch `freeform-tools`)
+
+- **Doors from swing arcs in vector PDFs** (`drawqa/doorarcs.py`, `convert.add_door_arcs`): quarter-circle arcs of
+  door-like radius at the sheet's scale, from Bezier curves, flattened polylines, or one-line-per-path exports.
+  65 Swiss preview PDFs vs the CAD files' distinct door positions: exact on 35, within one on 59, 1,494 vs 1,498
+  doors in total (developed on one plan). US A477: 12 doors, 0.81-0.91 m leaves. Cherokee Path: none found (arcs
+  broken up). Every PDF door count reports it; it is the answer when the detector does not know the style.
+- **Stoa's UK school sheet end to end** (14000 px image): convert 264 s, 1.9 GB peak (pre-convert for the demo;
+  cached now); scale 1:200 from the bar; 128 doors, 67 windows (detector, one orientation: big sheets skip the
+  four-orientation pass, `detect.TTA_MAX_TILES`, the other session; the note goes into the answer's basis).
+- **Room names read by OCR on images** (`convert.ocr_room_names`): name lines grouped into blocks, kept when inside a
+  room outline, attached like the vision reader's names. UK school: Group Room x10, Secondary Classroom x8 (incl.
+  Severe Needs), Store x6 ... "How many secondary classrooms": 8, read. "Total area of the secondary classrooms":
+  441.84 m2 over 8 rooms (~55 m2 each), detected. Outlines holding several names are flagged as merged rooms.
+- Router / model guards: "total area of the <named rooms>" is not the whole floor; a step that would measure every
+  room while the question names one is refused ("library" not found -> cannot determine, not 926 m); printed names
+  that contain the question's room words beat a room type the model picked (it once took classrooms for bedrooms);
+  read_value picks a label whose value has the asked kind (area vs count). Type counts say when no printed name
+  means that type ("none of the 64 names means sauna").
+- `DRAWQA_DETECT=0`: text-only conversion (OCR text, scale, tables; no detector or wall model), ~1 s per sheet with
+  cached OCR. `tools/freeform_check.py piping|dorm|slab` uses it.
+- Checks: question set 33 / 33 checkable answers right (Swiss 16, BIM 8, Stoa sheets 12); scoreboards unchanged
+  (85.0 / 98.6 / 97.7).
+- Detector fine-tune `f26l` (e26l + FloorPlanCAD, other session) was training at 19:40; FloorPlanCAD data:
+  `/data/yolo_fpc`, `tools/modal_fpc.py` (3,765 train images, CC BY-NC 4.0).
+
 ## Changes 16:45-17:40 (session B; branch `freeform-tools`)
 
 - **Gold set** (teammates' 86 judge-style questions; answers still unverified drafts), first full run with the model:

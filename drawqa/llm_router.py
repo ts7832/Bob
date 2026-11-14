@@ -149,7 +149,9 @@ Tools (intent: what it does; arguments):
 - find_text: the drawing's own text lines containing some words: a note, a callout, a specification, a title.
   label = the words to look for, e.g. "NOTE 4" or "SLAB-ON-GRADE". The answer is the text as printed
 - read_value: a number printed next to a label in a list or table on the sheet (area lists, room counts:
-  "WEST WING DORMITORY = 6,095 SF"). label = the label as listed in `labelled_values`
+  "WEST WING DORMITORY = 6,095 SF"). label = the label as listed in `labelled_values`, without the unit in brackets
+  (`labelled_values` shows each label with the unit of its value: "FIRST FLOOR (DORMS)" answers "how many dorms
+  are on the first floor?" with label "FIRST FLOOR")
 - pipe_size: the size printed with a named pipe ("16\" SUCTION HEADER"). label = the pipe's name, e.g.
   "suction header"
 - slab_areas: floor-slab areas grouped by slab type (thickness and reinforcement), from the slab callouts and the
@@ -199,8 +201,9 @@ def _text_context(sheet):
             meaning = lambda d: (d.get("text") if isinstance(d, dict) else d) or ""
             out["tag_prefixes"] = {p: meaning(v.get("definition")) for p, v in pre}
         kv = tags.key_values(texts)
-        if kv:
-            out["labelled_values"] = sorted({str(x.get("key") or x.get("label")) for x in kv if x.get("key") or x.get("label")})[:40]
+        if kv:  # each label with the unit its value is printed in ("FIRST FLOOR (DORMS)"), never the value itself
+            out["labelled_values"] = sorted({str(x.get("key") or x.get("label")) + (f" ({x['unit']})" if x.get("unit") else "")
+                                             for x in kv if x.get("key") or x.get("label")})[:40]
     except Exception:  # module not ready, or a sheet it cannot read: the other tools still work
         pass
     try:
@@ -410,6 +413,66 @@ def _generic_room_label(d, question):
     return None
 
 
+NOT_A_ROOM = {"floor", "building", "plan", "apartment", "unit", "whole", "total", "entire", "rooms", "drawing", "sheet",
+              "model", "house", "flat", "ceiling", "walls", "wall", "skirting", "board", "boards", "area", "perimeter",
+              "length", "height", "scale", "doors", "door", "windows", "window", "storey", "level", "plans", "same", "first",
+              "second", "third", "ground", "basement", "attic", "drawings", "question", "answer", "tiles", "paint"}
+
+
+AREA_UNITS = {"SF", "SQFT", "SQ FT", "M2", "M²", "SQM"}
+
+
+def _fit_value_kind(d, question, sheet):
+    """read_value: a question about an AREA must get a label whose value is an area, a "how many" question one whose
+    value is not. When the model's label has the wrong kind and a label that contains its words has the right kind
+    ("total area of the second floor": SECOND FLOOR = 48 DORMS -> TOTAL SECOND FLOOR = 26,562 SF), take that one."""
+    import re
+    steps = [st for st in d.get("steps") or [] if isinstance(st, dict) and st.get("intent") == "read_value" and st.get("label")]
+    if not steps:
+        return
+    wants_area = bool(re.search(r"\barea|square|\bsq\b|m²|\bm2\b|footage|\bsize\b", question, re.I))
+    wants_count = bool(re.search(r"\bhow many\b|\bnumber of\b", question, re.I))
+    if wants_area == wants_count:
+        return
+    try:
+        from . import tags
+        kv = tags.key_values(sheet.get("texts") or [])
+    except Exception:
+        return
+    words = lambda s: set(re.findall(r"[A-Z0-9]+", str(s).upper()))
+    is_area = lambda x: str(x.get("unit") or "").upper().strip() in AREA_UNITS
+    for st in steps:
+        lab = re.sub(r"\s*\([^)]*\)\s*$", "", st["label"])
+        cur = [x for x in kv if words(x.get("label")) == words(lab)]
+        if cur and is_area(cur[0]) == wants_area:
+            continue
+        alt = [x for x in kv if words(lab) <= words(x.get("label")) and is_area(x) == wants_area]
+        if alt:
+            st["label"] = min(alt, key=lambda x: len(words(x.get("label"))))["label"]
+
+
+def _named_room_missing(d, question):
+    """A measuring step over ALL rooms (room_perimeter / wall_area / room areas with no room chosen) while the question
+    names one room ("skirting for the library"): the model found no such room and fell back to everything. Refuse with
+    the reason instead of measuring the whole plan."""
+    import re
+    from .router import names_specific_room
+    whole = re.search(r"\b(all|every|each|whole|entire|total)\b", question, re.I)
+    for st in d.get("steps") or []:
+        if not isinstance(st, dict) or st.get("intent") not in ("room_perimeter", "wall_area", "floor_area"):
+            continue
+        if any(str(st.get(k) or "").strip() for k in ("number", "unit", "label")) or st.get("labels") or st.get("classes"):
+            continue
+        named = names_specific_room(question)
+        if not named and not whole:
+            m = [w for w in re.findall(r"\bthe\s+([a-z][\w\-]{3,30})\b", question, re.I) if w.lower() not in NOT_A_ROOM]
+            named = m[0] if m else None
+        if named:
+            return (f"the question is about '{named}', which is not among the rooms named on this drawing, so nothing was "
+                    "measured (measuring every room instead would answer a different question)")
+    return None
+
+
 def _fill_room_names(d, question, sheet):
     """A room tool sent back with no room ("area of the OLOH" -> room_area with every argument empty and the name only
     in its title): take the room names that exist on this drawing and appear, as whole words, in the question or the
@@ -418,6 +481,30 @@ def _fill_room_names(d, question, sheet):
     ctx = json.loads(_context(sheet))
     names, numbers = ctx.get("room_names") or [], set(ctx.get("room_numbers") or [])
     by_low = {n.lower(): n for n in names}
+    # the question's room words all appear in printed names ("the secondary classrooms" -> "Secondary Classroom",
+    # "Secondary Classroom (Severe Needs)"): those names, ahead of a room TYPE the model may have picked (it once took
+    # classrooms for bedrooms, because the detector types school rooms as apartment rooms)
+    from .router import names_specific_room
+    sing = lambda w: w[:-1] if len(w) > 3 and w.endswith("s") else w
+    phrase = names_specific_room(question)
+    if not phrase:  # "how many secondary classrooms are there?"
+        m = re.search(r"\bhow many\s+([a-z][\w\- ]{2,40}?)\s+(?:are|is|do|does|can|on|in|there|exist)\b", question, re.I)
+        phrase = m.group(1) if m and m.group(1).lower() not in NOT_A_ROOM else None
+    if not phrase:
+        m = [w for w in re.findall(r"\bthe\s+([a-z][\w\-]{3,30})\b", question, re.I) if w.lower() not in NOT_A_ROOM]
+        phrase = m[0] if m else None
+    pw = {sing(w) for w in re.findall(r"[a-z]+", (phrase or "").lower())} - {"the", "all", "and", "of"}
+    match = [n for n in names if pw and pw <= {sing(w) for w in re.findall(r"[a-z]+", n.lower())}]
+    if match:
+        swap = {"class_area": "label_area", "count_rooms_class": "count_rooms_label", "label_area": "label_area",
+                "count_rooms_label": "count_rooms_label", "room_perimeter": "room_perimeter", "wall_area": "wall_area"}
+        for st in d.get("steps") or []:
+            if isinstance(st, dict) and st.get("intent") in swap and not st.get("number") and not st.get("unit"):
+                # a count takes one name per step: several matching names are split into steps and added by _validate
+                one = match[0] if len(match) == 1 or swap[st["intent"]] != "count_rooms_label" else ""
+                st.update(intent=swap[st["intent"]], labels=match, label=one, cls="", classes=[])
+                if not one and d.get("combine") in (None, "", "single"):
+                    d["combine"] = "sum"
     for st in d.get("steps") or []:
         if not isinstance(st, dict) or st.get("intent") not in ("room_area", "label_area", "count_rooms_label"):
             continue
@@ -460,6 +547,10 @@ def parse(question, sheet):
     generic = _generic_room_label(d, question)
     if generic:
         return None, generic, model
+    missing = _named_room_missing(d, question)
+    if missing:
+        return None, missing, model
+    _fit_value_kind(d, question, sheet)
     plan = _validate(d)
     reading = str(d.get("reading") or "").strip()
     if plan is None and d.get("steps"):  # it named tools, but with arguments they do not take or an unusable combination

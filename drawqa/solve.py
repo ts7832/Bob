@@ -57,6 +57,11 @@ def honesty(sheet, intent, res):
         return dict(inner, tier="estimated", deterministic=False, basis=f"{res['assumed']}; the rest: {inner['tier']}, {inner['basis']}")
     st, it = sheet["source_type"], intent["intent"]
     scale = sheet.get("scale") or {}
+    if res.get("door_arcs"):  # doors from swing arcs in the PDF's own linework
+        return dict(tier="measured", deterministic=True,
+                    basis="door swing arcs found in the PDF's own linework at the sheet's scale (a quarter circle of door-like "
+                          "radius = one door; two leaves meeting = one double door); measured on 65 Swiss plans: equal to the "
+                          "CAD door positions on 35, within one door on 59")
     if res.get("read_text"):  # read from the drawing's own text (drawqa/tags.py, drawqa/slabs.py)
         src = {"raster": "read by OCR from the image (a character can be misread; each item is boxed for checking)",
                "vector-pdf": "the PDF's own text layer (exact characters)", "vector-dxf": "the CAD file's own text"}.get(st, "the drawing's own text")
@@ -65,7 +70,8 @@ def honesty(sheet, intent, res):
         return dict(tier="read", deterministic=st != "raster", basis=src)
     if res.get("read_names"):  # a count of printed room names on an image
         return dict(tier="read", deterministic=False,
-                    basis="room names printed on the drawing, read by a vision model (it can misread a letter); each counted name is boxed")
+                    basis=f"room names printed on the drawing, read by {sheet.get('printed_names_model') or 'a vision model'} "
+                          "(it can misread a letter); each counted name is boxed")
     if it == "opening_width" and st != "ifc":
         used = res.get("elements_used", [])
         est = bool(scale.get("estimated"))
@@ -90,6 +96,9 @@ def honesty(sheet, intent, res):
         if exact:
             note += f"; {exact} matched to rectangles in the drawing's own linework (exact geometry)"
         out = dict(tier="detected", deterministic=False, basis=note, weakest=min(confs) if confs else None)
+        if sheet.get("detector_note"):  # e.g. one orientation only on a very large sheet
+            out["basis"] += ". Note: " + sheet["detector_note"]
+            note = out["basis"]
         fit = sheet.get("detector_fit") or {}
         if fit.get("level") in ("weak", "none"):  # say so when the drawing is unlike what the detector was trained on
             # a 0 is not a measurement when the detector recognises nothing on this drawing, or when it recognises
