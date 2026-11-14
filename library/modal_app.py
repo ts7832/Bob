@@ -190,7 +190,17 @@ def web():
         return Image.open(io.BytesIO(data)).convert("RGB")
 
     ENGINE = modal.Function.from_name("bob-engine", "answer")
-    norm = lambda s: re.sub(r"[^\w]+", " ", s.lower(), flags=re.UNICODE).strip()[:500]
+    FULL = modal.Function.from_name("bob-engine", "solve_full")
+    SPLIT = modal.Function.from_name("bob-engine", "split")
+    FILLER = re.compile(r"\b(in total|altogether|all together|together|total|please|shown|drawn|there|exactly)\b")
+
+    def norm(s):
+        """Question key for the library: same words, ignoring case, punctuation and filler ("in total", "shown")."""
+        t = re.sub(r"[^\w]+", " ", s.lower(), flags=re.UNICODE)
+        return re.sub(r"\s+", " ", FILLER.sub(" ", t)).strip()[:500]
+
+    for row in q("SELECT id, question FROM answers"):
+        q("UPDATE answers SET question_norm=%s WHERE id=%s", (norm(row["question"]), row["id"]))
 
     # ---- API ----------------------------------------------------------------------------------------------------------
     api = FastAPI(title="Bob library")
@@ -440,6 +450,112 @@ def web():
             raise HTTPException(404, "no such answer")
         return dict(id=aid, sheet_id=r["sheet_id"], status=r["status"], question=r["question"], answer=json.loads(r["answer_json"]) if r["answer_json"] else None,
                     seconds=r["seconds"], cost_usd=r["cost_usd"])
+
+    @api.get("/api/find")
+    def find_sheet(request: Request, file_name: str):
+        """The sheet of this workspace stored from a file of this name, if any."""
+        w = ws(request)
+        r = q("SELECT s.id FROM sheets s JOIN projects p ON p.id=s.project_id WHERE p.workspace_id=%s AND s.file_name=%s ORDER BY s.id LIMIT 1", (w, file_name), one=True)
+        if not r:
+            raise HTTPException(404, "not in the library")
+        return dict(id=r["id"])
+
+    def store(w, sid, question, result, seconds, parts=None):
+        old = q("SELECT id FROM answers WHERE sheet_id=%s AND question_norm=%s", (sid, norm(question)), one=True)
+        body = json.dumps(dict(result, part_ids=parts) if parts else result, ensure_ascii=False, default=str)
+        if old:
+            q("UPDATE answers SET status='done', answer_json=%s, seconds=%s, cost_usd=0 WHERE id=%s", (body, seconds, old["id"]))
+            aid = old["id"]
+        else:
+            aid = q("INSERT INTO answers (sheet_id, question, question_norm, answer_json, seconds, cost_usd) VALUES (%s,%s,%s,%s,%s,0)",
+                    (sid, question, norm(question), body, seconds))
+        q("INSERT INTO ledger (workspace_id, sheet_id, kind, cost_usd, seconds) VALUES (%s,%s,'answer',0,%s)", (w, sid, seconds))
+        return aid
+
+    def cached(w, sid, question):
+        r = q("SELECT * FROM answers WHERE sheet_id=%s AND question_norm=%s AND status='done'", (sid, norm(question)), one=True)
+        if not r:
+            return None
+        res = json.loads(r["answer_json"])
+        if "audit" not in res:                  # saved before audit trails (no evidence to draw): answer it again, properly
+            return None
+        q("UPDATE answers SET hits=hits+1 WHERE id=%s", (r["id"],))
+        q("INSERT INTO ledger (workspace_id, sheet_id, kind, saved_usd, saved_seconds) VALUES (%s,%s,'reuse',%s,%s)", (w, sid, r["cost_usd"], r["seconds"]))
+        return dict(id=r["id"], result=res, seconds=r["seconds"], created=str(r["created_at"]), hits=r["hits"] + 1)
+
+    @api.post("/api/solve")
+    async def solve_api(request: Request):
+        """Body {sheet_id, question}. The engine's full answer (evidence for the blueprint view) with its audit trail.
+        A question with several parts is split; each part is answered (or taken from the library) and kept on its own,
+        so a later question that is one of the parts is answered from the library."""
+        import asyncio
+        w = ws(request)
+        b = await request.json()
+        sid, question = int(b["sheet_id"]), b["question"].strip()
+        sh = sheet_row(w, sid)
+        t0 = time.time()
+        hit = cached(w, sid, question)
+        if hit:
+            r = hit["result"]
+            r["library"] = dict(from_library=True, answer_id=hit["id"], first_seconds=hit["seconds"], first_asked=hit["created"], times_reused=hit["hits"], now_seconds=round(time.time() - t0, 3))
+            r.setdefault("audit", {}).setdefault("steps", [])
+            r["audit"]["reused"] = f"answered from the library (reused {hit['hits']} times; first answer took {hit['seconds']:.2f} s of engine time, now $0)"
+            dirty.set()
+            return r
+        sp = await SPLIT.remote.aio(question)
+        parts = sp["parts"]
+        done = []
+        for pq in parts:
+            hit = cached(w, sid, pq) if len(parts) > 1 else None
+            if hit:
+                done.append(dict(question=pq, result=hit["result"], seconds=hit["seconds"], from_library=True, answer_id=hit["id"]))
+                continue
+            out = await FULL.remote.aio(sid, sh["file_name"], pq)
+            aid = store(w, sid, pq, out["result"], out["seconds"]) if len(parts) > 1 else None
+            done.append(dict(question=pq, result=out["result"], seconds=out["seconds"], from_library=False, answer_id=aid))
+        if len(done) == 1:
+            r = done[0]["result"]
+            aid = store(w, sid, question, r, done[0]["seconds"])
+            r["library"] = dict(from_library=False, answer_id=aid, first_seconds=done[0]["seconds"], times_asked=1)
+            dirty.set()
+            return r
+        rs = [d["result"] for d in done]
+        vals = [x.get("answer") for x in rs]
+        units = {x.get("unit") for x in rs}
+        numeric = all(isinstance(v, (int, float)) for v in vals)
+        order = ["read", "measured", "detected", "estimated", "cannot determine"]
+        tiers = [(x.get("honesty") or {}).get("tier") or "cannot determine" for x in rs]
+        weakest = max(tiers, key=lambda t: order.index(t) if t in order else 4)
+        if sp["total"] and numeric and len(units) == 1:
+            answer, unit = round(sum(vals), 3), units.pop()
+            how = "the parts added up, because the question asks for a total"
+        else:
+            answer, unit = " · ".join(f"{v if v is not None else 'cannot determine'}" for v in vals), None
+            how = "each part answered on its own"
+        ev = []
+        for k, (d, x) in enumerate(zip(done, rs)):
+            for e in x.get("evidence") or []:
+                ev.append(dict(e, id=f"p{k + 1}-{e.get('id')}", part=k + 1))
+        combined = dict(answer=answer, unit=unit, evidence=ev, source_type=rs[0].get("source_type"),
+                        honesty=dict(tier=weakest, basis=f"weakest of the parts ({', '.join(tiers)}); {how}"),
+                        confidence=min((x.get("confidence") or 0) for x in rs) if all(x.get("confidence") is not None for x in rs) else None,
+                        explanation=" | ".join(f"{d['question']} -> {x.get('answer')}" for d, x in zip(done, rs)),
+                        method="split into parts", parts=[dict(question=d["question"], answer=x.get("answer"), unit=x.get("unit"),
+                                                             tier=(x.get("honesty") or {}).get("tier"), from_library=d["from_library"],
+                                                             seconds=d["seconds"], audit=x.get("audit")) for d, x in zip(done, rs)])
+        combined["audit"] = dict(question=question, split=[d["question"] for d in done],
+                                 steps=[dict(stage="Question split", actor="splitter (patterns, no language model)",
+                                             detail=f"{len(done)} parts: " + "; ".join(d["question"] for d in done))]
+                                 + [dict(stage=f"Part {k + 1}", actor="library" if d["from_library"] else "engine on Modal",
+                                         detail=("taken from the library, $0" if d["from_library"] else f"answered by the engine in {d['seconds']:.2f} s, kept for next time")
+                                         + f": {d['question']} -> {x.get('answer')}. "
+                                         + " · ".join(f"{st['stage']}: {st['actor']}" for st in (x.get("audit") or {}).get("steps", [])),
+                                         confidence=x.get("confidence")) for k, (d, x) in enumerate(zip(done, rs))]
+                                 + [dict(stage="Combined", actor="library", detail=how)])
+        aid = store(w, sid, question, combined, sum(d["seconds"] for d in done if not d["from_library"]), parts=[d["answer_id"] for d in done])
+        combined["library"] = dict(from_library=False, answer_id=aid, parts_from_library=sum(d["from_library"] for d in done), times_asked=1)
+        dirty.set()
+        return combined
 
     @api.get("/api/engine/next")
     def engine_next(request: Request):

@@ -64,3 +64,85 @@ def answer(answer_id: int, sheet_id: int, file_name: str, question: str):
                                  headers={"x-bob-password": os.environ["BOB_PASSWORD"], "content-type": "application/json"})
     urllib.request.urlopen(req, timeout=60).read()
     return dict(answer_id=answer_id, answer=keep.get("answer"), seconds=sec, generic=generic)
+
+
+READERS = {"vector-dxf": "CAD reader: the DXF file's own layers (walls, doors, windows, rooms), exact",
+           "vector-pdf": "PDF reader: the page's own text and vector linework at its printed scale",
+           "raster": "image pipeline: YOLO26 element detector (c26l) and wall/room segmenter (seg1) on the image, plus OCR for printed text",
+           "ifc": "building-model reader: IfcOpenShell queries on the IFC model behind this plan, exact"}
+
+
+def _audit(r, question, seconds, generic):
+    """The answer's process as steps a person can check: who read the file, who read the question, what produced the
+    number, how sure, and where a language model was used and why."""
+    st, qr, h = r.get("source_type") or "", r.get("question_read") or {}, r.get("honesty") or {}
+    ev = r.get("evidence") or []
+    confs = sorted(float(e["conf"]) for e in ev if isinstance(e, dict) and isinstance(e.get("conf"), (int, float)))
+    steps = [dict(stage="Blueprint read", actor=READERS.get(st, f"reader for {st or 'this file'}"),
+                  detail=("read as an unknown file (no dataset shortcuts)" if generic else "dataset copy with its companion files (model / CAD file)"))]
+    by = qr.get("by") or "pattern"
+    if by == "pattern":
+        steps.append(dict(stage="Question read", actor="pattern router (no language model)", detail=f"{qr.get('note') or 'matched a known question pattern'}; intent {json_intent(r)}"))
+    else:
+        steps.append(dict(stage="Question read", actor=f"language model ({qr.get('model') or 'Claude'})",
+                          detail=f"used because no known pattern matched this wording; it only chose the tool and its arguments "
+                                 f"(intent {json_intent(r)}), the number itself comes from the step below. {qr.get('note') or ''}".strip()))
+    steps.append(dict(stage="Answer produced", actor=r.get("method") or "engine",
+                      detail=f"{len(ev)} evidence item(s) marked on the blueprint" + (f"; item confidence {confs[0]:.0%} to {confs[-1]:.0%}" if confs else ""),
+                      confidence=r.get("confidence")))
+    steps.append(dict(stage="Honesty", actor=h.get("tier") or "unknown", detail=h.get("basis") or "", confidence=r.get("confidence")))
+    return dict(question=question, seconds=seconds, language_model_used=by != "pattern", steps=steps)
+
+
+def json_intent(r):
+    i = r.get("intent") or {}
+    return ", ".join(f"{k}={v}" for k, v in i.items() if v not in (None, "", [])) or "unknown"
+
+
+@app.function(image=image, volumes={"/ds": DATA, "/lib": LIB}, cpu=2, memory=4096, timeout=600, scaledown_window=900, min_containers=1)
+def solve_full(sheet_id: int, file_name: str, question: str):
+    """Synchronous: the engine's whole result (evidence included, for the blueprint view) plus its audit trail."""
+    import shutil, sys, time
+    sys.path.insert(0, "/root/app")
+    os.chdir("/root/app")
+    from drawqa.solve import solve
+    path, generic = _find(file_name), False
+    if path is None:
+        LIB.reload()
+        path = f"/tmp/sheet{sheet_id}{os.path.splitext(file_name)[1] or '.pdf'}"
+        shutil.copy(f"/lib/library/files/{sheet_id}/original", path)
+        generic = True
+    t0 = time.time()
+    try:
+        r = solve(path, question, generic=generic, llm=os.environ.get("BOB_LLM") == "1")
+    except Exception as e:
+        r = dict(answer=None, honesty=dict(tier="cannot determine", basis=f"the engine failed on this blueprint: {type(e).__name__}: {e}"[:300]))
+    sec = round(time.time() - t0, 3)
+    r = {k: v for k, v in r.items() if k != "cost"}
+    r["audit"] = _audit(r, question, sec, generic)
+    return dict(result=r, seconds=sec)
+
+
+@app.function(image=image, cpu=1, memory=1024, timeout=60, scaledown_window=900, min_containers=1)
+def split(question: str):
+    """A question with several parts -> its parts, each one a question the engine's patterns can read on its own.
+    "How many doors and windows are on this floor?" -> doors, windows. Anything else stays one question."""
+    import re, sys
+    sys.path.insert(0, "/root/app")
+    from drawqa import router
+    q = question.strip()
+    parts = []
+    qs = [p.strip() + "?" for p in re.split(r"\?\s*", q) if p.strip()]           # several questions in one message
+    for one in qs:
+        m = re.match(r"(?i)^(how many|what is the total number of|count the)\s+(.+?)\s+(are|is|on|in|shown|drawn)\b(.*)$", one)
+        nouns = re.split(r"\s*,\s*|\s+and\s+|\s*\+\s*", m.group(2)) if m else []
+        if m and len(nouns) > 1:
+            rest = re.sub(r"(?i)\s*\b(in total|altogether|together|combined)\b", "", m.group(4))
+            cand = [f"{m.group(1)} {n} {m.group(3)}{rest}" for n in nouns if n]
+            if all(router.parse(c)["intent"] != "unknown" for c in cand):
+                parts += cand
+                continue
+        m = re.split(r"(?i)\s+and\s+(?=(?:how many|what|which|where)\b)", one)  # "... and what is ..."
+        parts += [p if p.endswith("?") else p + "?" for p in m]
+    total = bool(re.search(r"(?i)\b(in total|total|together|combined|altogether|sum)\b", q))
+    return dict(parts=parts if len(parts) > 1 else [q], total=total)
