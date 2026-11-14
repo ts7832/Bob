@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { CameraControls, Html, Line, PerformanceMonitor } from '@react-three/drei'
 import CameraControlsImpl from 'camera-controls'
-import { Building, Effects, Fixtures, Floors, Lighting, drawingUV, useBuilding, useLifted, type Lift } from './Model'
+import { Building, Effects, Fixtures, Floors, Lighting, drawingUV, useBuilding, useCutaway, useLifted, type Lift } from './Model'
 import { buildOne } from './fixtures3d'
 import { Photo } from './Photo'
 import type { Answer, Drawing, Element, Loaded, Pt, SheetView, Tier } from './types'
@@ -102,7 +102,7 @@ interface Props {
   focus: Focus
   fitAll: number
   insets: Insets
-  tools: { view: SheetView | null; measure: boolean; mpts: Pt[]; mclosed: boolean; peek: boolean; hidden: string[]; cut: number; refit: number; clean: boolean; swipe: number }
+  tools: { view: SheetView | null; cutaway: boolean; measure: boolean; mpts: Pt[]; mclosed: boolean; peek: boolean; hidden: string[]; cut: number; refit: number; clean: boolean; swipe: number }
   onMeasure: (pts: Pt[], closed: boolean) => void
   onSelect: (id: string | null) => void
   onHover: (id: string | null) => void
@@ -135,10 +135,12 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
   }, [loaded, want3d])
   const lifted = useLifted(lift)
   const clean = useClean(loaded, tools.clean && mode === '2d' && !tools.peek, tools.swipe)
+  const tagsHidden = useDeclutter(drawing, shown, selectedId, hoverId)
   // a selected symbol (WC, tub, door...) in 3D: walls drop to 45% so the object is never hidden behind its room's walls
   const selEl = els.find((e) => e.id === selectedId)
   const cut = mode === '3d' && selEl?.cls && SYMBOL.has(selEl.cls as Cls) ? Math.min(tools.cut, 0.45) : tools.cut
   const building = useBuilding(loaded, want3d)
+  const cutU = useCutaway(loaded, tools.cutaway)
 
   // double-click zooms in towards the spot; measure clicks snap to the drawing's own corners (rooms, evidence, walls)
   const controls = useThree((st) => st.controls) as unknown as CameraControlsImpl | null
@@ -203,11 +205,11 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
       )}
 
       {want3d && <Floors loaded={loaded} wallH={wallH} lift={lift} y={1.5 * L} />}
-      <Building b={building} tex={tex} wallH={wallH * cut} lift={lift} y={0.5 * L} />
-      {want3d && <Fixtures loaded={loaded} wallH={wallH} lift={lift} y={0.5 * L} />}
+      <Building b={building} tex={tex} wallH={wallH * cut} lift={lift} y={0.5 * L} cut={cutU} />
+      {want3d && <Fixtures loaded={loaded} wallH={wallH} lift={lift} y={0.5 * L} cut={cutU} />}
 
       {shown.map((el) => (
-        <Highlight key={el.id} el={el} loaded={want3d ? loaded : null} drawing={drawing} tex={tex} clean={clean} hatch={hatch} tier={tier} measure={answer?.measure ?? 'other'} crowded={shown.length > 12} glyphs={shown.length <= 24} L={L} wallH={wallH} lift={lift}
+        <Highlight key={el.id} el={el} loaded={want3d ? loaded : null} drawing={drawing} tex={tex} clean={clean} hatch={hatch} tier={tier} measure={answer?.measure ?? 'other'} crowded={shown.length > 12} glyphs={shown.length <= 24} tagHidden={tagsHidden.has(el.id)} L={L} wallH={wallH} lift={lift}
           selected={el.id === selectedId} hovered={el.id === hoverId} interactive={!tools.measure}
           onSelect={onSelect} onHover={onHover} onZoom={zoomAt} overlay={overlay} />
       ))}
@@ -215,6 +217,28 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
       {tools.mpts.length > 0 && <MeasureLayer drawing={drawing} pts={tools.mpts} closed={tools.mclosed} L={L} overlay={overlay} />}
     </>
   )
+}
+
+// Dense answers (dozens of doors on a whole sheet): tags that would overlap on screen are hidden until you zoom in. The
+// selected / hovered item always keeps its tag; the highlights themselves always stay. Checked 4x a second.
+function useDeclutter(d: Drawing, els: Element[], selectedId: string | null, hoverId: string | null) {
+  const [hidden, setHidden] = useState<Set<string>>(() => new Set())
+  const pts = useMemo(() => els.map((e) => { const [x, z] = toWorld(d, anchor({ ...e, polygon: outline(e) })); return { id: e.id, v: new THREE.Vector3(x, 0, z) } }), [els, d])
+  const last = useRef(-1), tmp = useMemo(() => new THREE.Vector3(), [])
+  useFrame(({ camera, size, clock }) => {
+    if (els.length <= 12) { if (hidden.size) setHidden(new Set()); return }
+    if (clock.elapsedTime - last.current < 0.25) return
+    last.current = clock.elapsedTime
+    const scr = pts.map((p) => { tmp.copy(p.v).project(camera); return { id: p.id, x: ((tmp.x + 1) / 2) * size.width, y: ((1 - tmp.y) / 2) * size.height } })
+    const kept = scr.filter((p) => p.id === selectedId || p.id === hoverId), next = new Set<string>()
+    for (const p of scr) {
+      if (p.id === selectedId || p.id === hoverId) continue
+      if (kept.some((k) => Math.abs(k.x - p.x) < 34 && Math.abs(k.y - p.y) < 22)) next.add(p.id)
+      else kept.push(p)
+    }
+    if (next.size !== hidden.size || [...next].some((id) => !hidden.has(id))) setHidden(next)
+  })
+  return hidden
 }
 
 // Clean view (2D): the plan redrawn from detections, kept left of the swipe divider. The texture and the two clip planes
@@ -303,8 +327,8 @@ function useInk(d: Drawing, el: Element, on: boolean, color: string) {
   return ink
 }
 
-function Highlight({ el, loaded, drawing, tex, clean, hatch, tier, measure, crowded, glyphs, L, wallH, lift, selected, hovered, interactive, onSelect, onHover, onZoom, overlay }: {
-  el: Element; loaded: Loaded | null; drawing: Drawing; tex: THREE.Texture; clean: CleanState; hatch: THREE.Texture; tier: Tier | null; measure: Answer['measure']; crowded: boolean; glyphs: boolean
+function Highlight({ el, loaded, drawing, tex, clean, hatch, tier, measure, crowded, glyphs, tagHidden, L, wallH, lift, selected, hovered, interactive, onSelect, onHover, onZoom, overlay }: {
+  el: Element; loaded: Loaded | null; drawing: Drawing; tex: THREE.Texture; clean: CleanState; hatch: THREE.Texture; tier: Tier | null; measure: Answer['measure']; crowded: boolean; glyphs: boolean; tagHidden: boolean
   L: number; wallH: number; lift: RefObject<Lift>
   selected: boolean; hovered: boolean; interactive: boolean; onSelect: (id: string) => void; onHover: (id: string | null) => void
   onZoom: (p: THREE.Vector3) => void; overlay: RefObject<HTMLDivElement | null>
@@ -355,7 +379,7 @@ function Highlight({ el, loaded, drawing, tex, clean, hatch, tier, measure, crow
   }
   const dash = Math.max(drawing.width, drawing.height) / 160
   // count numbers always; per-item values only while there is room (else on hover / selection; the legend has totals)
-  const tag = el.label ?? (crowded && !active ? null : el.valueText ?? null)
+  const tag = tagHidden && !active ? null : el.label ?? (crowded && !active ? null : el.valueText ?? null)
   const events = !interactive ? { raycast: () => null } : {
     onDoubleClick: (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); onZoom(e.point) },
     onClick: (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); if (e.delta <= CLICK_PX) onSelect(el.id) },

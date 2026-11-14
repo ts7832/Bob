@@ -62,6 +62,7 @@ const SPRITE = 320 // the glow sprite is upscaled to at least this long side, so
 
 export async function inkOf(d: Drawing, el: Element, cls: Cls, color: string): Promise<Ink | null> {
   if (el.geometry === 'polyline' || el.polygon.length < 3) return null
+  await new Promise((r) => setTimeout(r, 0)) // one task per symbol: 100+ doors never freeze the page
   // doors: follow the leaf and swing only from a thin opening box (a box that already holds the swing is the whole door)
   const b = bbox(el.polygon), thin = Math.max(b.w, b.h) > 1.8 * Math.max(Math.min(b.w, b.h), 1e-6)
   const r = el.markup ? await fromMarkup(d, el, color) : fromRaster(d, el, cls === 'door' && thin, color)

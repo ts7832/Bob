@@ -168,3 +168,7 @@
 .dv-from b { color: var(--dv-ink); font-weight: 600; }
 .dv-viewtag { transform: translateY(-115%); background: #2f6fde; color: #fff; font: 600 12px/1.2 system-ui, -apple-system, sans-serif; padding: 4px 8px; border-radius: 6px; white-space: nowrap; display: flex; gap: 8px; align-items: baseline; }
 .dv-viewtag small { font-weight: 400; opacity: 0.85; }
+
+/* toolbar wraps instead of running under the 3D note; the note sits above the toolbar row */
+.dv-tools { flex-wrap: wrap; max-width: calc(100% - 24px); }
+.dv-illustrative { bottom: 60px; }

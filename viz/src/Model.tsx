@@ -43,7 +43,7 @@ function mergeCapsSides(geos: THREE.BufferGeometry[]): [THREE.BufferGeometry, TH
   if (!geos.length) return null
   const part = (g: THREE.BufferGeometry, mi: number) => {
     const out = new THREE.BufferGeometry()
-    for (const name of ['position', 'normal', 'uv'] as const) {
+    for (const name of ['position', 'normal', 'uv', 'center'] as const) {
       const at = g.getAttribute(name) as THREE.BufferAttribute, n = at.itemSize, src = at.array as Float32Array
       const arr: number[] = []
       for (const gr of g.groups) if (gr.materialIndex === mi) for (let i = gr.start * n; i < (gr.start + gr.count) * n; i++) arr.push(src[i])
@@ -56,6 +56,58 @@ function mergeCapsSides(geos: THREE.BufferGeometry[]): [THREE.BufferGeometry, TH
   return res
 }
 
+// Each wall piece carries its own centre, so the cutaway lowers a whole wall evenly (no sloped tops)
+function centred(g: THREE.BufferGeometry) {
+  g.computeBoundingBox()
+  const c = new THREE.Vector3(); g.boundingBox!.getCenter(c)
+  const n = g.attributes.position.count, a = new Float32Array(2 * n)
+  for (let i = 0; i < n; i++) { a[2 * i] = c.x; a[2 * i + 1] = c.y }
+  g.setAttribute('center', new THREE.Float32BufferAttribute(a, 2))
+  return g
+}
+
+// Cutaway ("dollhouse"): walls on the camera's side of the building drop low, the back walls stay full, so every room
+// can be seen into from any angle. Done in the vertex shader (and the shadow depth pass), so it follows the camera.
+export type CutU = { uCam: { value: THREE.Vector2 }; uMid: { value: THREE.Vector2 }; uRad: { value: number }; uLow: { value: number } }
+export function cutaway<M extends THREE.Material>(m: M, u: CutU, perWall: boolean): M {
+  const prev = m.onBeforeCompile
+  m.onBeforeCompile = (sh, r) => {
+    prev?.call(m, sh, r)
+    Object.assign(sh.uniforms, u)
+    sh.vertexShader = (perWall ? 'attribute vec2 center;\n' : '') + 'uniform vec2 uCam; uniform vec2 uMid; uniform float uRad; uniform float uLow;\n' +
+      sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      { vec2 c = ${perWall ? 'center' : 'transformed.xy'}; float side = dot(c - uMid, uCam) / max(uRad, 1.0);
+        transformed.z *= mix(1.0, uLow, smoothstep(-0.05, 0.35, side)); }`)
+  }
+  m.customProgramCacheKey = () => (perWall ? 'cutw' : 'cutp')
+  return m
+}
+
+// Keeps the cutaway's camera direction and building centre current (shape space of the 3D groups: y = -world z)
+export function useCutaway(loaded: Loaded, on: boolean): CutU {
+  const u = useMemo<CutU>(() => ({ uCam: { value: new THREE.Vector2(0, -1) }, uMid: { value: new THREE.Vector2() }, uRad: { value: 1 }, uLow: { value: 1 } }), [])
+  useEffect(() => {
+    const d = loaded.drawing, ws = loaded.context.wallsDisjoint ? [] : loaded.context.walls // scans: whole sheet (lazy walls)
+    let x0 = 0, y0 = 0, x1 = d.width, y1 = d.height
+    if (ws.length) { const b = bboxPts(ws.flat()); x0 = b[0]; y0 = b[1]; x1 = b[2]; y1 = b[3] }
+    u.uMid.value.set((x0 + x1) / 2 - d.width / 2, d.height / 2 - (y0 + y1) / 2)
+    u.uRad.value = Math.hypot(x1 - x0, y1 - y0) / 2
+  }, [loaded, u])
+  useFrame(({ camera, controls }) => {
+    u.uLow.value = on ? 0.3 : 1
+    const t = (controls as unknown as { getTarget?: (v: THREE.Vector3) => THREE.Vector3 } | null)?.getTarget?.(new THREE.Vector3()) ?? new THREE.Vector3()
+    const dx = camera.position.x - t.x, dz = camera.position.z - t.z, l = Math.hypot(dx, dz)
+    if (l > 1e-6) u.uCam.value.set(dx / l, -dz / l)
+    else u.uLow.value = 1 // straight down: nothing faces the camera
+  })
+  return u
+}
+const bboxPts = (pts: Pt[]) => {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+  for (const [x, y] of pts) { if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y }
+  return [x0, y0, x1, y1]
+}
+
 export type BuildingGeo = ReturnType<typeof useBuilding>
 
 export function useBuilding(loaded: Loaded, enabled = true) {
@@ -63,18 +115,18 @@ export function useBuilding(loaded: Loaded, enabled = true) {
     if (!enabled) return { solid: null, glass: null, fixtures: null } // 2D only so far: build nothing
     const d = loaded.drawing, ctx = loaded.context
     const solid: THREE.BufferGeometry[] = [], glass: THREE.BufferGeometry[] = [], fixtures: THREE.BufferGeometry[] = []
-    for (const s of shapesFromRings(d, ctx.walls, ctx.wallsDisjoint)) solid.push(drawingUV(extrude(s, 1), d))
+    for (const s of shapesFromRings(d, ctx.walls, ctx.wallsDisjoint)) solid.push(centred(drawingUV(extrude(s, 1), d)))
     for (const o of ctx.openings) {
       if (o.polygon.length < 3) continue
       const b = obb(o.polygon)
       if (b.len < 1 || b.dep < 0.5) continue
       const rect = shapeOf(d, obbRect(b))
       if (o.cls === 'window') {
-        solid.push(drawingUV(extrude(rect, SILL), d)) // sill wall
-        solid.push(drawingUV(extrude(rect, 1 - HEAD, HEAD), d)) // lintel
-        glass.push(extrude(shapeOf(d, obbRect(b, 0.18)), HEAD - SILL, SILL))
+        solid.push(centred(drawingUV(extrude(rect, SILL), d))) // sill wall
+        solid.push(centred(drawingUV(extrude(rect, 1 - HEAD, HEAD), d))) // lintel
+        glass.push(centred(extrude(shapeOf(d, obbRect(b, 0.18)), HEAD - SILL, SILL)))
       } else {
-        solid.push(drawingUV(extrude(rect, 1 - DOOR_HEAD, DOOR_HEAD), d))
+        solid.push(centred(drawingUV(extrude(rect, 1 - DOOR_HEAD, DOOR_HEAD), d)))
       }
     }
     // fixtures and door leaves are real models now (fixtures3d.ts, <Fixtures>); this list stays for photo mode's scene
@@ -86,14 +138,15 @@ export function useBuilding(loaded: Loaded, enabled = true) {
   }, [loaded, enabled])
 }
 
-export function Building({ b, tex, wallH, lift, y }: { b: BuildingGeo; tex: THREE.Texture; wallH: number; lift: RefObject<Lift>; y: number }) {
+export function Building({ b, tex, wallH, lift, y, cut }: { b: BuildingGeo; tex: THREE.Texture; wallH: number; lift: RefObject<Lift>; y: number; cut: CutU }) {
   useEffect(() => () => { b.solid?.forEach((g) => g.dispose()); b.glass?.dispose(); b.fixtures?.dispose() }, [b])
   const mats = useMemo(() => ({
-    cap: new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }), // wall tops: the drawing itself
-    wall: new THREE.MeshStandardMaterial({ color: '#efebe4', roughness: 0.92, envMapIntensity: 0.9 }),
-    glass: new THREE.MeshStandardMaterial({ color: '#b9d3e2', roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.38, envMapIntensity: 1.6, depthWrite: false }),
+    cap: cutaway(new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }), cut, true), // wall tops: the drawing itself
+    wall: cutaway(new THREE.MeshStandardMaterial({ color: '#efebe4', roughness: 0.92, envMapIntensity: 0.9 }), cut, true),
+    glass: cutaway(new THREE.MeshStandardMaterial({ color: '#b9d3e2', roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.38, envMapIntensity: 1.6, depthWrite: false }), cut, true),
     ceramic: new THREE.MeshStandardMaterial({ color: '#f7f7f5', roughness: 0.28, envMapIntensity: 1.1 }),
-  }), [tex])
+    depth: cutaway(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }), cut, true), // shadows follow the cut
+  }), [tex, cut])
   useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats])
   const group = useRef<THREE.Group>(null)
   useFrame(() => {
@@ -106,7 +159,7 @@ export function Building({ b, tex, wallH, lift, y }: { b: BuildingGeo; tex: THRE
     <group ref={group} rotation-x={-Math.PI / 2} position-y={y} visible={false}>
       {b.solid && <>
         <mesh geometry={b.solid[0]} material={mats.cap} raycast={() => null} />
-        <mesh geometry={b.solid[1]} material={mats.wall} castShadow receiveShadow raycast={() => null} />
+        <mesh geometry={b.solid[1]} material={mats.wall} customDepthMaterial={mats.depth} castShadow receiveShadow raycast={() => null} />
       </>}
       {b.fixtures && <mesh geometry={b.fixtures} material={mats.ceramic} castShadow receiveShadow raycast={() => null} />}
       {b.glass && <mesh geometry={b.glass} material={mats.glass} raycast={() => null} />}
@@ -116,10 +169,14 @@ export function Building({ b, tex, wallH, lift, y }: { b: BuildingGeo; tex: THRE
 
 // WCs, basins, tubs, showers, kitchen units, sauna benches and stoves, door leaves: modelled from each detected box
 // (fixtures3d.ts). Heights are built in sheet px, so the group's z scale is just the lift.
-export function Fixtures({ loaded, wallH, lift, y }: { loaded: Loaded; wallH: number; lift: RefObject<Lift>; y: number }) {
+export function Fixtures({ loaded, wallH, lift, y, cut }: { loaded: Loaded; wallH: number; lift: RefObject<Lift>; y: number; cut: CutU }) {
   const geos = useMemo(() => buildFixtures(loaded, wallH), [loaded, wallH])
   useEffect(() => () => geos.forEach((g) => g.dispose()), [geos])
-  const mats = useMemo(() => fixtureMaterials(), [])
+  const mats = useMemo(() => {
+    const m = fixtureMaterials()
+    cutaway(m.leaf, cut, false); cutaway(m.glass, cut, false) // tall door leaves and shower glass follow the cutaway
+    return m
+  }, [cut])
   useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats])
   const group = useRef<THREE.Group>(null)
   useFrame(() => {
