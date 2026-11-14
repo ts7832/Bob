@@ -375,18 +375,19 @@ def convert_seg(exclude: list, limit: int = 0):
     return dict(plans=len(res), skipped=len(jobs) - len(res), label_files=dict(files), polygons=dict(counts))
 
 
-def _seg_local():
+def _seg_local(splits=("train", "val")):
     """Copy the segmentation set to the container's local disk (labels from yoloseg, images from the detector set)."""
     import shutil
     from concurrent.futures import ThreadPoolExecutor
     L = "/tmp/yoloseg"
     pairs = []
-    for split in ("train", "val"):
+    for split in splits:
         os.makedirs(f"{L}/images/{split}", exist_ok=True)
         os.makedirs(f"{L}/labels/{split}", exist_ok=True)
         for lab in glob.glob(f"{D}/yoloseg/labels/{split}/*.txt"):
             nm = os.path.basename(lab)[:-4]
-            pairs += [(lab, f"{L}/labels/{split}/{nm}.txt"), (f"{D}/yolo/images/{split}/{nm}.png", f"{L}/images/{split}/{nm}.png")]
+            own = f"{D}/yoloseg/images/{split}/{nm}.png"  # kept copy (stage seg_keep_val), else the detector set's image
+            pairs += [(lab, f"{L}/labels/{split}/{nm}.txt"), (own if os.path.exists(own) else f"{D}/yolo/images/{split}/{nm}.png", f"{L}/images/{split}/{nm}.png")]
     with ThreadPoolExecutor(64) as ex:
         list(ex.map(lambda p: shutil.copyfile(*p) if not os.path.exists(p[1]) else None, pairs))
     open(f"{L}/data.yaml", "w").write(f"path: {L}\ntrain: images/train\nval: images/val\nnames:\n" +
@@ -394,18 +395,49 @@ def _seg_local():
     return L, len(pairs) // 2
 
 
+@APP.function(image=image, volumes={D: VOL}, timeout=3600, cpu=8)
+def seg_keep_val():
+    """Copy the held-out images the segmentation labels refer to into yoloseg/images/val, so that seg_eval no longer
+    depends on the detector set (/data/yolo), which other stages delete and rebuild."""
+    import shutil
+    from concurrent.futures import ThreadPoolExecutor
+    VOL.reload()
+    os.makedirs(f"{D}/yoloseg/images/val", exist_ok=True)
+    names = [os.path.basename(f)[:-4] for f in glob.glob(f"{D}/yoloseg/labels/val/*.txt")]
+    todo = [(f"{D}/yolo/images/val/{n}.png", f"{D}/yoloseg/images/val/{n}.png") for n in names]
+    todo = [t for t in todo if os.path.exists(t[0]) and not os.path.exists(t[1])]
+    with ThreadPoolExecutor(32) as ex:
+        list(ex.map(lambda t: shutil.copyfile(*t), todo))
+    VOL.commit()
+    return dict(labels=len(names), copied=len(todo), kept=len(glob.glob(f"{D}/yoloseg/images/val/*.png")))
+
+
 @APP.function(image=image, volumes={D: VOL}, gpu=GPU, timeout=24 * 3600, memory=32768, cpu=8)
-def train_seg(run: str, model: str, epochs: int, imgsz: int, batch: int, fraction: float = 1.0):
+def train_seg(run: str, model: str, epochs: int, imgsz: int, batch: int, fraction: float = 1.0, resume: bool = False):
+    """resume=True continues a run that was cut off, from its last saved epoch (runs/<run>/weights/last.pt) to the
+    epoch count it was started with."""
     from ultralytics import YOLO
     VOL.reload()
     L, n = _seg_local()
-    m = YOLO(model)
-    m.add_callback("on_fit_epoch_end", lambda tr: VOL.commit() if (tr.epoch + 1) % 5 == 0 else None)
+    m = YOLO(f"{D}/runs/{run}/weights/last.pt" if resume else model)
+    m.add_callback("on_fit_epoch_end", lambda tr: VOL.commit() if (tr.epoch + 1) % 2 == 0 else None)
+    if resume:
+        m.train(resume=True)
+    else:
+        _seg_fit(m, L, run, epochs, imgsz, batch, fraction)
+    VOL.commit()
+    return _seg_summary(run, model, imgsz, n, L)
+
+
+def _seg_fit(m, L, run, epochs, imgsz, batch, fraction):
     # mask_ratio=2: masks at half resolution instead of a quarter, because walls are only a few pixels thick
     m.train(data=f"{L}/data.yaml", epochs=epochs, imgsz=imgsz, batch=batch, project=f"{D}/runs", name=run, exist_ok=True,
             fliplr=0.5, flipud=0.5, mosaic=0.3, degrees=0, scale=0.3, translate=0.1, hsv_h=0.0, hsv_s=0.4, hsv_v=0.35,
             close_mosaic=10, patience=15, fraction=fraction, workers=8, plots=False, mask_ratio=2, max_det=600)
-    VOL.commit()
+
+
+def _seg_summary(run, model, imgsz, n, L):
+    from ultralytics import YOLO
     best = YOLO(f"{D}/runs/{run}/weights/best.pt")
     res = best.val(data=f"{L}/data.yaml", imgsz=imgsz, split="val", plots=False, max_det=600)
     out = dict(run=run, model=model, imgsz=imgsz, images=n,
@@ -417,17 +449,19 @@ def train_seg(run: str, model: str, epochs: int, imgsz: int, batch: int, fractio
 
 
 @APP.function(image=image, volumes={D: VOL}, gpu=GPU, timeout=2 * 3600, memory=32768, cpu=8)
-def seg_eval(run: str, imgsz: int, limit: int = 200):
+def seg_eval(run: str, imgsz: int, limit: int = 200, fill_conf: float = 0.0):
     """What the outlines are for, measured on held-out plans: room areas against the annotated outlines, and wall
     coverage. Per room: matched if IoU >= 0.7; area error = |predicted - annotated| / annotated. Per plan: error of the
     summed indoor area. Walls: pixel IoU of all predicted wall masks against all annotated walls."""
-    import cv2, numpy as np
+    import cv2, numpy as np, sys
     from ultralytics import YOLO
+    sys.path.insert(0, "/root")
+    from drawqa.segment import pick_rooms
     VOL.reload()
-    L, _ = _seg_local()
+    L, _ = _seg_local(("val",))
     m = YOLO(f"{D}/runs/{run}/weights/best.pt")
     files = sorted(f for f in glob.glob(f"{L}/images/val/*.png") if not f.endswith("_s.png"))[:limit]
-    room_err, plan_err, wall_iou, found, total = [], [], [], 0, 0
+    room_err, room_signed, half, plan_err, wall_iou, found, total = [], [], [], [], [], 0, 0
     for f in files:
         im = cv2.imread(f)
         h, w = im.shape[:2]
@@ -435,12 +469,20 @@ def seg_eval(run: str, imgsz: int, limit: int = 200):
         for line in open(f.replace("/images/", "/labels/")[:-4] + ".txt"):
             v = line.split()
             gt[int(v[0])].append((np.array(v[1:], float).reshape(-1, 2) * [w, h]).astype(np.int32))
-        r = m.predict(im, imgsz=imgsz, conf=0.25, iou=0.6, max_det=600, retina_masks=True, verbose=False)[0]
-        pred = {0: [], 1: [], 2: []}
+        # same settings as the local path (drawqa/segment.py): masks at network resolution, simplified outlines
+        r = m.predict(im, imgsz=imgsz, conf=0.25, iou=0.6, max_det=600, retina_masks=False, verbose=False)[0]
+        pred, cands = {0: [], 1: [], 2: []}, {1: [], 2: []}
         if r.masks is not None:
-            for poly, c in zip(r.masks.xy, r.boxes.cls.tolist()):
-                if len(poly) >= 3:
-                    pred[int(c)].append(poly.astype(np.int32))
+            for poly, c, sc in zip(r.masks.xy, r.boxes.cls.tolist(), r.boxes.conf.tolist()):
+                if len(poly) < 3 or sc < (0.25 if int(c) == 0 else (fill_conf or 0.35)):
+                    continue
+                pts = cv2.approxPolyDP(np.array(poly, np.float32).reshape(-1, 1, 2), 1.5 if int(c) == 0 else 2.5, True).reshape(-1, 2)
+                if len(pts) >= 3 and int(c) == 0:
+                    pred[0].append(pts.astype(np.int32))
+                elif len(pts) >= 3:
+                    cands[int(c)].append(dict(polygon=pts.tolist(), conf=sc))
+        for c in (1, 2):  # the same keep rule as the local path (fill=0: only confident outlines)
+            pred[c] = [np.int32(k["polygon"]) for k in pick_rooms(cands[c], (h, w), 0.35, fill_conf or None)]
         fill = lambda polys: cv2.fillPoly(np.zeros((h, w), np.uint8), polys, 1) if polys else np.zeros((h, w), np.uint8)
         gw, pw = fill(gt[0]), fill(pred[0])
         if gw.sum():
@@ -455,12 +497,22 @@ def seg_eval(run: str, imgsz: int, limit: int = 200):
             if best[0] >= 0.7:
                 found += 1
                 room_err.append(abs(float(best[1].sum()) - float(gm.sum())) / float(gm.sum()))
+                room_signed.append(float(best[1].sum()) / float(gm.sum()) - 1)
+                half.append(len(plan_err) < len(files) // 2)  # first half of the plans: where the size correction is fitted
         p_area = float(sum(q.sum() for q in pm))
         if g_area:
             plan_err.append(abs(p_area - g_area) / g_area)
     q = lambda a, p: round(float(np.percentile(a, p)), 4) if a else None
     share = lambda a, t: round(float(np.mean([x <= t for x in a])), 3) if a else None
-    out = dict(run=run, plans=len(files), rooms=total, rooms_matched=round(found / max(total, 1), 3),
+    # outlines run a little small: fit the median shortfall on the first half of the plans, score the second half with it
+    fit = [v for v, h in zip(room_signed, half) if h]
+    bias = float(np.median(fit)) if fit else 0.0
+    rest = [abs((1 + v) / (1 + bias) - 1) for v, h in zip(room_signed, half) if not h]
+    corrected = dict(bias_fitted_on_first_half=round(bias, 4), rooms_scored=len(rest), median=q(rest, 50), p90=q(rest, 90),
+                     within_2pct=share(rest, 0.02), within_5pct=share(rest, 0.05))
+    out = dict(run=run, fill_conf=fill_conf or None, plans=len(files), rooms=total, rooms_matched=round(found / max(total, 1), 3),
+               room_area_signed=dict(median=q(room_signed, 50), p25=q(room_signed, 25), p75=q(room_signed, 75)),
+               room_area_error_corrected=corrected,
                room_area_error=dict(median=q(room_err, 50), p90=q(room_err, 90), within_2pct=share(room_err, 0.02), within_5pct=share(room_err, 0.05)),
                plan_indoor_area_error=dict(median=q(plan_err, 50), p90=q(plan_err, 90), within_2pct=share(plan_err, 0.02), within_5pct=share(plan_err, 0.05)),
                wall_pixel_iou=dict(mean=round(float(np.mean(wall_iou)), 3) if wall_iou else None, p10=q(wall_iou, 10)))
@@ -1080,7 +1132,9 @@ def main(stage: str = "smoke", run: str = "v1", epochs: int = 60, imgsz: int = 1
         print(lists.remote())
     if stage == "pipeline":  # e.g. --run d26l --model /data/runs/c26l/weights/best.pt --epochs 30
         swiss_ex = [os.path.basename(p)[:-4] for p in glob.glob(str(ROOT / "junction-dataset-preview/data/swiss_dwellings/*.dxf"))]
-        print(json.dumps(pipeline.remote(run, model, epochs, imgsz, batch, ex, swiss_ex), indent=1, default=str)[:3000])
+        # spawned, not awaited: progress and results are in runs/<run>/pipeline.json on the volume
+        print("spawned", pipeline.spawn(run, model, epochs, imgsz, batch, ex, swiss_ex, os.environ.get("DRAWQA_REBUILD", "1") == "1").object_id)
+        return
     if stage == "space_stats":
         print(json.dumps(space_stats.remote(), indent=None))
     if stage == "convert_ifc":
@@ -1092,6 +1146,11 @@ def main(stage: str = "smoke", run: str = "v1", epochs: int = 60, imgsz: int = 1
         print(json.dumps(convert_swiss.remote(swiss_ex, limit=limit), indent=1))
     if stage == "train":
         print(json.dumps(train.remote(run, model, epochs, imgsz, batch, fraction, mosaic, data, symbols_only), indent=1))
+    if stage == "tune" and os.environ.get("DRAWQA_SPAWN") == "1":
+        # start it and leave: the result goes to runs/<run>/tune[_tta].json on the volume. A call made with .remote()
+        # is cancelled when this machine loses its connection, even under --detach (that cut run d26l at epoch 19).
+        print("spawned", tune.spawn(run, imgsz, tta, data).object_id)
+        return
     if stage in ("tune", "train"):
         t = tune.remote(run, imgsz, tta, data)
         print(json.dumps(t, indent=1))
@@ -1123,10 +1182,18 @@ def main(stage: str = "smoke", run: str = "v1", epochs: int = 60, imgsz: int = 1
         print(f"models/{', '.join(targets)} <- run {run} ({len(data) / 1e6:.1f} MB), thresholds: {bool(t)}")
     if stage == "convert_seg":  # wall + room-outline labels; needs the detector set's images (stage convert) on the volume
         print(json.dumps(convert_seg.remote(ex, limit=limit), indent=1))
+    if stage == "seg_keep_val":
+        print(seg_keep_val.remote())
     if stage == "train_seg":  # e.g. --run seg1 --model yolo26m-seg.pt --epochs 40 --batch 8
         print(json.dumps(train_seg.remote(run, model, epochs, imgsz, batch, fraction), indent=1))
+    if stage == "resume_seg":  # continue a cut-off run in the background: returns at once, the run goes on by itself
+        call = train_seg.spawn(run, model, epochs, imgsz, batch, fraction, True)
+        print("resumed in the background, call id", call.object_id)
     if stage in ("seg_eval", "train_seg"):
-        print(json.dumps(seg_eval.remote(run, imgsz, limit or 200), indent=1))
+        ev = seg_eval.remote(run, imgsz, limit or 200, float(os.environ.get("DRAWQA_FILL", 0)))
+        print(json.dumps(ev, indent=1))
+        os.makedirs(ROOT / "models", exist_ok=True)  # kept next to the weights: drawqa/segment.py reads it
+        json.dump(ev, open(ROOT / "models" / f"{run}.eval.json", "w"), indent=1)
     if stage == "gt":  # label counts per plan, to check the conversion against the dataset's answers
         json.dump(read_json.remote("yolo/gt_counts.json"), open(os.environ.get("DRAWQA_OUT", "gt_counts.json"), "w"))
     if stage == "summary":

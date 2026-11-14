@@ -108,6 +108,16 @@ class Reader:
         return dict(model=self.model, seconds=round(time.time() - t0, 1), truncated=cut, rooms=parse_rooms(text, w, h))
 
     @modal.method()
+    def text(self, prompt: str, max_tokens: int = 700, system: str = "You are a careful assistant. Answer with JSON only."):
+        """A text-only question to the same model (no image): used to turn a question into a query over tables."""
+        import time
+        from vllm import SamplingParams
+        t0 = time.time()
+        conv = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
+        o = self.llm.chat([conv], SamplingParams(temperature=0, max_tokens=max_tokens))[0].outputs[0]
+        return dict(model=self.model, seconds=round(time.time() - t0, 1), truncated=o.finish_reason == "length", text=o.text)
+
+    @modal.method()
     def ask(self, png: bytes, prompt: str, long_side: int = 1792, max_tokens: int = 1500, system: str = SYSTEM):
         """Any question about an image, answered as text: for trying a new prompt without deploying again."""
         import time

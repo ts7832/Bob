@@ -135,6 +135,50 @@ def sheet_json(path):
                       default=lambda o: list(o) if isinstance(o, (set, tuple)) else str(o)).encode()
 
 
+_TABLES = {}
+
+
+def sheet_tables(f):
+    """Tables (schedules) on a PDF sheet, read from its own words and ruled lines (drawqa/schedule.py)."""
+    if f not in _TABLES:
+        from drawqa import schedule
+        with open(f, "rb") as fh:
+            is_pdf = fh.read(5).startswith(b"%PDF")
+        _TABLES[f] = schedule.tables(f)[:8] if is_pdf else []
+    return _TABLES[f]
+
+
+def table_answer(f, question):
+    """A question about a schedule: a language model writes the query, code runs it on the table read from the PDF."""
+    from drawqa import schedule
+    tabs = sheet_tables(f)
+    if not tabs:
+        return None
+    plan, note = schedule.plan(question, tabs)
+    if plan:
+        res = schedule.run(tabs, plan)
+        read = dict(by="language model", note=f"{note}: {res['query']['op']} on '{res['query']['table']}' where {res['query']['where']}"
+                    + (f", column {', '.join(res['query']['columns'])}" if res["query"]["columns"] else ""))
+    else:  # no model: only what can be tied to the table's own values without guessing
+        intent = schedule.guess(question, tabs)
+        if intent is None:
+            return dict(answer=None, unit=None, evidence=[], intent=dict(intent="schedule"), method="table query", confidence=None,
+                        explanation=f"This sheet has {len(tabs)} table(s) ({', '.join(repr(t['title'][:30]) for t in tabs[:4])}), but the question could "
+                                    f"not be turned into a query: {note}.",
+                        honesty=dict(tier="cannot determine", deterministic=None, basis=note))
+        res = schedule.answer(tabs, intent)
+        read = dict(by="matched to the table's own values", note="no language model was used")
+    res.setdefault("evidence", [])
+    res.setdefault("unit", None)
+    ok = res.get("answer") is not None
+    res.update(intent=dict(intent="schedule", **(res.get("query") or {})), method="table query", source_type="vector-pdf", question_read=read,
+               confidence=0.9 if ok else None,
+               honesty=dict(tier="read" if ok else "cannot determine", deterministic=True if ok else None,
+                            basis=(res.get("schedule_source") or "") + ". The cells are the sheet's own text and the arithmetic is done by code; "
+                                  "which query answers the question was decided by " + read["by"] + ", so check the query shown."))
+    return res
+
+
 def page_png(path):
     """Rendered page of an opened PDF, as PNG bytes (same pixels the detector and the evidence boxes use)."""
     import cv2
@@ -189,6 +233,9 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, render(parse_qs(u.query)["path"][0]))
             if u.path == "/api/plan":
                 return self._send(200, plan(parse_qs(u.query)["path"][0]))
+            if u.path == "/api/tables":
+                tabs = sheet_tables(resolve(parse_qs(u.query)["path"][0]))
+                return self._send(200, [dict(title=t["title"], columns=t["columns"], rows=t["rows"]) for t in tabs])
             if u.path == "/api/sheet":
                 return self._send(200, sheet_json(parse_qs(u.query)["path"][0]), "application/json; charset=utf-8")
             if u.path.startswith("/data/"):
@@ -230,6 +277,8 @@ class H(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             path, question = body["path"], body["question"].strip()
             res = solve(resolve(path), question, path in OPENED, llm=True)  # free wording: a language model picks the tool
+            if res.get("answer") is None:  # not answerable from the drawing itself: is it a question about a table on the sheet?
+                res = table_answer(resolve(path), question) or res
             truth = next((q for q in QUESTIONS if q["path"] == path and q["question"].strip() == question), None)
             if truth is not None:
                 res["dataset_answer"] = truth["answer"]

@@ -177,6 +177,7 @@ async function open(d) {
   hlLayer = el("g", {id:"hl"}, svgEl);
   enableZoom(svgEl);
   try { const p = await (await fetch("/api/plan?path=" + encodeURIComponent(d.path))).json(); if (current === d && !p.error) showPlan(p, d); } catch (e) {}
+  try { const T = await (await fetch("/api/tables?path=" + encodeURIComponent(d.path))).json(); if (current === d && T.length) showTables(T); } catch (e) {}
 }
 
 // The floor plan the converter found: every element drawn on the drawing, and a legend with counts.
@@ -266,6 +267,16 @@ function showNames(n) {
   n.rooms.forEach(r => { const [x0, y0, x1, y1] = r.bbox, m = u * 2;
     const node = el("rect", {x:x0 - m, y:y0 - m, width:x1 - x0 + 2 * m, height:y1 - y0 + 2 * m, rx:u, fill:"none", stroke:"#7c3aed", "stroke-width":u * 1.6}, namesLayer);
     el("title", {}, node).textContent = `${r.label}${r.area == null ? "" : " · " + r.area + " m²"} · read by a vision model`; });
+}
+
+// Tables (door, window, finish schedules) read from a PDF sheet's own words and ruled lines.
+function showTables(T) {
+  const one = t => `<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--ink)"><b>${esc(t.title || "Table")}</b> · ${t.rows.length} rows × ${t.columns.length} columns</summary>
+    <div style="overflow:auto;max-height:260px;margin-top:6px"><table style="border-collapse:collapse;font-size:11px;white-space:nowrap">
+    <tr>${t.columns.map(c => `<th style="border:1px solid var(--line);padding:2px 5px;background:var(--chip);text-align:left">${esc(c)}</th>`).join("")}</tr>
+    ${t.rows.slice(0, 80).map(r => `<tr>${r.map(c => `<td style="border:1px solid var(--line);padding:2px 5px">${esc(c)}</td>`).join("")}</tr>`).join("")}</table></div></details>`;
+  document.getElementById("found").insertAdjacentHTML("beforeend", `<div class="card"><div class="fgroup" style="margin-top:0">Tables read from this sheet (${T.length})</div>${T.map(one).join("")}
+    <div class="meta" style="margin-top:8px"><b>READ</b> · deterministic · rebuilt from the PDF's own words and ruled lines. Ask about them in plain words, e.g. “how many doors are type A1?”.</div></div>`);
 }
 
 function togglePlan() {
