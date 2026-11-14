@@ -98,6 +98,8 @@ def fuse(runs, iou_thr=0.35):
 
 
 MIN_DOOR_PX = 30  # below this (at network scale) symbols are too small to read from the whole sheet
+TTA_MAX_TILES = int(os.environ.get("DRAWQA_TTA_MAX_TILES", 30))  # above this many tiles, no four-orientation fusion
+last_info = {}  # how the last detect() call ran: tta, tiles, note (for the answer's basis)
 
 
 def _one(m, img, imgsz, tile="auto"):
@@ -128,11 +130,25 @@ def detect(img, imgsz=1280, raw=False, tta=None):
     """raw=True returns everything above conf 0.05; otherwise the per-class thresholds are applied.
     tta=True runs the four 90-degree orientations and fuses them (default: DRAWQA_TTA=1, or whatever the
     thresholds file says the thresholds were tuned with)."""
+    from . import remote
+    if remote.enabled():  # on the Modal GPU (drawqa/remote.py); None = not reachable, run here
+        r = remote.try_call("detect", img, imgsz=imgsz, raw=raw, tta=tta)
+        if r is not None:
+            return r
     import numpy as np
     m = _load()
     h, w = img.shape[:2]
     if tta is None:
         tta = os.environ.get("DRAWQA_TTA") == "1" or bool(tuned().get("tta"))
+    # a very large sheet (a 14000 px school plan is ~165 tiles, minutes per orientation): one orientation only, said so
+    n_tiles = len(tiles(w, h)) if max(w, h) > TILE * 1.2 else 1
+    last_info.clear()
+    last_info.update(tta=tta, tiles=n_tiles, note="")
+    if tta and n_tiles > TTA_MAX_TILES:
+        tta = False
+        last_info.update(tta=False, note=f"the detector looked at this sheet in one orientation only ({n_tiles} tiles; all four "
+                                         "would take about four times as long), while its thresholds were tuned on four, so "
+                                         "it may find somewhat fewer symbols than on smaller drawings")
     if not tta:
         dets = _one(m, img, imgsz)
     else:

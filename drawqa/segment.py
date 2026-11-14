@@ -88,6 +88,11 @@ FILL = 0.15
 def outlines(img, imgsz=1280):
     """The whole sheet is read at once (fitted to imgsz), as in training. Masks stay at network resolution: full-size
     masks for a hundred walls would not fit in this machine's memory."""
+    from . import remote
+    if remote.enabled():  # on the Modal GPU (drawqa/remote.py); None = not reachable, run here
+        r = remote.try_call("outlines", img, imgsz=imgsz)
+        if r is not None:
+            return r
     import cv2, numpy as np
     m = _load()
     r = m.predict(img, imgsz=imgsz, conf=min(CONF.values()), iou=0.6, max_det=600, retina_masks=False, verbose=False)[0]

@@ -83,6 +83,14 @@ def detector_fit(raw, thresholds, default=0.35):
     import statistics
     sym = [d for d in raw if d["cls"] in SYMBOLS]
     kept = [d["conf"] for d in sym if d["conf"] >= thresholds.get(d["cls"], default)]
+    # plausibility: windows found but not a single door. Every floor plan has doors, so the detector is missing a symbol
+    # it was trained on, and its confidence on what it did find says nothing about that. Seen on a BIM-exported plan PDF
+    # (esplanades 4.korrus: 32 windows, 0 doors, median confidence 0.71; the model has 42 doors on that storey). On the
+    # 241 preview scans it fires on 1 plan (high_quality_architectural-190: 9 windows, no door question in the key).
+    kept_by = {}
+    for d in sym:
+        if d["conf"] >= thresholds.get(d["cls"], default):
+            kept_by[d["cls"]] = kept_by.get(d["cls"], 0) + 1
     unsure = sum(1 for d in sym if 0.15 <= d["conf"] < thresholds.get(d["cls"], default))
     med = round(statistics.median(kept), 2) if kept else None
     share = round(unsure / max(1, len(kept) + unsure), 2)
@@ -95,4 +103,7 @@ def detector_fit(raw, thresholds, default=0.35):
                                 (f"{round(share * 100)}% of the candidate symbols left undecided", share > FIT_MAX_UNSURE),
                                 (f"only {len(kept)} symbol(s) recognised", len(kept) < FIT_MIN_KEPT)) if bad]
         return dict(out, level="weak", note="this drawing style looks unfamiliar to the detector (" + "; ".join(why) + "), so counts may be wrong")
+    if kept_by.get("window", 0) >= FIT_MIN_KEPT and not kept_by.get("door"):
+        return dict(out, level="weak", missing="door", note=f"the detector found {kept_by['window']} windows but not a single door, which no real floor plan "
+                                            "has, so it probably does not recognise this drawing's door symbols; counts may be wrong")
     return dict(out, level="ok", note="")

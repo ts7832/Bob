@@ -106,6 +106,15 @@ def _distinct(vals):
     return out
 
 
+def _undouble(s):
+    """A group heading over a column of the same word: "Frame Frame Type" -> "Frame Type"."""
+    out = []
+    for x in s.split():
+        if not out or out[-1].lower() != x.lower():
+            out.append(x)
+    return " ".join(out)
+
+
 def _text(ws):
     """Words of one cell in reading order (lines top to bottom, then left to right)."""
     ws = sorted(ws, key=lambda w: ((w[1] + w[3]) / 2, w[0]))
@@ -149,30 +158,71 @@ def tables(path, page=0, min_rows=3):
         # a header row with no column border running through it is one merged cell: the table's title, not column names
         crossed = lambda i: sum(1 for v in vs if x0 + TOL < v[2] < x1 - TOL and min(v[1], rows[i + 1]) - max(v[0], rows[i]) >= 0.6 * (rows[i + 1] - rows[i]))
         title_rows = [i for i in range(first) if crossed(i) == 0]
-        header = []
-        for i in range(first):
-            if i in title_rows:
+        cy = lambda w: (w[1] + w[3]) / 2
+        hws = [w for w in inside if rows[0] <= cy(w) < rows[first] and not any(rows[i] <= cy(w) < rows[i + 1] for i in title_rows)]
+        # each header word names every column under the cell it is printed in, and that cell is bounded by the column
+        # borders running through the word's own height: a group heading ("Door", "Frame") sits above borders that start
+        # lower down, so it spans the columns beneath it ("Door Matl", "Frame Matl"), even when the line under the group
+        # row is too short to count as a row border
+        hcol, tws = [[] for _ in range(len(cols) - 1)], []
+        for w in hws:
+            b = [x0] + [c for c in cols[1:-1] if any(abs(v[2] - c) <= TOL and v[0] - TOL <= cy(w) <= v[1] + TOL for v in vs)] + [x1]
+            if len(b) == 2:  # no column border runs through this word: it spans the whole table, so it is the title
+                tws.append(w)
                 continue
-            # borders that really run through this header row; a cell between two of them may span several columns
-            covers = lambda v: min(v[1], rows[i + 1]) - max(v[0], rows[i]) >= 0.6 * (rows[i + 1] - rows[i])
-            b = [x0] + [c for c in cols[1:-1] if any(abs(v[2] - c) <= TOL and covers(v) for v in vs)] + [x1]
-            hw = [w for w in inside if rows[i] <= (w[1] + w[3]) / 2 < rows[i + 1]]
-            span = [_text([w for w in hw if b[k] <= (w[0] + w[2]) / 2 < b[k + 1]]) for k in range(len(b) - 1)]
-            header.append([next((span[k] for k in range(len(b) - 1) if b[k] - TOL <= (cols[c] + cols[c + 1]) / 2 < b[k + 1] + TOL), "") for c in range(len(cols) - 1)])
-        title = " ".join(" ".join(c for c in cells[i] if c) for i in title_rows).strip()
+            k = max(0, min(len(b) - 2, bisect.bisect_right(b, (w[0] + w[2]) / 2) - 1))
+            for c in range(len(cols) - 1):
+                if b[k] - TOL <= (cols[c] + cols[c + 1]) / 2 < b[k + 1] + TOL:
+                    hcol[c].append(w)
+        header = [[_undouble(_text(ws)) for ws in hcol]] if any(hcol) else []
+        title = (" ".join(" ".join(c for c in cells[i] if c) for i in title_rows) + " " + _text(tws)).strip()
         above = sorted((w for w in words if x0 - TOL <= (w[0] + w[2]) / 2 <= x1 + TOL and y0 - 5 * med <= (w[1] + w[3]) / 2 < y0), key=lambda w: w[1])
         if not header and above:  # column names printed above the ruled grid instead of inside it
             band = [w for w in above if (w[1] + w[3]) / 2 >= y0 - 2.6 * med]
             header = [[_text([w for w in band if cols[c] <= (w[0] + w[2]) / 2 < cols[c + 1]]) for c in range(len(cols) - 1)]]
             above = [w for w in above if w not in band]
         names = [" ".join(dict.fromkeys(h[c] for h in header if h[c])).strip() or f"column {c + 1}" for c in range(len(cols) - 1)]
-        data = [r for r in cells[first:] if any(r)]
-        if len(data) < min_rows:
+        data, spans = [], []
+        for k in range(first, len(cells)):
+            if any(cells[k]):
+                data.append(cells[k])
+                spans.append([round(rows[k], 1), round(rows[k + 1], 1)])
+        if not data:  # short grids still go to the joining step (a group of one or two rows); see the end
             continue
         out.append(dict(title=title or _text(above), columns=names, rows=data, header_rows=first, page=page,
-                        bbox=[round(x0, 1), round(y0, 1), round(x1, 1), round(y1, 1)],
+                        bbox=[round(x0, 1), round(y0, 1), round(x1, 1), round(y1, 1)], row_spans=spans, row_h=med,
                         row_y=[round(v, 1) for v in rows[first:]], col_x=[round(v, 1) for v in cols]))
+    out = [t for t in _join_continued(out) if len(t["rows"]) >= min_rows]
     return sorted(out, key=lambda t: -len(t["rows"]) * len(t["columns"]))
+
+
+def _row_boxes(t, rows, px_per_pt, label=False):
+    """Evidence: one box per matching row, over the row's own height (rows of a joined table come from several grids)."""
+    ids = {id(r) for r in rows}
+    spans = t.get("row_spans") or [[t["row_y"][i], t["row_y"][i + 1]] for i in range(len(t["row_y"]) - 1)]
+    return [dict(id=f"row{i}", shape="box", label=r[0][:6] if label else "",
+                 bbox=[t["bbox"][0] * px_per_pt, spans[i][0] * px_per_pt, t["bbox"][2] * px_per_pt, spans[i][1] * px_per_pt])
+            for i, r in enumerate(t["rows"]) if id(r) in ids and i < len(spans)]
+
+
+def _join_continued(out):
+    """One schedule drawn as several grids, one per group (a Revit room schedule per level, with the group's subtotal
+    printed between the grids): a grid with no header rows of its own, the same column borders as the grid just above
+    it, and only a few row heights below it, continues that table. Its 'header' was guessed from the text above it,
+    which is really the previous group's last rows and subtotal, so it is dropped."""
+    same = lambda a, b: len(a) == len(b) and all(abs(p - q) <= 2 * TOL for p, q in zip(a, b))
+    kept = []
+    for t in sorted(out, key=lambda t: t["bbox"][1]):
+        prev = next((k for k in reversed(kept) if same(k["col_x"], t["col_x"]) and t["header_rows"] == 0
+                     and 0 <= t["bbox"][1] - k["bbox"][3] <= 4 * max(k["row_h"], t["row_h"])), None)
+        if prev is None:
+            kept.append(t)
+            continue
+        prev["rows"] += t["rows"]
+        prev["row_spans"] += t["row_spans"]
+        prev["bbox"][3] = t["bbox"][3]
+        prev["parts"] = prev.get("parts", 1) + 1
+    return kept
 
 
 # ---- deterministic queries over one table -------------------------------------------------------------------------
@@ -242,13 +292,17 @@ def guess(question, tabs):
                     return dict(intent="schedule_lookup", table=ti, key_column=kc, key=hit, columns=sorted(want))
         return None
     t_idx = order[0] if q_set & set(_tok(tabs[order[0]]["title"])) else None
+    sq = squash(question)
+    # a dimension cell ("3' - 0\"") is never one word: compare without spaces, and not inside a longer number (13'-0")
+    dim_in_q = lambda v: re.search(r"\d", v) and re.search(r"['\"]", v) and re.search(r"(?<![\d'])" + re.escape(squash(v)) + r"(?![\d])", sq)
     cands = []  # (table, column, value): a value from the question that is a cell value in a column
     for ti in (order if t_idx is None else [t_idx] + [i for i in order if i != t_idx]):
         t = tabs[ti]
         for c in range(len(t["columns"])):
             vals = {_norm(r[c]) for r in t["rows"] if r[c]}
             for v in vals:
-                if 1 < len(v) <= 12 and v in q_tokens and not v.isalpha() or (v in q_tokens and len(v) >= 3 and question.find(v.upper()) >= 0):
+                if 1 < len(v) <= 12 and v in q_tokens and not v.isalpha() or (v in q_tokens and len(v) >= 3 and question.find(v.upper()) >= 0) \
+                        or dim_in_q(v):
                     named = len(q_set & set(_tok(t["columns"][c])))
                     cands.append((ti == t_idx, named, -ti, ti, c, v))
     if cands:
@@ -266,13 +320,7 @@ def answer(tabs, intent, px_per_pt=150 / 72):
     src = f"table '{name}' rebuilt from the PDF's own words and ruled lines ({len(t['rows'])} rows, {len(t['columns'])} columns)"
 
     def boxes(rows):
-        out = []
-        for r in rows:
-            i = t["rows"].index(r)
-            if i + 1 < len(t["row_y"]):
-                out.append(dict(id=f"row{i}", shape="box", label=r[0][:6], bbox=[t["bbox"][0] * px_per_pt, t["row_y"][i] * px_per_pt,
-                                                                                   t["bbox"][2] * px_per_pt, t["row_y"][i + 1] * px_per_pt]))
-        return out
+        return _row_boxes(t, rows, px_per_pt, label=True)
 
     if intent["intent"] == "schedule_lookup":
         r = next((r for r in t["rows"] if _norm(r[intent["key_column"]]) == _norm(intent["key"])), None)
@@ -283,7 +331,10 @@ def answer(tabs, intent, px_per_pt=150 / 72):
             return dict(answer=None, explanation=f"Row '{r[intent['key_column']]}' was found in {name}, but the question names none of its columns "
                                                  f"({', '.join(t['columns'])}).", schedule_source=src, evidence=boxes([r]))
         val = "; ".join(f"{t['columns'][c]}: {r[c]}" for c in cols) if len(cols) > 1 else r[cols[0]]
-        return dict(answer=val, unit=None, evidence=boxes([r]), schedule_source=src,
+        # one area cell ("29690 SF") is a number with a unit, as in run(); anything else stays the cell's own text
+        num = number(val) if len(cols) == 1 and re.search(r"\b(SF|m²|m2)\b", val, re.I) else None
+        return dict(answer=num if num is not None else val, unit=("sqft" if re.search(r"SF", val, re.I) else "m2") if num is not None else None,
+                    evidence=boxes([r]), schedule_source=src,
                     explanation=f"{name}, row '{r[intent['key_column']]}': " + "; ".join(f"{t['columns'][c]} = {r[c] or '(empty)'}" for c in cols) + ".")
     rows = count_rows(t, intent.get("column"), intent.get("value"))
     cc = next((c for c in range(len(t["columns"])) if COUNT_COLUMN.match(t["columns"][c])), None)
@@ -308,7 +359,10 @@ def squash(v):
 def number(v):
     """Leading number of a cell ("29690 SF" -> 29690.0); None when there is none."""
     m = re.match(r"\s*(-?\d[\d,]*(?:\.\d+)?)", str(v))
-    return float(m.group(1).replace(",", "")) if m else None
+    if not m:
+        return None
+    x = float(m.group(1).replace(",", ""))
+    return int(x) if x.is_integer() else x
 
 
 def prompt_for(question, tabs, samples=8):
@@ -331,8 +385,11 @@ def prompt_for(question, tabs, samples=8):
         "separate word or code (has_token), or starts with one (starts_with). Copy values exactly as they appear in the "
         "table. Only some example values are shown for each column; a door, room or type number named in the question "
         "is in the table even if it is not among the examples. Use as few conditions as the question needs: usually one. "
-        "Words in brackets in the question explain a code and are not a second condition. If the question is about "
-        "something drawn on the sheet and not listed in a table, reply {\"table\": null}.")
+        "Words in brackets in the question explain a code and are not a second condition. For a kind of room or item "
+        "(bathrooms, casement windows) use has_token with that one word, so that variants such as '1/2 BATH' or "
+        "'Window-Casement-...' are included. If the answer needs arithmetic these operations cannot do (for example "
+        "multiplying each row by a number taken from its name), or the question is about something drawn on the sheet "
+        "and not listed in a table, reply {\"table\": null}.")
     return "\n".join(lines)
 
 
@@ -371,8 +428,37 @@ def _match(cell, test, values):
         return any(squash(cell) == squash(v) or (len(squash(v)) >= 16 and squash(cell).startswith(squash(v).rstrip("-"))) for v in values)
     if test == "starts_with":
         return any(squash(cell).startswith(squash(v)) for v in values)
-    toks = {squash(x) for x in re.split(r"[\s,;/&+]+", str(cell)) if x}
-    return bool(toks & {squash(v) for v in values})
+    sep = r"[\s,;/&+]+"
+    toks = {squash(x) for x in re.split(sep, str(cell)) if x}
+    # a plain word (letters only, 3+) may also be one part of a hyphenated or underscored name: "CASEMENT" in
+    # "Window-Casement-Andersen-A_Series". Codes with digits ("AL-1", "U02") must be a whole token.
+    parts = {p for x in toks for p in re.split(r"[-_.]+", x) if p}
+    one = lambda v: squash(v) in toks or (str(v).strip().isalpha() and len(str(v).strip()) >= 3 and squash(v) in parts)
+    # one word or code: a whole token of the cell; several ("MARVIN ESSENTIAL SLIDING", "AL-1/GL-1"): those, in that order
+    return any(one(v) if len([x for x in re.split(sep, str(v)) if x]) < 2 else squash(v) in squash(cell)
+               for v in values if str(v).strip())
+
+
+def _matching(t, where):
+    return [r for r in t["rows"] if all(_match(r[w["column"]] if w["column"] < len(r) else "", w["test"], w["values"]) for w in where)]
+
+
+def _cond(t, w):
+    return f"{t['columns'][w['column']]} {w['test'].replace('_', ' ')} {' / '.join(w['values'])}".strip()
+
+
+def _empty_report(tabs, plan):
+    """Why a query matched no row, in facts: rows per condition alone, and where a value missing here does occur."""
+    t, out, missing = tabs[plan["table"]], [], []
+    for w in plan["where"]:
+        n = len(_matching(t, [w]))
+        out.append(f"{_cond(t, w)}: {n} row(s) alone")
+        if n == 0 and w["test"] != "not_empty":
+            elsewhere = [f"table {j} '{u['title'][:40]}' column {c} '{u['columns'][c]}' ({k} rows)"
+                         for j, u in enumerate(tabs) if j != plan["table"] for c in range(len(u["columns"]))
+                         for k in [len(_matching(u, [dict(w, column=c)]))] if k]
+            missing.append((w, elsewhere[:3]))
+    return out, missing
 
 
 def run(tabs, plan, px_per_pt=150 / 72):
@@ -380,18 +466,22 @@ def run(tabs, plan, px_per_pt=150 / 72):
     t = tabs[plan["table"]]
     name = t["title"] or "table"
     src = f"table '{name}' rebuilt from the PDF's own words and ruled lines ({len(t['rows'])} rows, {len(t['columns'])} columns)"
-    rows = [r for r in t["rows"] if all(_match(r[w["column"]], w["test"], w["values"]) for w in plan["where"])]
-    cond = " and ".join(f"{t['columns'][w['column']]} {w['test'].replace('_', ' ')} {' / '.join(w['values'])}".strip() for w in plan["where"]) or "all rows"
+    rows = _matching(t, plan["where"])
+    cond = " and ".join(_cond(t, w) for w in plan["where"]) or "all rows"
 
     def boxes(rs):
-        out = []
-        for r in rs:
-            i = t["rows"].index(r)
-            if i + 1 < len(t["row_y"]):
-                out.append(dict(id=f"row{i}", shape="box", label="", bbox=[t["bbox"][0] * px_per_pt, t["row_y"][i] * px_per_pt, t["bbox"][2] * px_per_pt, t["row_y"][i + 1] * px_per_pt]))
-        return out
+        return _row_boxes(t, rs, px_per_pt)
 
     base = dict(schedule_source=src, query=dict(table=name, where=cond, op=plan["op"], columns=[t["columns"][c] for c in plan["columns"]]))
+    if not rows and plan["where"]:
+        per, missing = _empty_report(tabs, plan)
+        if missing:  # the query names something this table does not contain: no answer, rather than a confident 0
+            w, elsewhere = missing[0]
+            return dict(answer=None, **base, explanation=f"{name}: no row has {_cond(t, w)}, so this query cannot answer the question"
+                        + (f" (that value does occur in {'; '.join(elsewhere)})" if elsewhere else "") + ". Rows per condition: " + "; ".join(per) + ".")
+        if plan["op"] == "count":  # every condition matches some rows, just never together: a real 0, shown with its parts
+            return dict(answer=0, unit="count", evidence=[], **base,
+                        explanation=f"{name}: no row meets all of {cond}. Rows per condition alone: " + "; ".join(per) + ".")
     if plan["op"] == "count":
         qc = next((c for c in range(len(t["columns"])) if COUNT_COLUMN.match(t["columns"][c])), None)
         if qc is not None and rows and all(re.fullmatch(r"\d+", r[qc] or "") for r in rows):
@@ -422,8 +512,10 @@ def run(tabs, plan, px_per_pt=150 / 72):
                     explanation=f"{name}: the {'largest' if plan['op'] == 'max' else 'smallest'} '{t['columns'][c]}' among {len(scored)} row(s) is {r[c]}, in row {' / '.join(x for x in r[:3] if x)}.", **base)
     if not rows:
         return dict(answer=None, explanation=f"{name}: no row where {cond}.", **base)
-    vals = list(dict.fromkeys(" x ".join(r[c2] or "(empty)" for c2 in plan["columns"]) for r in rows))
-    one = vals[0] if len(vals) == 1 else "; ".join(vals)
+    # several columns: name each one ("Width: 3' - 0\"; Height: 7' - 0\""); " x " between bare values read like dimensions
+    many = len(plan["columns"]) > 1
+    vals = list(dict.fromkeys("; ".join((f"{t['columns'][c2]}: " if many else "") + (r[c2] or "(empty)") for c2 in plan["columns"]) for r in rows))
+    one = vals[0] if len(vals) == 1 else (" | " if many else "; ").join(vals)
     num = number(one) if len(vals) == 1 and len(plan["columns"]) == 1 and re.search(r"\b(SF|m²|m2)\b", one, re.I) else None
     return dict(answer=num if num is not None else one, unit=("sqft" if re.search(r"SF", one, re.I) else "m2") if num is not None else None, evidence=boxes(rows),
                 explanation=f"{name}: {', '.join(t['columns'][c2] for c2 in plan['columns'])} in {len(rows)} row(s) where {cond}: {one}.", **base)
@@ -438,8 +530,42 @@ def plan(question, tabs):
             "row and column matched to the table's own values, no language model used"
     try:
         import modal
-        r = modal.Cls.from_name("drawqa-reader", "Reader")().text.remote(prompt_for(question, tabs), 500)
+        ask = modal.Cls.from_name("drawqa-reader", "Reader")().text.remote
+        r = ask(prompt_for(question, tabs), 500)
     except Exception as e:
         return None, f"language model not available ({type(e).__name__})"
     p, why = parse_plan(r["text"], tabs)
-    return p, (why or f"query written by {r['model'].split('/')[-1]}, run by code")
+    note = why or f"query written by {r['model'].split('/')[-1]}, run by code"
+    if p and p["where"] and not _matching(tabs[p["table"]], p["where"]):
+        # it matched no row: show the model the facts once (rows per condition, where a missing value does occur) and
+        # keep its second query only if that one matches rows. The answer is still computed by code from the cells.
+        per, missing = _empty_report(tabs, p)
+        t = tabs[p["table"]]
+        facts = (f"\n\nA first query, on TABLE {p['table']} where " + " and ".join(_cond(t, w) for w in p["where"]) + ", matched NO row. "
+                 "Rows matching each condition alone: " + "; ".join(per) + "."
+                 + "".join(f" No row of TABLE {p['table']} has {_cond(t, w)}" + (f"; it occurs in {'; '.join(e)}." if e else ".") for w, e in missing)
+                 + " Write the query again. Pick the table that lists the thing asked about, and keep only conditions the "
+                   "question itself states (a description in brackets is not a condition).")
+        try:
+            r2 = ask(prompt_for(question, tabs) + facts, 500)
+            p2, why2 = parse_plan(r2["text"], tabs)
+        except Exception:
+            p2 = None
+        if p2 and _matching(tabs[p2["table"]], p2["where"]):
+            # a condition of the first query that uses the question's own words ("3RD FLOOR" for "on the 3rd floor") and
+            # that the second query dropped is put back, on whichever column of the new table contains it
+            t2, carried = tabs[p2["table"]], []
+            for w in p["where"]:
+                if w["test"] == "not_empty" or not any(squash(v) and squash(v) in squash(question) for v in w["values"]):
+                    continue
+                if any({squash(v) for v in w["values"]} == {squash(v) for v in x["values"]} for x in p2["where"]):
+                    continue
+                for c in range(len(t2["columns"])):
+                    w2 = dict(column=c, test="has_token", values=w["values"])
+                    if _matching(t2, p2["where"] + [w2]):
+                        p2["where"].append(w2)
+                        carried.append(_cond(t2, w2))
+                        break
+            return p2, (f"query written by {r2['model'].split('/')[-1]} on its second try (the first matched no row), run by code"
+                        + (f"; kept from the first try because the question says so: {', '.join(carried)}" if carried else ""))
+    return p, note
