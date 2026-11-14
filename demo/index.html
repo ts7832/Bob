@@ -91,9 +91,9 @@ const KINDS = {
   living_room:["Living rooms","#f97316","Rooms"], dining:["Dining areas","#d97706","Rooms"], room:["Rooms (general)","#6366f1","Rooms"],
   entry:["Entrance / hall","#0ea5e9","Rooms"], storage:["Storage / closets","#78716c","Rooms"], utility:["Utility / technical","#14b8a6","Rooms"],
   dressing_room:["Dressing rooms","#ec4899","Rooms"], terrace:["Terraces / porches","#65a30d","Rooms"], garage:["Garages","#475569","Rooms"],
-  other_room:["Other rooms","#94a3b8","Rooms"],
+  other_room:["Other rooms","#94a3b8","Rooms"], unlabelled:["Rooms without a type","#9ca3af","Rooms"], wall:["Walls","#374151","Layout"],
   room:["Rooms (from labels)","#64748b","Rooms"], apartment:["Apartments","#d64545","Layout"], floor:["Floors (storeys)","#111827","Layout"] };
-const HOW = { detector:"detected", linework:"exact linework", read:"read from sheet" };
+const HOW = { detector:"detected", linework:"exact linework", read:"read from sheet", inferred:"inferred from fixtures", outline:"outline found" };
 const esc = t => String(t ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
 const STYLE = { WALL_FILL:{fill:"#3d4048",stroke:"none"}, WALL:{fill:"#3d4048",stroke:"#2b2e35",w:.01},
@@ -199,8 +199,8 @@ function showPlan(p, d) {
       cx = it.pts.reduce((s, q) => s + q[0], 0) / it.pts.length; cy = it.pts.reduce((s, q) => s + q[1], 0) / it.pts.length; }
     else { const [x0, y0, x1, y1] = it.bbox; node = el("rect", {x:x0, y:y0, width:x1 - x0, height:y1 - y0, rx:u, ...a}, g); cx = (x0 + x1) / 2; cy = (y0 + y1) / 2; }
     const tip = el("title", {}, node);
-    tip.textContent = (KINDS[it.type] || [it.type])[0] + (it.label ? " · " + it.label : "") + (it.area_m2 ? ` · ${it.area_m2} m²` : "") + ` · ${HOW[it.how] || it.how}` + (it.conf != null && it.how === "detector" ? ` (confidence ${Math.round(it.conf * 100)}%)` : "");
-    if (area && group === "Rooms" && !it.label) {  // detector room types get their name on the drawing; labelled rooms already have text
+    tip.textContent = (KINDS[it.type] || [it.type])[0] + (it.label ? " · " + it.label : "") + (it.area_m2 ? ` · ${it.area_m2} m²` : "") + ` · ${it.type_source || HOW[it.how] || it.how}` + (it.conf != null && it.how === "detector" ? ` (confidence ${Math.round(it.conf * 100)}%)` : "");
+    if (area && group === "Rooms" && !it.label && it.type !== "unlabelled") {  // detector room types get their name on the drawing; labelled rooms already have text
       const top = it.pts ? Math.min(...it.pts.map(q => q[1])) : it.bbox[1];  // name along the top edge, clear of the printed room label
       const t = el("text", {x:cx, y:top + u * 19, "font-size":u * 15, "text-anchor":"middle", fill:color, "font-weight":"700", "font-family":"system-ui",
         stroke:"#fff", "stroke-width":u * 2.5, "paint-order":"stroke", "pointer-events":"none"}, g);

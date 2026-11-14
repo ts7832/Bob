@@ -108,7 +108,8 @@ def plan(path):
         add(e, e.get("cls") or e.get("type") or "element", "linework" if e.get("exact") else "detector")
     for r in sheet.get("rooms", []):
         if r.get("cls"):  # room type found by the detector
-            add(r, r["cls"], "detector", area_m2=r.get("area_m2"), area_source=r.get("area_source"))
+            add(r, r["cls"], "inferred" if r.get("type_source") else "outline" if r["cls"] == "unlabelled" else "detector",
+                r.get("name"), area_m2=r.get("area_m2"), area_source=r.get("area_source"), type_source=r.get("type_source"))
         else:  # room read from the sheet's own text and outlines
             label = " ".join(str(v) for v in (r.get("number"), r.get("name")) if v)
             add(r, "room", "read", label, area_m2=r.get("area_m2"), area_source=r.get("area_source"))
