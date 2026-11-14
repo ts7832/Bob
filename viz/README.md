@@ -49,6 +49,8 @@ What the view shows:
   - Scans, PDF pages and Swiss sheets: dark thin strokes inside the evidence box, with thick wall fill removed. Doors also follow the strokes connected to their opening (leaf and swing), across the wall only.
   - BIM plans: the element's own SVG paths, exact.
   - If a box holds no linework, it keeps the filled style. The glow is display only and never counts anything.
+- In 3D, a symbol's own model (WC, basin, tub, shower, door leaf) lights up in the answer colour.
+- **Rotated PDF pages:** if the backend's positions are in the unrotated page frame, the view turns them to match the page image (tested against the ink) and says so; if it cannot, it highlights nothing.
 - **Rooms, units, areas:** filled outline. **Lengths:** lines. Tier styles as below.
 - **The class of each item** comes from the sheet's own record for that evidence id (`fx75` → wc), the IFC class, the matching `/api/plan` box, or the id's prefix (`door21`). The answer card names it ("doors", or "2 showers, 1 bathtub").
 - **Possible double counts:** when a count cites two items with the same outline, the card says which ("items 1 & 21"), so a reviewer can check.
@@ -125,4 +127,4 @@ python3 tests/interact.py http://localhost:5180 && python3 tests/features.py htt
 
 ## Files
 
-`src/index.tsx` public API · `src/adapter.ts` demo JSON to sheet pixels (image px / Swiss DXF metres, y-flip of `/api/sheet` / BIM SVG guid outlines) · `src/View.tsx` badge, detail card, tools · `src/Scene.tsx` three.js scene (camera, walls, lift) · `src/walls.ts` walls from scan images · `src/clean.ts` clean view (plan redrawn from detections) · `src/ink.ts` symbol glow (drawn strokes per evidence item), class names and glyphs · `src/harness.ts` dev page (`?mode=3d`).
+`src/index.tsx` public API · `src/adapter.ts` demo JSON to sheet pixels (image px / Swiss DXF metres, y-flip of `/api/sheet` / BIM SVG guid outlines) · `src/View.tsx` badge, detail card, tools · `src/Scene.tsx` three.js scene (camera, walls, lift) · `src/walls.ts` walls from scan images · `src/fixtures3d.ts` 3D fixture models and door leaves · `src/clean.ts` clean view (plan redrawn from detections) · `src/ink.ts` symbol glow (drawn strokes per evidence item), class names and glyphs · `src/harness.ts` dev page (`?mode=3d`).

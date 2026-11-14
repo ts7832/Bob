@@ -103,7 +103,7 @@ export function View({ store }: { store: Store }) {
       )}
       <div ref={overlay} className="dv-overlay" />
 
-      {answer && <AnswerBadge answer={answer} boxRef={badgeRef} selectedId={selectedId} hidden={s.hidden} onStep={step}
+      {answer && <AnswerBadge answer={answer} boxRef={badgeRef} selectedId={selectedId} hidden={s.hidden} onStep={step} frameNote={loaded?.drawing.frameNote} frameBad={loaded?.drawing.frameBad}
         onToggle={(g) => store.set({ hidden: s.hidden.includes(g) ? s.hidden.filter((x) => x !== g) : [...s.hidden, g], selectedId: null })} />}
       {selected && loaded && <Detail drawing={loaded.drawing} el={selected} onClose={() => select(null)} boxRef={detailRef} />}
       {!selected && selectedId && answer?.citedIds.includes(selectedId) && (
@@ -190,8 +190,8 @@ function friendly(t?: string | null) {
   return t
 }
 
-function AnswerBadge({ answer, boxRef, selectedId, hidden, onStep, onToggle }: {
-  answer: Answer; boxRef: RefObject<HTMLDivElement | null>; selectedId: string | null; hidden: string[]
+function AnswerBadge({ answer, boxRef, selectedId, hidden, onStep, onToggle, frameNote, frameBad }: {
+  answer: Answer; boxRef: RefObject<HTMLDivElement | null>; selectedId: string | null; hidden: string[]; frameNote?: string | null; frameBad?: boolean
   onStep: (d: number) => void; onToggle: (group: string) => void
 }) {
   if (answer.status === 'cannot_answer')
@@ -238,6 +238,12 @@ function AnswerBadge({ answer, boxRef, selectedId, hidden, onStep, onToggle }: {
         </p>
       )}
       {answer.cited === 0 && <p className="dv-note">Nothing to highlight on the drawing for this answer.</p>}
+      {!!answer.outside && (
+        <p className="dv-warn">{frameBad
+          ? `The answer's positions do not fit this page (a rotated PDF page?), so its ${answer.outside} item${answer.outside > 1 ? 's are' : ' is'} not highlighted. Check the answer against the drawing by hand.`
+          : `${answer.outside} cited item${answer.outside > 1 ? 's lie' : ' lies'} off this page and ${answer.outside > 1 ? 'are' : 'is'} not drawn.`}</p>
+      )}
+      {frameNote && answer.elements.length > 0 && <p className="dv-note">{frameNote}</p>}
       {answer.styleWarning && <p className="dv-warn">Unfamiliar drawing style: this count may be wrong.</p>}
       {!!answer.dupes?.length && (
         <p className="dv-warn">Same outline cited twice: items {answer.dupes.slice(0, 3).join(', ')}{answer.dupes.length > 3 ? ` and ${answer.dupes.length - 3} more` : ''}. Check whether one element was counted twice.</p>

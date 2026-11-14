@@ -153,3 +153,11 @@
 .dv-swipe-key { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 9px; max-width: 300px; font-weight: 500; font-size: 11.5px; }
 .dv-swipe-key span { display: inline-flex; align-items: center; gap: 3px; }
 .dv-swipe-key .dv-glyph { width: 13px; height: 13px; }
+/* a symbol's tag is a pin: its tail points at the object */
+.dv-tag-up { top: -19px; }
+.dv-tag-down { top: 19px; }
+.dv-tag-up::after, .dv-tag-down::after {
+  content: ''; position: absolute; left: calc(50% - 4px); width: 8px; height: 8px; background: inherit; transform: rotate(45deg); z-index: -1;
+}
+.dv-tag-up::after { bottom: -4px; }
+.dv-tag-down::after { top: -4px; }

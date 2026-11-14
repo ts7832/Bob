@@ -15,9 +15,25 @@ The drawing view (`viz/`): what exists, and what changed when. Newest first. Usa
 | Breakdown answers (areas by type), baseboards, slabs, pipes | yes | optional evidence fields: README "Optional evidence fields" |
 | 3D lift with walls, windows, fixtures, room-aware floors; photo render | yes | 3D / Photo buttons, `view.setMode("3d")` |
 | Symbol-accurate highlights (the drawn door / WC / window glows), class glyphs, double-count note | yes | automatic for symbol classes; README "How evidence is drawn" |
+| 3D fixture models (WC, basin, tub, shower, kitchen, sauna, door leaves); counted ones light up | yes | 3D button |
+| Rotated PDF pages: backend positions turned to match the page image | yes | automatic (`frameFix` in adapter.ts) |
 | Clean view: plan redrawn from detections, swipe compare with the original | yes | Clean view button / C, `view.setClean(on, swipe)` |
 | Evidence that isn't on this sheet (BIM model-wide answers) | yes | says "N of M on this sheet"; selecting one says "Not on this drawing" |
 | Light theme matching the demo page | yes | default |
+
+## 2026-11-15 00:10: real 3D fixtures, whole-object highlights, rotated PDF pages fixed
+- **Rotated PDF pages: highlights were in the wrong place, now fixed in the view.**
+  - On PDFs whose page has /Rotate (A477, Springhaven P100/P101, 1810 S Park St: 3 of the 5 real-project gold sheets), the page image is turned, but every backend position was in the unturned page frame: texts, rooms, door arcs and `/api/ask` evidence. Example: A477 "12 doors" cited boxes at y = 5253 on a 4500 px tall page.
+  - The view now detects this, tests both quarter turns against the ink in the page image, and turns all positions to match. The card says so.
+  - If it cannot match, it highlights nothing and says why, instead of drawing in the wrong place. Evidence that lies off the page is never drawn either.
+  - The proper fix belongs in the backend: transform PyMuPDF coordinates by `page.rotation_matrix`.
+- **Whole-object highlight:** a counted door, WC, basin or window lights up as one filled shape (a door's whole swing, a WC's tank and bowl) with a soft glow. Its tag is a pin that points at it.
+- **3D fixtures are real models now, not blocks:** toilets (cistern and bowl), basins on vanities with taps, bathtubs with a hollow tub, showers (tray, glass on the open sides, pole and head), kitchen units (counter, hob, sink), sauna benches and stoves, and door leaves.
+  - Each model is sized from its detected box and turned to the nearest wall.
+  - Door leaves hinge on the side where the drawing shows the swing.
+  - Scans now get door leaves too.
+- **3D evidence:** the counted object's own model lights up in the answer colour; the translucent cubes are gone. Selecting a symbol in 3D lowers the walls so it is never hidden.
+- **Harness:** `?path=<server path>&ask=<question>` opens any drawing the server knows and asks live.
 
 ## 2026-11-14 22:30: clean view, the plan redrawn from what was detected (task C)
 - **Clean view** button (or **C**) in 2D: the plan redrawn from the system's own data, left of a swipe divider. The original drawing stays untouched on the right. Drag the divider to compare any spot.

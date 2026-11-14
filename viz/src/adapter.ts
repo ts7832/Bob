@@ -38,8 +38,13 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
     const img = await loadSheetImage(imageUrl ?? render.url!)
     const width = render.width ?? (img instanceof HTMLImageElement ? img.naturalWidth : img.width)
     const height = render.height ?? (img instanceof HTMLImageElement ? img.naturalHeight : img.height)
-    drawing = { key, kind: 'image', width, height, source: img, toPx: (p) => p, fromPx: (p) => p, units: 'px', mPerPx: sheet?.scale?.m_per_px ?? null, note: render.note }
-    for (const w of sheet?.walls ?? []) if (w.polygon?.length) walls.push(w.polygon)
+    // PDF pages with /Rotate: the page image is turned, but the backend's positions may be in the unturned page frame
+    const fix = frameFix(sheet, width, height, img)
+    drawing = {
+      key, kind: 'image', width, height, source: img, toPx: fix?.toPx ?? ((p) => p), fromPx: fix?.fromPx ?? ((p) => p), units: 'px',
+      mPerPx: sheet?.scale?.m_per_px ?? null, note: render.note, frameNote: fix?.note ?? null, frameBad: fix?.bad ?? false,
+    }
+    for (const w of sheet?.walls ?? []) if (w.polygon?.length) walls.push(w.polygon.map(drawing.toPx))
     // scans without the segmentation model: display-only walls from the image (not for PDF pages: tables, text).
     // Found lazily, on the first switch to 3D, so opening a sheet in 2D stays fast.
     if (!walls.length && render.source_type === 'raster') {
@@ -78,6 +83,7 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
     for (const it of plan?.items ?? []) {
       if (!it.bbox) continue
       if (it.type === 'window') openings.push({ cls: 'window', polygon: boxPts(it.bbox, drawing.toPx) })
+      else if (it.type === 'door') openings.push({ cls: 'door', polygon: boxPts(it.bbox, drawing.toPx) }) // 3D: lintel + leaf
       else if (SCAN_FIXTURES.has(it.type)) fixtures.push({ cls: it.type, polygon: boxPts(it.bbox, drawing.toPx) })
     }
   }
@@ -107,6 +113,54 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
     wallsDisjoint: !!lazyWalls, rooms, openings, fixtures,
   }
   return { drawing, plan: planEls, context, guids, classes }
+}
+
+// The backend reads PDF text and linework in the unrotated page frame; the page image is rendered with the page's /Rotate.
+// On a turned page the sheet's texts reach past the image (e.g. y up to 6231 on a 6300 x 4500 image). Then try both
+// quarter turns and keep the one that puts the texts on ink in the image; if neither clearly does, positions are unusable.
+function frameFix(sheet: SheetJSON | null, W: number, H: number, img: HTMLImageElement | HTMLCanvasElement):
+  { toPx: (p: Pt) => Pt; fromPx: (p: Pt) => Pt; note: string | null; bad: boolean } | null {
+  const ts = (sheet?.texts ?? []).filter((t) => t.bbox?.length === 4)
+  if (ts.length < 5) return null
+  let mx = 0, my = 0
+  for (const t of ts) { mx = Math.max(mx, t.bbox[2]); my = Math.max(my, t.bbox[3]) }
+  if (mx <= W * 1.01 && my <= H * 1.01) return null // same frame as the image
+  const bad = { toPx: (p: Pt) => p, fromPx: (p: Pt) => p, note: null, bad: true }
+  if (!(mx <= H * 1.01 && my <= W * 1.01)) return bad
+  const turns = [
+    { deg: 90, toPx: (p: Pt): Pt => [W - p[1], p[0]], fromPx: (p: Pt): Pt => [p[1], W - p[0]] }, // shown turned clockwise
+    { deg: 270, toPx: (p: Pt): Pt => [p[1], H - p[0]], fromPx: (p: Pt): Pt => [H - p[1], p[0]] },
+  ]
+  // ink test on a small copy of the page
+  const iw = img instanceof HTMLImageElement ? img.naturalWidth : img.width, ih = img instanceof HTMLImageElement ? img.naturalHeight : img.height
+  const s = Math.min(1, 1600 / Math.max(iw, ih)), w = Math.max(1, Math.round(iw * s)), h = Math.max(1, Math.round(ih * s))
+  const c = document.createElement('canvas')
+  c.width = w; c.height = h
+  const g = c.getContext('2d', { willReadFrequently: true })!
+  g.fillStyle = '#fff'; g.fillRect(0, 0, w, h); g.drawImage(img, 0, 0, w, h)
+  let px: Uint8ClampedArray
+  try { px = g.getImageData(0, 0, w, h).data } catch { return bad }
+  const k = w / W // small-copy px per sheet px
+  const big = [...ts].sort((a, b) => (b.bbox[2] - b.bbox[0]) * (b.bbox[3] - b.bbox[1]) - (a.bbox[2] - a.bbox[0]) * (a.bbox[3] - a.bbox[1])).slice(0, 80)
+  const score = (f: (p: Pt) => Pt) => {
+    let hits = 0
+    for (const t of big) {
+      const [a, b] = [f([t.bbox[0], t.bbox[1]]), f([t.bbox[2], t.bbox[3]])]
+      const x0 = Math.max(0, Math.floor(Math.min(a[0], b[0]) * k)), x1 = Math.min(w - 1, Math.ceil(Math.max(a[0], b[0]) * k))
+      const y0 = Math.max(0, Math.floor(Math.min(a[1], b[1]) * k)), y1 = Math.min(h - 1, Math.ceil(Math.max(a[1], b[1]) * k))
+      let n = 0, dark = 0
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+        const i = 4 * (y * w + x); n++
+        if (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2] < 150) dark++
+      }
+      if (n && dark / n > 0.04) hits++
+    }
+    return hits
+  }
+  const [a, b] = turns.map((t) => score(t.toPx))
+  const best = a >= b ? turns[0] : turns[1], hi = Math.max(a, b), lo = Math.min(a, b)
+  if (hi < 5 || hi < 1.5 * lo) return bad
+  return { toPx: best.toPx, fromPx: best.fromPx, note: `The PDF page is turned ${best.deg}°: the backend's positions were turned to match it.`, bad: false }
 }
 
 const UNITS: Record<string, string> = { m2: 'm²', m3: 'm³', m: 'm', ft2: 'ft²', sqft: 'ft²', sf: 'ft²', ft3: 'ft³', ft: 'ft', lf: 'ft', count: '' }
@@ -162,6 +216,15 @@ export function toAnswer(ask: AskJSON, loaded: Loaded, question?: string | null)
     const b = ask.breakdown?.find((x) => x.group === name)
     return { name, color: colorOf(name), count: b?.count ?? elements.filter((el) => el.group === name).length, value: fmt(b?.value, b?.unit ?? ask.unit) }
   })
+  // never draw a highlight in the wrong place: positions off this page (or in a page frame we could not match) are dropped
+  const { width: W, height: H, frameBad } = loaded.drawing
+  const before = elements.length
+  const onPage = frameBad ? [] : elements.filter((e) => {
+    const b = bboxOf(e.polygon), mx = 0.01 * W, my = 0.01 * H
+    return b[2] >= -mx && b[3] >= -my && b[0] <= W + mx && b[1] <= H + my
+  })
+  const outside = before - onPage.length
+  elements.splice(0, elements.length, ...onPage)
   // count answers: two items with the same outline may be one thing counted twice; the reviewer should see that
   const dupes: string[] = []
   if (isCount && elements.length <= 400) {
@@ -180,7 +243,7 @@ export function toAnswer(ask: AskJSON, loaded: Loaded, question?: string | null)
     deterministic: ask.honesty?.deterministic ?? null, basis: ask.honesty?.basis ?? null,
     explanation: ask.error ?? ask.explanation ?? null, method: ask.method ?? null,
     styleWarning: !!ask.honesty?.style_warning,
-    elements: cannot ? [] : elements, dupes: cannot ? [] : dupes, cited: ev.length, citedIds: ev.map((e, i) => e.id ?? `ev${i}`),
+    elements: cannot ? [] : elements, dupes: cannot ? [] : dupes, outside: cannot ? 0 : outside, cited: ev.length, citedIds: ev.map((e, i) => e.id ?? `ev${i}`),
   }
 }
 
