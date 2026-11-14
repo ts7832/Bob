@@ -57,4 +57,10 @@ Rules:
 .venv/bin/python tools/gold_eval.py                 # verified lines only
 .venv/bin/python tools/gold_eval.py --drafts        # also score proposed values (marked as drafts in the report)
 .venv/bin/python tools/gold_eval.py --llm           # let solve() use the language model for free wording
+.venv/bin/python tools/gold_gallery.py              # newest report -> gold/reports/<stamp>-gallery/index.html (wrong answers)
+.venv/bin/python tools/gold_gallery.py --all        # every answer: the page to check draft answers against the sheet
 ```
+
+Checking a draft answer: run the scorer with `--drafts`, then the gallery with `--all`, and open `index.html`. Blue boxes
+are the numbers named in `evidence_note`, found on the sheet; green or red boxes are the system's own evidence. When the
+value is right, set `status` to `verified`, copy it into `answer` and fill `verified_by`.
