@@ -159,7 +159,7 @@ export function toAnswer(ask: AskJSON, loaded: Loaded, question?: string | null)
     deterministic: ask.honesty?.deterministic ?? null, basis: ask.honesty?.basis ?? null,
     explanation: ask.error ?? ask.explanation ?? null, method: ask.method ?? null,
     styleWarning: !!ask.honesty?.style_warning,
-    elements: cannot ? [] : elements, cited: ev.length,
+    elements: cannot ? [] : elements, cited: ev.length, citedIds: ev.map((e, i) => e.id ?? `ev${i}`),
   }
 }
 

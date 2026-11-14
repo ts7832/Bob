@@ -49,7 +49,13 @@ export function View({ store }: { store: Store }) {
   // Keyboard, like takeoff tools: arrows step through the evidence, F frames it again, M measures, Space (held) shows
   // the untouched original, Esc clears the measurement / selection. Ignored while typing in the host page's inputs.
   useEffect(() => {
-    const typing = (e: KeyboardEvent) => { const t = e.target as HTMLElement | null; return !!t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable) }
+    // only when nothing else on the host page has focus (or the focus is inside the view): the page's own buttons,
+    // inputs and lists keep Space / arrows (e.g. Space on a focused question button must click it, not peek)
+    const typing = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (!t || t === document.body || t === document.documentElement) return false
+      return !viewRef.current?.contains(t) || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable
+    }
     const down = (e: KeyboardEvent) => {
       const st = store.get()
       if (typing(e) || !st.loaded) return
@@ -96,6 +102,14 @@ export function View({ store }: { store: Store }) {
       {answer && <AnswerBadge answer={answer} boxRef={badgeRef} selectedId={selectedId} hidden={s.hidden} onStep={step}
         onToggle={(g) => store.set({ hidden: s.hidden.includes(g) ? s.hidden.filter((x) => x !== g) : [...s.hidden, g], selectedId: null })} />}
       {selected && loaded && <Detail drawing={loaded.drawing} el={selected} onClose={() => select(null)} boxRef={detailRef} />}
+      {!selected && selectedId && answer?.citedIds.includes(selectedId) && (
+        <div className="dv-detail" ref={detailRef}>
+          <div className="dv-row"><div className="dv-title">Not on this drawing</div>
+            <button className="dv-x" onClick={() => select(null)} aria-label="Close">×</button></div>
+          <p className="dv-offsheet">This element is part of the answer (it is in the building model) but this sheet does not draw it,
+            for example because it is on another storey. <code>{selectedId}</code></p>
+        </div>
+      )}
 
       {loaded && (
         <div className="dv-tools">

@@ -50,6 +50,7 @@ export interface Answer {
   measure: 'count' | 'area' | 'length' | 'other' // length answers draw outlines and baseboards, not filled areas
   groups: { name: string; color: string; count: number; value?: string | null }[] // legend, in backend order
   cited: number // evidence items in the answer, including ones not on this sheet
+  citedIds: string[] // ids of all cited evidence (to explain a selection that is not on this sheet)
 }
 
 // Geometry for the 3D lift (M3). Display only; never used to answer anything.
