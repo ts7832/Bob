@@ -38,6 +38,7 @@ export function buildFixtures(l: Loaded, wallH: number): Map<Mat, THREE.BufferGe
   }
   for (const o of l.context.openings) if (o.cls === 'door') model(l.drawing, 'door', o.polygon, wallH, near, parts)
   for (const e of l.guids.values()) if (e.leaf) leaf3d(l.drawing, e.leaf, wallH, parts) // BIM doors: the drawn leaf
+  for (const r of l.context.railings ?? []) railing(l.drawing, r, wallH, parts)
   return merge(parts)
 }
 
@@ -66,6 +67,19 @@ const strip = (g: THREE.BufferGeometry) => { // same attribute set everywhere so
   for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') g.deleteAttribute(k)
   if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((g.attributes.position.count) * 2), 2))
   return g
+}
+
+// BIM railing: its own outline extruded to 1 m. Small outlines are balusters (chrome posts); longer ones glass with a
+// chrome cap, following the drawn shape exactly (no guessed box)
+function railing(d: Drawing, ring: Pt[], wallH: number, parts: Parts) {
+  if (ring.length < 3) return
+  const o = obb(ring), H = (m: number) => (m / 2.6) * wallH, pxm = wallH / 2.6
+  if (o.len < 0.5) return
+  const shape = new THREE.Shape(ring.map((p) => toShape(d, p)))
+  const add = (m: Mat, g: THREE.BufferGeometry) => { const a = parts.get(m) ?? []; a.push(g); parts.set(m, a) }
+  if (o.len < 0.12 * pxm) { add('chrome', new THREE.ExtrudeGeometry(shape, { depth: H(1.0), bevelEnabled: false })); return }
+  add('glass', new THREE.ExtrudeGeometry(shape, { depth: H(0.96), bevelEnabled: false }))
+  add('chrome', new THREE.ExtrudeGeometry(shape, { depth: H(0.04), bevelEnabled: false }).translate(0, 0, H(0.96)))
 }
 
 // BIM door leaf exactly as the model draws it (open), standing to door height
@@ -140,6 +154,55 @@ function model(d: Drawing, cls: Cls, poly: Pt[], wallH: number, near: (p: Pt) =>
   const endU = near(f.at(L / 2, 0)) <= near(f.at(-L / 2, 0)) ? 1 : -1
   const sideV = near(f.at(0, D / 2)) <= near(f.at(0, -D / 2)) ? 1 : -1
   const m = Math.min(L, D)
+  const pxm = wallH / 2.6, Lm = L / pxm, Dm = D / pxm // metres (illustrative scale: one storey = 2.6 m)
+
+  // BIM furniture: its own outline, extruded (not a box)
+  if (raw && /Furnish|Furniture/.test(raw)) {
+    const g = new THREE.ExtrudeGeometry(new THREE.Shape(poly.map((p) => toShape(d, p))), { depth: H(0.75), bevelEnabled: false })
+    const a = parts.get('wood') ?? []; a.push(g); parts.set('wood', a)
+    return
+  }
+  if (cls === 'stairs') {
+    // a flight up the long side toward the wall end; near-square boxes: half a flight, then a landing at mid height
+    const up = endU, run = 0.28 * pxm, square = Lm / Math.max(Dm, 1e-6) <= 1.3
+    const span = square ? L / 2 : L, n = Math.max(3, Math.round(span / run)), top = square ? H(1.3) : H(2.6)
+    for (let i = 0; i < n; i++) {
+      const u0 = -L / 2 + (i / n) * span, u1 = -L / 2 + ((i + 1) / n) * span, h = ((i + 1) / n) * top
+      const cu = -up * ((u0 + u1) / 2) // climbing toward `up`
+      add('front', rbox(u1 - u0, D * 0.96, h, 0.01 * m, cu, 0, 0))
+      add('wood', rbox((u1 - u0) * 1.02, D * 0.96, H(0.03), 0.004 * m, cu, 0, h - H(0.015)))
+    }
+    if (square) add('front', rbox(L / 2, D * 0.96, top, 0.01 * m, -up * (L / 4), 0, 0)) // landing
+    add('chrome', rbox(L, Math.max(0.5, 0.03 * D), Math.max(0.5, H(0.04)), 0.2, 0, (D / 2) * 0.96, (square ? H(1.3) : H(2.6)) + H(0.9))) // handrail
+    return
+  }
+  if (cls === 'shaft') { // installation shaft: a full-height duct with a grille on top
+    add('counter', rbox(0.94 * L, 0.94 * D, H(2.6), 0.02 * m, 0, 0, 0))
+    for (let i = 1; i < 6; i++) add('chrome', rbox(0.9 * L, Math.max(0.4, 0.02 * D), H(0.01), 0.1, 0, (i / 6 - 0.5) * 0.9 * D, H(2.6)))
+    return
+  }
+  if (cls === 'washer') {
+    add('front', rbox(0.94 * L, 0.94 * D, H(0.85), 0.06 * m, 0, 0, 0))
+    // porthole on the face away from the nearest wall
+    const alongV = near(f.at(0, sideV * D / 2)) <= near(f.at(endU * L / 2, 0)), r = 0.28 * m
+    const ring = new THREE.CylinderGeometry(r, r, Math.max(0.5, 0.04 * m), 28), glass = new THREE.CylinderGeometry(r * 0.78, r * 0.78, Math.max(0.6, 0.05 * m), 28)
+    const place = (g: THREE.BufferGeometry) => (alongV ? g.translate(0, -sideV * 0.47 * D, H(0.45)) : g.rotateZ(Math.PI / 2).translate(-endU * 0.47 * L, 0, H(0.45)))
+    add('chrome', place(ring)); add('dark', place(glass))
+    return
+  }
+  if (cls === 'other' || cls === 'cabinet') { // the CAD fixture layer's unlabelled pieces, read by size
+    const long = Math.max(Lm, Dm), short = Math.min(Lm, Dm)
+    if (long <= 0.36) { add('front', rbox(L, D, H(2.6), 0.03 * m, 0, 0, 0)); return } // post / column casing
+    if (long >= 1 && long / short >= 2) { // wardrobe: tall, wood fronts with door seams on the room side
+      add('wood', rbox(0.98 * L, 0.96 * D, H(2.0), 0.02 * m, 0, 0, 0))
+      const k = Math.max(2, Math.round(Lm / 0.5))
+      for (let i = 1; i < k; i++) add('dark', rbox(Math.max(0.4, 0.008 * L), 0.02 * D, H(1.9), 0.1, -L / 2 + (i / k) * L, -sideV * 0.48 * D, H(0.05)))
+      return
+    }
+    add('front', rbox(0.96 * L, 0.96 * D, H(0.86), 0.04 * m, 0, 0, 0)) // appliance / cabinet unit with a counter top
+    add('counter', rbox(L, D, H(0.03), 0.02 * m, 0, 0, H(0.86)))
+    return
+  }
 
   if (cls === 'wc') {
     const s = endU, td = 0.26 * L
@@ -202,9 +265,10 @@ function model(d: Drawing, cls: Cls, poly: Pt[], wallH: number, near: (p: Pt) =>
     const n = 5
     for (let i = 0; i < n; i++) add('wood', rbox(L, (D / n) * 0.78, H(0.035), 0.01 * m, 0, ((i + 0.5) / n - 0.5) * D, H(0.42)))
     for (const su of [-1, 1]) for (const sv of [-1, 1]) add('wood', rbox(0.05 * L, 0.08 * D, H(0.42), 0.005 * m, su * 0.42 * L, sv * 0.38 * D, 0))
-  } else if (cls !== 'window' && cls !== 'stairs' && cls !== 'column') {
-    const soft = /Furnish|Furniture/.test(raw ?? '')
-    add(soft ? 'wood' : 'ceramic', rbox(0.96 * L, 0.96 * D, H(soft ? 0.72 : 0.6), 0.12 * m, 0, 0, 0))
+  } else if (cls === 'column') {
+    add('front', rbox(L, D, H(2.6), 0.03 * m, 0, 0, 0))
+  } else if (cls === 'fixture') { // an unnamed sanitary or fixture symbol: a white ceramic unit
+    add('ceramic', rbox(0.96 * L, 0.96 * D, H(0.6), 0.12 * m, 0, 0, 0))
   }
 }
 

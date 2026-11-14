@@ -9,7 +9,7 @@ import { WebGLPathTracer, GradientEquirectTexture } from 'three-gpu-pathtracer'
 import type { Answer, Loaded } from './types'
 import type { BuildingGeo } from './Model'
 import { outline, shapeOf, tube } from './geom'
-import { floorTexture, planComposite } from './floors'
+import { floorRooms, floorTexture, planComposite } from './floors'
 import { buildFixtures, buildOne, fixtureMaterials } from './fixtures3d'
 import { SYMBOL, type Cls } from './ink'
 
@@ -28,7 +28,7 @@ function buildPhotoScene(loaded: Loaded, b: BuildingGeo, drawingTex: THREE.Textu
 
   // ground: room floors with the drawing multiplied over them
   const pxPerM = d.mPerPx ? 1 / d.mPerPx : wallH / 2.6
-  const plan = new THREE.CanvasTexture(planComposite(d.source, d.width, d.height, loaded.context.rooms, pxPerM, d.kind === 'svg' ? 'stone' : 'wood'))
+  const plan = new THREE.CanvasTexture(planComposite(d.source, d.width, d.height, floorRooms(loaded), pxPerM, d.kind === 'svg' ? 'stone' : 'wood'))
   plan.colorSpace = THREE.SRGBColorSpace
   const groundMat = new THREE.MeshStandardMaterial({ map: plan, roughness: 0.75 })
   const groundGeo = new THREE.PlaneGeometry(d.width, d.height)

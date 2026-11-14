@@ -71,7 +71,9 @@ export interface Context {
     number?: string | null; area?: number | null; areaSource?: string | null // as the backend gives them (clean view labels)
   }[]
   openings: { cls: 'door' | 'window'; polygon: Pt[] }[] // window/door rectangles in the wall line: sills, glass, lintels
-  fixtures: { cls: string; polygon: Pt[] }[] // wc, washbasin, bathtub, kitchen_unit, ... shown as low volumes
+  fixtures: { cls: string; polygon: Pt[] }[] // every recognised fixture (wc, washbasin, stairs, shaft, ...): a 3D model each
+  regions?: Pt[][][] // scans: rooms found between the image walls, each a set of rectangles (3D floors, clean view)
+  railings?: Pt[][] // BIM railings (outline or line): glass panels with a top rail in 3D
 }
 
 // One drawing on a multi-drawing sheet (sheet px box), with its printed title and scale when the sheet has them

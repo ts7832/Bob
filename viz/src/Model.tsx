@@ -10,7 +10,7 @@ import { EffectComposer, EffectPass, RenderPass, SMAAEffect } from 'postprocessi
 import { N8AOPostPass } from 'n8ao'
 import type { Drawing, Loaded, Pt } from './types'
 import { obb, obbRect, shapeOf, shapesFromRings } from './geom'
-import { floorKind, floorTexture, TILE_M, type FloorKind } from './floors'
+import { floorKind, floorRooms, floorTexture, TILE_M, type FloorKind } from './floors'
 import { buildFixtures, fixtureMaterials } from './fixtures3d'
 
 export type Lift = { v: number } // 0 = the flat sheet, 1 = full 3D
@@ -75,17 +75,19 @@ function centred(g: THREE.BufferGeometry) {
 // Cutaway ("dollhouse"): walls on the camera's side of the building drop low, the back walls stay full, so every room
 // can be seen into from any angle. Done in the vertex shader (and the shadow depth pass), so it follows the camera.
 export type CutU = { uCam: { value: THREE.Vector2 }; uMid: { value: THREE.Vector2 }; uRad: { value: number }; uLow: { value: number } }
-export function cutaway<M extends THREE.Material>(m: M, u: CutU, perWall: boolean): M {
+// Heights are clamped at the cut (not scaled), so low things (a WC, a sill) keep their shape and only what rises above
+// the cut is trimmed, like a section. `top` = one storey in the material's own z units (1 for walls, px for fixtures).
+export function cutaway<M extends THREE.Material>(m: M, u: CutU, perWall: boolean, top = 1): M {
   const prev = m.onBeforeCompile
   m.onBeforeCompile = (sh, r) => {
     prev?.call(m, sh, r)
-    Object.assign(sh.uniforms, u)
-    sh.vertexShader = (perWall ? 'attribute vec2 center;\n' : '') + 'uniform vec2 uCam; uniform vec2 uMid; uniform float uRad; uniform float uLow;\n' +
+    Object.assign(sh.uniforms, u, { uTop: { value: top } })
+    sh.vertexShader = (perWall ? 'attribute vec2 center;\n' : '') + 'uniform vec2 uCam; uniform vec2 uMid; uniform float uRad; uniform float uLow; uniform float uTop;\n' +
       sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
       { vec2 c = ${perWall ? 'center' : 'transformed.xy'}; float side = dot(c - uMid, uCam) / max(uRad, 1.0);
-        transformed.z *= mix(1.0, uLow, smoothstep(-0.05, 0.35, side)); }`)
+        transformed.z = min(transformed.z, uTop * mix(1.0, uLow, smoothstep(-0.05, 0.35, side))); }`)
   }
-  m.customProgramCacheKey = () => (perWall ? 'cutw' : 'cutp')
+  m.customProgramCacheKey = () => (perWall ? 'cutw' : 'cutp') + top.toFixed(3)
   return m
 }
 
@@ -277,11 +279,11 @@ export function Building({ b, tex, wallH, lift, y, cut, band }: { b: BuildingGeo
 export function Fixtures({ loaded, wallH, lift, y, cut }: { loaded: Loaded; wallH: number; lift: RefObject<Lift>; y: number; cut: CutU }) {
   const geos = useMemo(() => buildFixtures(loaded, wallH), [loaded, wallH])
   useEffect(() => () => geos.forEach((g) => g.dispose()), [geos])
-  const mats = useMemo(() => {
+  const mats = useMemo(() => { // everything is trimmed at the cut: tall items (wardrobes, stairs, leaves) never poke out
     const m = fixtureMaterials()
-    cutaway(m.leaf, cut, false); cutaway(m.glass, cut, false) // tall door leaves and shower glass follow the cutaway
+    for (const x of Object.values(m)) cutaway(x, cut, false, wallH)
     return m
-  }, [cut])
+  }, [cut, wallH])
   useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats])
   const group = useRef<THREE.Group>(null)
   useFrame(() => {
@@ -382,7 +384,7 @@ export function Floors({ loaded, wallH, lift, y }: { loaded: Loaded; wallH: numb
   const parts = useMemo(() => {
     const by = new Map<FloorKind, THREE.BufferGeometry[]>()
     const fallback: FloorKind = d.kind === 'svg' ? 'stone' : 'wood' // BIM spaces here carry numbers, not uses
-    for (const r of loaded.context.rooms) {
+    for (const r of floorRooms(loaded)) { // scans: the rooms found between the walls, typed by the detector
       if (r.polygon.length < 3) continue
       const kind = floorKind(r.name, r.type, fallback)
       const g = new THREE.ShapeGeometry(shapeOf(d, r.polygon))

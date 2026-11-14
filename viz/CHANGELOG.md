@@ -22,6 +22,29 @@ The drawing view (`viz/`): what exists, and what changed when. Newest first. Usa
 | Evidence that isn't on this sheet (BIM model-wide answers) | yes | says "N of M on this sheet"; selecting one says "Not on this drawing" |
 | Light theme matching the demo page | yes | default |
 
+## 2026-11-15 01:44: scans get whole rooms in 3D and the clean view
+- **Scans had patchy 3D floors:** only the few rooms the detector boxes covered got a floor, and those boxes overlap walls. Now the rooms are found between the walls the view already reads from the image:
+  1. door gaps are closed;
+  2. the outside is dropped;
+  3. each room is grown back to the real walls.
+- **Each room's floor** takes its type from the detector box covering at least a quarter of it (bedroom: oak, bathroom: tile, …). Rooms the detector didn't type get a neutral floor. The clean view fills the same rooms.
+- Display only, built on the first 3D or clean view, like the walls.
+
+## 2026-11-15 01:36: a 3D model for every recognised symbol
+- **Every class the backend recognises now has its own 3D model** (no generic blocks, nothing dropped). Furniture that is only drawn and not recognised (beds, tables on scans) stays visible as the drawing on the floor; nothing is invented.
+  - **Stairs** (Swiss CAD and BIM): treads climbing toward the wall end, a landing on near-square stairs, and a handrail. BIM riser lines are skipped.
+  - **Shafts:** a full-height duct with a grille.
+  - **Washing machines:** a white cabinet with a porthole on the free side.
+  - **Unlabelled CAD fixtures**, read by size:
+    - posts up to 0.36 m;
+    - appliance or cabinet units with a counter top;
+    - wardrobes (≥1 m and long), 2 m tall with door seams.
+  - **BIM furniture:** its own outline, extruded in wood.
+  - **BIM railings:** their own outline. Balusters become chrome posts, longer rails glass with a chrome cap.
+- **Cutaway clamps heights at the cut instead of scaling them.** Low things (a WC, a sill) keep their shape; tall ones (wardrobes, stairs, door leaves) are trimmed like a section. Counted objects are trimmed the same way.
+- **New classes with glyphs, names and clean-view symbols:** washer, shaft, cabinet, railing. Counted washers, shafts and cabinets glow like the other symbols.
+- **Harness:** `?focus=<ids>` shows sheet items (or BIM guids) as a test answer and flies to the first. **Test:** `tests/coldstart.py` checks the BIM cold-start crash (issue #31) on a fresh server.
+
 ## 2026-11-15 00:20: window frames, counted windows light up, Photo mode matches the new look
 - **Windows in 3D** have frames: head and sill rails, jambs and a centre mullion around the glass.
 - **Counted windows light up:** the pane turns orange in its opening and moves with its wall under the wall cut and the cutaway. Before, a counted window had no 3D highlight.
