@@ -16,8 +16,8 @@ SAMPLES = [
     ("data/swiss_dwellings/site1138_bldg2292_floor10584.pdf", "Swiss floor plan (French, large)"),
     ("data/ifc_models/bsc-esplanades_1807-ep-ar-v18_plan-04-4-korrus.pdf", "BIM plan: Esplanades, 4th floor (Estonian)"),
     ("data/ifc_models/bsc-molio_molio-with-uris_plan-02-klder.pdf", "BIM plan: Molio, basement (Danish)"),
-    ("data/cubicasa5k/colorful-11397.png", "Scanned plan (Finnish) - baseline detector"),
-    ("data/cubicasa5k/colorful-11400.png", "Scanned plan (Finnish) - baseline detector"),
+    ("data/cubicasa5k/colorful-11397.png", "Scanned plan (Finnish)"),
+    ("data/cubicasa5k/colorful-11400.png", "Scanned plan (Finnish)"),
 ]
 
 
@@ -40,7 +40,21 @@ def samples():
     return out
 
 
-OPENED = {}  # "file:<abs path>" -> abs path, for files opened through /api/open (any file on this machine)
+OPENED = {}  # "file:<abs path>" -> abs path, for files opened through /api/open or /api/upload
+UPLOADS = os.path.join(ROOT, "data", "uploads")  # dropped files are kept here (git-ignored)
+MAX_UPLOAD = 80 * 1024 * 1024
+
+
+def save_upload(name, data):
+    """Bytes dropped on the page -> a file under data/uploads (content hash in the name, so a re-drop reuses it)."""
+    import hashlib, re
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", os.path.basename(name or ""))[-80:].lstrip(".") or "drawing"
+    os.makedirs(UPLOADS, exist_ok=True)
+    f = os.path.join(UPLOADS, hashlib.sha1(data).hexdigest()[:10] + "_" + safe)
+    if not os.path.exists(f):
+        with open(f, "wb") as out:
+            out.write(data)
+    return f
 
 
 def resolve(path):
@@ -55,6 +69,9 @@ def open_file(f):
     key = "file:" + f
     OPENED[key] = f
     sheet = load_sheet(f, True)
+    if sheet.get("source_type") == "unknown":
+        OPENED.pop(key, None)
+        raise ValueError(sheet.get("note") or "This file type cannot be read yet.")
     qs = ["How many doors are shown on this floor plan?", "How many windows are shown on this floor plan?",
           "How many toilet bowls (WC seats) are drawn on this floor plan?", "How many sinks and wash basins are drawn on this floor plan?",
           "How many showers and bathtubs are drawn on this floor plan in total?"]
@@ -66,6 +83,48 @@ def open_file(f):
     title = f"{os.path.basename(f)} ({sheet.get('kind', sheet.get('source_type'))})"
     return dict(path=key, title=title, source=sheet.get("kind", "file"), note=f"scale: {scale}" if scale else "",
                 questions=[dict(question=q, answer=None, unit=None) for q in qs])
+
+
+def plan(path):
+    """Everything the converter found on the sheet, as shapes the page can draw over the drawing."""
+    sheet = load_sheet(resolve(path), path in OPENED)
+    kind = sheet.get("kind") or sheet.get("source_type") or "file"
+    scale = (sheet.get("scale") or {}).get("source") or ""
+    if (sheet.get("render") or {}).get("type") not in ("image", "pdf"):  # CAD and BIM are drawn from their own geometry
+        return dict(drawable=False, kind=kind, scale=scale, items=[], note=sheet.get("note") or "")
+    items = []
+
+    def shape(e):
+        if e.get("polygon"):
+            return dict(pts=[[round(x, 1), round(y, 1)] for x, y in e["polygon"]])
+        return dict(bbox=[round(v, 1) for v in e["bbox"]]) if e.get("bbox") else None
+
+    def add(e, type_, how, label=None, **extra):
+        sh = shape(e)
+        if sh:
+            items.append(dict(type=type_, how=how, label=label, conf=e.get("conf"), **sh, **extra))
+
+    for e in list(sheet.get("openings", [])) + list(sheet.get("fixtures", [])):
+        add(e, e.get("cls") or e.get("type") or "element", "linework" if e.get("exact") else "detector")
+    for r in sheet.get("rooms", []):
+        if r.get("cls"):  # room type found by the detector
+            add(r, r["cls"], "detector")
+        else:  # room read from the sheet's own text and outlines
+            label = " ".join(str(v) for v in (r.get("number"), r.get("name")) if v)
+            add(r, "room", "read", label, area_m2=r.get("area_m2"), area_source=r.get("area_source"))
+    for f in sheet.get("floors", []):
+        add(f, "floor", "detector")
+    for u in sheet.get("units_list", []):
+        add(u, "apartment", "read", u.get("label"))
+    return dict(drawable=True, kind=kind, scale=scale, items=items, texts=len(sheet.get("texts", [])),
+                linework=sheet.get("linework_notes") or {}, fit=sheet.get("detector_fit") or {})
+
+
+def sheet_json(path):
+    """The unified sheet itself (format drawqa-sheet/1), for download."""
+    sheet = load_sheet(resolve(path), path in OPENED)
+    return json.dumps(sheet, indent=1, ensure_ascii=False,
+                      default=lambda o: list(o) if isinstance(o, (set, tuple)) else str(o)).encode()
 
 
 def page_png(path):
@@ -120,6 +179,10 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, open(f, "rb").read(), mimetypes.guess_type(f)[0] or "application/octet-stream")
             if u.path == "/api/render":
                 return self._send(200, render(parse_qs(u.query)["path"][0]))
+            if u.path == "/api/plan":
+                return self._send(200, plan(parse_qs(u.query)["path"][0]))
+            if u.path == "/api/sheet":
+                return self._send(200, sheet_json(parse_qs(u.query)["path"][0]), "application/json; charset=utf-8")
             if u.path.startswith("/data/"):
                 f = os.path.abspath(os.path.join(DATA, u.path[len("/data/"):]))
                 if not f.startswith(DATA) or not f.lower().endswith((".png", ".jpg", ".jpeg", ".svg")):
@@ -131,12 +194,26 @@ class H(BaseHTTPRequestHandler):
             return self._send(500, {"error": str(e)})
 
     def do_POST(self):
-        if urlparse(self.path).path != "/api/ask":
+        u = urlparse(self.path)
+        if u.path == "/api/upload":  # body = the file's bytes, ?name= its file name
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+                if not 0 < n <= MAX_UPLOAD:
+                    return self._send(413, {"error": f"file is empty or larger than {MAX_UPLOAD // 2 ** 20} MB"})
+                name = (parse_qs(u.query).get("name") or [""])[0]
+                d = open_file(save_upload(name, self.rfile.read(n)))
+                if name:
+                    d["title"] = d["title"].replace(os.path.basename(OPENED[d["path"]]), os.path.basename(name), 1)
+                return self._send(200, d)
+            except Exception as e:
+                traceback.print_exc()
+                return self._send(500, {"error": str(e)})
+        if u.path != "/api/ask":
             return self._send(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             path, question = body["path"], body["question"].strip()
-            res = solve(resolve(path), question, path in OPENED)
+            res = solve(resolve(path), question, path in OPENED, llm=True)  # free wording: a language model picks the tool
             truth = next((q for q in QUESTIONS if q["path"] == path and q["question"].strip() == question), None)
             if truth is not None:
                 res["dataset_answer"] = truth["answer"]

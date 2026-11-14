@@ -164,8 +164,13 @@ drawqa/postprocess.py  thresholds + merge rules shared by training-time tuning a
 drawqa/scan.py         scanned plans from a predictions file (data/predictions/active.txt names the default)
 drawqa/swiss.py, dxf.py, geom.py   Swiss DXF rules (window boxes fixed: one 4-point rectangle per window)
 drawqa/ifc.py          BIM queries
-drawqa/router.py       question -> intent (regex over the dataset's templates; free-form questions NOT handled)
-drawqa/query.py        deterministic counting and area sums
+drawqa/router.py       question -> intent (regex over the dataset's templates, plus "what is the scale")
+drawqa/llm_router.py   free-form question -> the same intent, chosen by a language model (Claude API, structured
+                       output). Only used by solve(..., llm=True) when no pattern matches; the demo turns it on, the
+                       scoreboard never does. Needs ANTHROPIC_API_KEY; NOT yet run against the live API (no key here),
+                       only with stubbed replies. The model picks the tool; it never sees the image or gives the number.
+drawqa/query.py        deterministic counting and area sums; door/window counts also report the count under two other
+                       counting rules (`counting` on the answer: overlapping symbols merged, touching symbols merged)
 drawqa/solve.py        solve(path, question) -> answer, evidence, honesty tier
 drawqa/eval.py         scoreboard
 tools/modal_train.py   stages: download, convert, fetch_junction, convert_swiss, convert_ifc, train, tune, predict,
@@ -206,8 +211,9 @@ its dataset to local disk with 64 threads first. `--detach` keeps a run alive if
 
 1. **Licences.** Junction says submissions are open-sourced under MIT. Ultralytics is AGPL-3.0 and CubiCasa5k is
    CC BY-NC-SA. Ask the organizers whether dependencies and model weights fall under the MIT rule.
-2. **Free-form questions.** The router only understands the dataset's question templates. A judge's own wording needs
-   an LLM to choose the tool. There is still no API key on this machine.
+2. **Free-form questions.** `drawqa/llm_router.py` is written and wired into the demo, but there is still no API key
+   on this machine, so it has only been tested with stubbed model replies. Without a key the answer says the question
+   was not understood. To use an open model instead, replace `_ask` in that file (the only provider-specific part).
 3. **DWG** files cannot be read (no converter installed).
 4. **Scans have no area method.** The detector gives room boxes, not outlines; the dataset asks no area questions on
    scans, but a judge might. Scale on a scan can only be estimated (door width: about 5% typical error, up to 25%,

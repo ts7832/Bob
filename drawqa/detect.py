@@ -10,6 +10,7 @@ import json, os
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 WEIGHTS = os.environ.get("DRAWQA_WEIGHTS", os.path.join(ROOT, "models", "detector.pt"))
 TILE = 1280
+TILE_BATCH = int(os.environ.get("DRAWQA_TILE_BATCH", 4))  # tiles per forward pass (memory, not accuracy)
 _model = _thr = None
 
 
@@ -116,8 +117,10 @@ def _one(m, img, imgsz, tile="auto"):
         if len(doors) >= 2 and doors[len(doors) // 2] >= MIN_DOOR_PX:
             return whole
     dets, tl = [], tiles(w, h)
-    for (x, y), r in zip(tl, m.predict([img[y:y + TILE, x:x + TILE] for x, y in tl], **kw)):
-        dets += conv(r, x, y)
+    for i in range(0, len(tl), TILE_BATCH):  # a large sheet is dozens of tiles; one batch of all of them needs gigabytes
+        part = tl[i:i + TILE_BATCH]
+        for (x, y), r in zip(part, m.predict([img[y:y + TILE, x:x + TILE] for x, y in part], **kw)):
+            dets += conv(r, x, y)
     return nms(dets)
 
 

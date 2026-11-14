@@ -51,6 +51,9 @@ def honesty(sheet, intent, res):
         return dict(tier="cannot determine", deterministic=None, basis=res.get("explanation", "not supported for this drawing"))
     st, it = sheet["source_type"], intent["intent"]
     scale = sheet.get("scale") or {}
+    if it == "scale":
+        est = bool(res.get("scale_estimated"))
+        return dict(tier="estimated" if est else "read", deterministic=not est, basis=scale.get("source") or "")
     by_detector = st in ("raster", "vector-pdf") and (it in SYMBOL_INTENTS or (st == "raster" and it in ("count_rooms_class", "count_floors")))
     if by_detector:
         confs = [e.get("conf") for e in res.get("elements_used", []) if e.get("conf") is not None]
@@ -59,7 +62,12 @@ def honesty(sheet, intent, res):
         exact = sum(1 for e in res.get("elements_used", []) if e.get("exact"))
         if exact:
             note += f"; {exact} matched to rectangles in the drawing's own linework (exact geometry)"
-        return dict(tier="detected", deterministic=False, basis=note, weakest=min(confs) if confs else None)
+        out = dict(tier="detected", deterministic=False, basis=note, weakest=min(confs) if confs else None)
+        fit = sheet.get("detector_fit") or {}
+        if fit.get("level") in ("weak", "none"):  # say so when the drawing is unlike what the detector was trained on
+            out["style_warning"] = fit["note"]
+            out["basis"] = note + ". Warning: " + fit["note"]
+        return out
     if res.get("unit") in ("m2", "m", "m3") and st in ("vector-pdf", "raster"):
         src = " / ".join(sorted({r for r in res.get("area_sources", []) if r})) or "geometry"
         if scale.get("estimated") and "printed label" not in src:
@@ -75,10 +83,26 @@ def honesty(sheet, intent, res):
     return dict(tier="read" if st == "vector-pdf" else "measured", deterministic=True, basis="text and linework of the file")
 
 
-def solve(path, question, generic=False):
+def solve(path, question, generic=False, llm=False):
+    """llm=True: a question no pattern matches is read by a language model, which only chooses the tool
+    (drawqa/llm_router.py). The scoreboard leaves it off."""
     sheet = load_sheet(path, generic)
     intent = router.parse(question)
-    if sheet["source_type"] == "ifc":
+    read_by = dict(by="pattern", note="matched a known question pattern")
+    if intent["intent"] == "unknown" and llm and sheet.get("source_type") != "unknown":
+        from . import llm_router
+        chosen, note = llm_router.parse(question, sheet)
+        if chosen is not None:
+            intent = chosen
+            read_by = dict(by="language model", model=llm_router.MODEL,
+                           note=f"read by a language model as: {note} The model chose the tool only; the value is computed by code.")
+        else:
+            read_by = dict(by="nobody", note=note)
+    if intent["intent"] == "unknown":
+        res = dict(answer=None, explanation="This question was not understood, so nothing was measured: " + read_by["note"]
+                   if read_by["by"] == "nobody" else
+                   "This question does not match a known pattern, and free wording was not sent to a language model.")
+    elif sheet["source_type"] == "ifc":
         from . import ifc
         res = ifc.execute(sheet, intent)
     else:
@@ -86,6 +110,7 @@ def solve(path, question, generic=False):
     res.setdefault("evidence", [])
     res.setdefault("unit", None)
     res["intent"] = intent
+    res["question_read"] = read_by
     res["source_type"] = sheet["source_type"]
     res["method"] = {"vector-dxf": "exact vector geometry", "vector-pdf": "PDF text and linework", "ifc": "BIM model query",
                      "raster": sheet.get("model", "detector")}.get(sheet["source_type"], "n/a")
@@ -95,4 +120,6 @@ def solve(path, question, generic=False):
     w = res["honesty"].get("weakest")
     res["confidence"] = (None if res.get("answer") is None else 0.99 if res["honesty"]["deterministic"]
                          else round(w, 2) if w is not None else 0.5)
+    if res["honesty"].get("style_warning") and res["confidence"] is not None:
+        res["confidence"] = min(res["confidence"], 0.3)
     return res

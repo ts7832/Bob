@@ -17,6 +17,7 @@
   aside h3, .side h3 { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:14px 4px 6px; }
   .sample { padding:9px 10px; border-radius:8px; cursor:pointer; margin-bottom:4px; }
   .sample:hover { background:var(--chip); } .sample.on { background:#fff3e6; outline:1px solid #ffd2a6; }
+  .sample b { overflow-wrap:anywhere; }
   .sample small { display:block; color:var(--muted); font-size:11.5px; word-break:break-all; }
   main { position:relative; overflow:hidden; background:#fff; }
   #viewer { width:100%; height:100%; cursor:grab; display:block; } #viewer:active { cursor:grabbing; }
@@ -37,19 +38,39 @@
   .badge.none { background:var(--chip); color:var(--muted); }
   .expl { margin:8px 0; } .meta { color:var(--muted); font-size:12.5px; }
   details { margin-top:8px; font-size:12px; color:var(--muted); } pre { white-space:pre-wrap; margin:4px 0; }
+  .drop { border:1.5px dashed #c3ccd8; border-radius:10px; padding:14px 10px; text-align:center; cursor:pointer; color:var(--muted); font-size:12.5px; margin-bottom:8px; }
+  .drop b { display:block; color:var(--ink); font-size:13.5px; margin-bottom:2px; }
+  .drop:hover, body.dragging .drop { border-color:var(--accent); background:#fff8f0; }
+  .drop.busy { border-style:solid; color:var(--ink); }
+  body.dragging main::after { content:"Drop the drawing to read it"; position:absolute; inset:10px; border:2px dashed var(--accent); border-radius:14px;
+    background:rgba(255,122,0,.08); display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:600; color:var(--accent); pointer-events:none; }
+  #found:empty { display:none; }
+  .warn { background:var(--badbg); color:var(--bad); border:1px solid #f5c2bd; border-radius:10px; padding:9px 11px; font-size:12.5px; margin-bottom:8px; }
+  .frow { display:flex; align-items:center; gap:8px; padding:4px 6px; border-radius:7px; cursor:pointer; font-size:13px; user-select:none; }
+  .frow:hover { background:var(--chip); } .frow.off { opacity:.4; }
+  .frow i { width:13px; height:13px; border-radius:3px; flex:none; border:2px solid; }
+  .frow span { flex:1; } .frow b { min-width:22px; text-align:right; } .frow em { font-style:normal; font-size:11px; color:var(--muted); min-width:92px; text-align:right; }
+  .fgroup { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:9px 6px 2px; }
+  .card a { color:var(--accent); font-weight:600; text-decoration:none; } .card a:hover { text-decoration:underline; }
   .hl, .hl * { fill:rgba(255,122,0,.45) !important; stroke:#ff7a00 !important; stroke-width:.6 !important; }
 </style>
 </head>
 <body>
 <header><b>DrawQA</b><span>answers about construction drawings, highlighted on the drawing so you can check them</span></header>
-<aside><h3>Drawings</h3><div style="margin:0 0 10px"><input id="openfile" placeholder="Open any file: paste its full path, press Enter" style="width:100%;box-sizing:border-box;padding:7px 8px;border:1px solid #cfd6df;border-radius:8px;font-size:12px"></div>
+<aside><h3>Your drawing</h3>
+<div class="drop" id="drop"><b>Drop a drawing here</b>or click to choose a file<br>PNG, JPG, PDF, DXF or IFC</div>
+<input type="file" id="pick" accept=".png,.jpg,.jpeg,.pdf,.dxf,.ifc,.tif,.tiff,.bmp,image/*,application/pdf" hidden>
+<div style="margin:0 0 10px"><input id="openfile" placeholder="or paste a file's full path, press Enter" style="width:100%;box-sizing:border-box;padding:7px 8px;border:1px solid #cfd6df;border-radius:8px;font-size:12px"></div>
+<div id="mine"></div>
+<h3>Examples from the dataset</h3>
 <div id="samples"></div></aside>
 <main>
   <div id="viewer"></div>
-  <div class="toolbar"><button onclick="resetView()">Reset view</button><button onclick="clearHl()">Clear highlights</button></div>
+  <div class="toolbar"><button onclick="resetView()">Reset view</button><button onclick="clearHl()">Clear highlights</button><button id="planbtn" onclick="togglePlan()" hidden>Hide found plan</button></div>
   <div class="note" id="note"></div>
 </main>
 <section class="side">
+  <div id="found"></div>
   <h3>Ask a question (any language)</h3>
   <textarea id="q" placeholder="e.g. How many doors are drawn on this floor plan?"></textarea>
   <button class="ask" onclick="ask()">Ask</button>
@@ -59,7 +80,21 @@
 </section>
 <script>
 const NS = "http://www.w3.org/2000/svg";
-let current = null, svgEl = null, baseVB = null, hlLayer = null;
+let current = null, svgEl = null, baseVB = null, hlLayer = null, planLayer = null, planOn = true;
+// what the converter can find: label, colour, group. Rooms are filled areas, symbols are boxes.
+const KINDS = {
+  door:["Doors","#2563eb","Openings"], window:["Windows","#0d9488","Openings"],
+  wc:["WC seats","#9333ea","Fixtures"], sink:["Sinks / wash basins","#db2777","Fixtures"], bathtub:["Bathtubs","#0891b2","Fixtures"],
+  shower:["Showers","#4f46e5","Fixtures"], sauna_stove:["Sauna stoves","#b45309","Fixtures"], sauna_bench:["Sauna benches","#a16207","Fixtures"],
+  bedroom:["Bedrooms","#3b82f6","Rooms"], kitchen:["Kitchens","#eab308","Rooms"], bathroom:["Bathrooms","#10b981","Rooms"],
+  wc_room:["WC rooms","#a855f7","Rooms"], balcony:["Balconies","#84cc16","Rooms"], sauna_room:["Sauna rooms","#ef4444","Rooms"],
+  living_room:["Living rooms","#f97316","Rooms"], dining:["Dining areas","#d97706","Rooms"], room:["Rooms (general)","#6366f1","Rooms"],
+  entry:["Entrance / hall","#0ea5e9","Rooms"], storage:["Storage / closets","#78716c","Rooms"], utility:["Utility / technical","#14b8a6","Rooms"],
+  dressing_room:["Dressing rooms","#ec4899","Rooms"], terrace:["Terraces / porches","#65a30d","Rooms"], garage:["Garages","#475569","Rooms"],
+  other_room:["Other rooms","#94a3b8","Rooms"],
+  room:["Rooms (from labels)","#64748b","Rooms"], apartment:["Apartments","#d64545","Layout"], floor:["Floors (storeys)","#111827","Layout"] };
+const HOW = { detector:"detected", linework:"exact linework", read:"read from sheet" };
+const esc = t => String(t ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
 const STYLE = { WALL_FILL:{fill:"#3d4048",stroke:"none"}, WALL:{fill:"#3d4048",stroke:"#2b2e35",w:.01},
   ROOM_OUTLINE:{fill:"none",stroke:"#b9c3cf",w:.015}, UNIT_OUTLINE:{fill:"none",stroke:"#d64545",w:.03,dash:".25 .12"},
@@ -78,24 +113,54 @@ async function init() {
   const P = new URLSearchParams(location.search), idx = +(P.get("s") || 0);
   document.querySelectorAll(".sample")[idx]?.classList.add("on");
   await open(s[idx]);
+  if (P.get("file")) {  // ?file=<full path> opens a local file directly
+    const d = await (await fetch("/api/open?file=" + encodeURIComponent(P.get("file")))).json();
+    if (!d.error) addMine(d);
+  }
   if (P.get("q")) { document.getElementById("q").value = P.get("q"); ask(); }
 }
 
+function addMine(d) {
+  const box = document.getElementById("mine"), div = document.createElement("div"); div.className = "sample";
+  div.innerHTML = `<b>${esc(d.title)}</b><small>${esc(d.note || "your file")}</small>`;
+  div.onclick = () => { document.querySelectorAll(".sample").forEach(x => x.classList.remove("on")); div.classList.add("on"); open(d); };
+  box.prepend(div); div.onclick();
+}
+
+async function upload(file) {
+  const drop = document.getElementById("drop"), idle = drop.innerHTML;
+  drop.classList.add("busy"); drop.innerHTML = `<b>Reading ${esc(file.name)}…</b>finding doors, windows, fixtures and rooms`;
+  try {
+    const d = await (await fetch("/api/upload?name=" + encodeURIComponent(file.name), {method:"POST", body:file})).json();
+    if (d.error) throw new Error(d.error);
+    addMine(d);
+  } catch (e) { document.getElementById("note").textContent = "Could not read the file: " + e.message; }
+  drop.classList.remove("busy"); drop.innerHTML = idle;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  const drop = document.getElementById("drop"), pick = document.getElementById("pick");
+  drop.onclick = () => pick.click();
+  pick.onchange = () => { if (pick.files[0]) upload(pick.files[0]); pick.value = ""; };
+  let depth = 0;  // drop anywhere on the page
+  window.addEventListener("dragenter", e => { if (e.dataTransfer?.types.includes("Files")) { depth++; document.body.classList.add("dragging"); } });
+  window.addEventListener("dragleave", () => { if (--depth <= 0) { depth = 0; document.body.classList.remove("dragging"); } });
+  window.addEventListener("dragover", e => e.preventDefault());
+  window.addEventListener("drop", e => { e.preventDefault(); depth = 0; document.body.classList.remove("dragging");
+    if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]); });
   const inp = document.getElementById("openfile");
   inp.addEventListener("keydown", async e => {
     if (e.key !== "Enter" || !inp.value.trim()) return;
     document.getElementById("note").textContent = "Reading the file…";
     const d = await (await fetch("/api/open?file=" + encodeURIComponent(inp.value.trim()))).json();
     if (d.error) { document.getElementById("note").textContent = "Could not open: " + d.error; return; }
-    document.querySelectorAll(".sample").forEach(x => x.classList.remove("on"));
-    await open(d);
+    inp.value = ""; addMine(d);
   });
 });
 
 async function open(d) {
-  current = d;
-  document.getElementById("answer").innerHTML = "";
+  current = d; planLayer = null;
+  document.getElementById("answer").innerHTML = ""; document.getElementById("found").innerHTML = ""; document.getElementById("planbtn").hidden = true;
   const chips = document.getElementById("chips"); chips.innerHTML = "";
   d.questions.forEach(q => { const b = document.createElement("button"); b.className = "chip"; b.textContent = q.question;
     b.onclick = () => { document.getElementById("q").value = q.question; ask(); }; chips.appendChild(b); });
@@ -105,10 +170,64 @@ async function open(d) {
   if (r.type === "vector") drawVector(v, r);
   else if (r.type === "svg") { v.innerHTML = r.svg; svgEl = v.querySelector("svg"); svgEl.removeAttribute("width"); svgEl.removeAttribute("height"); }
   else if (r.type === "image") { svgEl = el("svg", {viewBox:`0 0 ${r.width} ${r.height}`}, v); el("image", {href:r.url, x:0, y:0, width:r.width, height:r.height}, svgEl); }
-  else { v.innerHTML = "<p style='padding:20px;color:#888'>No drawing to show for this file.</p>"; svgEl = null; return; }
+  else { v.innerHTML = `<p style='padding:20px;color:#888'>${esc(r.note || "No drawing to show for this file.")}</p>`; svgEl = null; return; }
   baseVB = svgEl.getAttribute("viewBox").split(/[ ,]+/).map(Number);
+  planLayer = el("g", {id:"plan"}, svgEl);
   hlLayer = el("g", {id:"hl"}, svgEl);
   enableZoom(svgEl);
+  try { const p = await (await fetch("/api/plan?path=" + encodeURIComponent(d.path))).json(); if (current === d && !p.error) showPlan(p, d); } catch (e) {}
+}
+
+// The floor plan the converter found: every element drawn on the drawing, and a legend with counts.
+function showPlan(p, d) {
+  const warn = p.fit && (p.fit.level === "weak" || p.fit.level === "none")
+    ? `<div class="warn"><b>Unfamiliar drawing style.</b> ${esc(p.fit.note.charAt(0).toUpperCase() + p.fit.note.slice(1))}.</div>` : "";
+  if (!p.drawable) return;
+  if (!p.items.length) { document.getElementById("found").innerHTML = warn ? `<h3>Floor plan found on this drawing</h3>${warn}` : ""; return; }
+  const u = Math.max(baseVB[2], baseVB[3]) / 900, AREA = new Set(["Rooms", "Layout"]);
+  const order = Object.keys(KINDS), layers = {}, stats = {};
+  p.items.slice().sort((a, b) => (AREA.has((KINDS[b.type] || [])[2]) ? 1 : 0) - (AREA.has((KINDS[a.type] || [])[2]) ? 1 : 0)).forEach(it => {
+    const [, color, group] = KINDS[it.type] || [it.type, "#475569", "Other"];
+    const g = layers[it.type] ||= el("g", {"data-type":it.type}, planLayer);
+    const st = stats[it.type] ||= {n:0, how:new Set()}; st.n++; st.how.add(it.how);
+    const area = AREA.has(group), line = it.type === "floor" || it.type === "apartment";
+    const a = {fill:line ? "none" : color, "fill-opacity":area ? .16 : .22, stroke:color, "stroke-width":u * (line ? 2.2 : 1.6), "stroke-linejoin":"round"};
+    if (line) a["stroke-dasharray"] = `${u * 7} ${u * 4}`;
+    let cx, cy, node;
+    if (it.pts) { node = el("polygon", {points:it.pts.map(q => q.join(",")).join(" "), ...a}, g);
+      cx = it.pts.reduce((s, q) => s + q[0], 0) / it.pts.length; cy = it.pts.reduce((s, q) => s + q[1], 0) / it.pts.length; }
+    else { const [x0, y0, x1, y1] = it.bbox; node = el("rect", {x:x0, y:y0, width:x1 - x0, height:y1 - y0, rx:u, ...a}, g); cx = (x0 + x1) / 2; cy = (y0 + y1) / 2; }
+    const tip = el("title", {}, node);
+    tip.textContent = (KINDS[it.type] || [it.type])[0] + (it.label ? " · " + it.label : "") + (it.area_m2 ? ` · ${it.area_m2} m²` : "") + ` · ${HOW[it.how] || it.how}` + (it.conf != null && it.how === "detector" ? ` (confidence ${Math.round(it.conf * 100)}%)` : "");
+    if (area && group === "Rooms" && !it.label) {  // detector room types get their name on the drawing; labelled rooms already have text
+      const top = it.pts ? Math.min(...it.pts.map(q => q[1])) : it.bbox[1];  // name along the top edge, clear of the printed room label
+      const t = el("text", {x:cx, y:top + u * 19, "font-size":u * 15, "text-anchor":"middle", fill:color, "font-weight":"700", "font-family":"system-ui",
+        stroke:"#fff", "stroke-width":u * 2.5, "paint-order":"stroke", "pointer-events":"none"}, g);
+      t.textContent = {bedroom:"Bedroom", kitchen:"Kitchen", bathroom:"Bathroom", wc_room:"WC", balcony:"Balcony", sauna_room:"Sauna", living_room:"Living room",
+        dining:"Dining", room:"Room", entry:"Entrance", storage:"Storage", utility:"Utility", dressing_room:"Dressing", terrace:"Terrace", garage:"Garage", other_room:"Other room"}[it.type] || it.type;
+    }
+  });
+  let html = "", last = "";
+  Object.keys(stats).sort((a, b) => (order.indexOf(a) + 99) % 99 - (order.indexOf(b) + 99) % 99).forEach(t => {
+    const [name, color, group] = KINDS[t] || [t, "#475569", "Other"];
+    if (group !== last) { html += `<div class="fgroup">${group}</div>`; last = group; }
+    html += `<div class="frow" data-type="${esc(t)}"><i style="border-color:${color};background:${color}33"></i><span>${esc(name)}</span><em>${[...stats[t].how].map(h => HOW[h] || h).join(" + ")}</em><b>${stats[t].n}</b></div>`;
+  });
+  const det = p.items.some(i => i.how === "detector");
+  document.getElementById("found").innerHTML = `<h3>Floor plan found on this drawing</h3>${warn}<div class="card" style="margin-top:0">${html}
+    <div class="meta" style="margin-top:9px">${esc(p.kind)}${p.scale ? " · scale: " + esc(p.scale) : ""}${p.texts ? ` · ${p.texts} printed texts read` : ""}</div>
+    <div class="meta">${det ? "“Detected” items come from a trained detector and are not deterministic; hover one for its confidence." : "Everything here was read from the file itself."} Click a row to hide or show it.</div>
+    <div style="margin-top:8px"><a href="/api/sheet?path=${encodeURIComponent(d.path)}" download="${esc(d.title.split(" (")[0])}.sheet.json">Download as unified sheet (JSON)</a></div></div>`;
+  document.querySelectorAll("#found .frow").forEach(row => row.onclick = () => {
+    const off = row.classList.toggle("off"); layers[row.dataset.type]?.setAttribute("display", off ? "none" : "inline"); });
+  planOn = true; planLayer.setAttribute("opacity", hlLayer.childNodes.length ? .18 : 1);  // an answer may already be showing
+  const b = document.getElementById("planbtn"); b.hidden = false; b.textContent = "Hide found plan";
+}
+
+function togglePlan() {
+  if (!planLayer) return;
+  planOn = !planOn; planLayer.setAttribute("display", planOn ? "inline" : "none"); planLayer.setAttribute("opacity", 1);
+  document.getElementById("planbtn").textContent = planOn ? "Hide found plan" : "Show found plan";
 }
 
 function drawVector(v, r) {
@@ -138,10 +257,11 @@ function marker(x, y, label, size) {
   t.textContent = label;
 }
 
-function clearHl() { if (!svgEl) return; hlLayer.innerHTML = ""; svgEl.querySelectorAll(".hl").forEach(e => e.classList.remove("hl")); }
+function clearHl() { if (!svgEl) return; hlLayer.innerHTML = ""; svgEl.querySelectorAll(".hl").forEach(e => e.classList.remove("hl")); planLayer?.setAttribute("opacity", 1); }
 
 function showEvidence(ev) {
   clearHl(); if (!svgEl || !ev.length) return;
+  planLayer?.setAttribute("opacity", .18);  // the answer's evidence takes the foreground
   const size = baseVB[2] / 75, numbered = ev.length <= 150;
   ev.forEach((e, i) => {
     const lab = numbered ? (e.label && e.label.length < 4 ? e.label : String(i + 1)) : "";
@@ -178,7 +298,10 @@ async function ask() {
   const h = r.honesty || {};
   out.innerHTML = `<div class="card"><div class="big">${val} <small>${unit}</small></div>${badge}
     <div class="expl">${r.explanation || ""}</div>
+    ${h.style_warning ? `<div class="warn" style="margin-top:8px"><b>Unfamiliar drawing style.</b> This count may be wrong.</div>` : ""}
     <div class="meta"><b>${h.tier ? h.tier.toUpperCase() : "—"}</b>${h.deterministic === true ? " · deterministic" : h.deterministic === false ? " · not deterministic" : ""} · ${h.basis || ""}</div>
+    ${(r.counting || []).length ? `<div class="meta">Counting rules: ${r.counting.map(c => `${c.used ? "<b>" : ""}${c.count} — ${c.rule}${c.used ? " (used)</b>" : ""}`).join(" · ")}</div>` : ""}
+    <div class="meta">Question: ${esc((r.question_read || {}).note || "")}</div>
     <div class="meta">Method: ${r.method} · confidence ${conf} · ${r.evidence.length} highlighted</div>
     <details><summary>parsed question</summary><pre>${JSON.stringify(r.intent, null, 1)}</pre></details></div>`;
   showEvidence(r.evidence || []);

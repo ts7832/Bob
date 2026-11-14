@@ -39,7 +39,61 @@ image = (
 )
 
 CLASSES = ["door", "window", "wc", "sink", "bathtub", "shower", "sauna_stove", "sauna_bench",
-           "bedroom", "kitchen", "bathroom", "wc_room", "balcony", "sauna_room", "floor"]
+           "bedroom", "kitchen", "bathroom", "wc_room", "balcony", "sauna_room", "floor",
+           # every other labelled room, so an uploaded plan gets all of its rooms (the dataset asks no questions about these)
+           "room", "living_room", "dining", "entry", "storage", "utility", "dressing_room", "terrace", "garage", "other_room"]
+# CubiCasa 'Space <kind>' (matched by prefix, in this order) -> class. Counted over all 5,000 plans with --stage space_stats.
+# Rooms the answer key counts (bedroom, kitchen, bath, balcony, sauna) keep their own rules in _parse_one and come first.
+OTHER_ROOMS = [("LivingRoom", "living_room"), ("Dining", "dining"),
+               ("Entry", "entry"), ("DraughtLobby", "entry"), ("Hall", "entry"),
+               ("Closet", "storage"), ("Storage", "storage"),
+               ("Utility", "utility"), ("TechnicalRoom", "utility"), ("DressingRoom", "dressing_room"),
+               ("Outdoor Terrace", "terrace"), ("Outdoor Porch", "terrace"), ("Outdoor Patio", "terrace"),
+               ("Outdoor Veranda", "terrace"), ("Outdoor CoveredArea", "terrace"), ("Outdoor Pergola", "terrace"),
+               ("Garage", "garage"), ("CarPort", "garage"),
+               ("Room", "room"), ("Den", "room"), ("RecreationRoom", "room"), ("Office", "room"), ("Library", "room"), ("Alcove", "room"),
+               ("UserDefined", "other_room")]  # a room with a combined or unusual label (e.g. 'KHH+PH', 'OH+RT+K')
+# Not labelled: 'Undefined' (spaces with no printed name), plain 'Outdoor' (the plot around the building), attics, lifts.
+
+
+def style_variant(img, seed):
+    """The same drawing as it might arrive from elsewhere: photocopy, fax, heavy or thin lines, a low-resolution
+    JPEG, a blueprint, aged paper. Geometry is untouched, so the labels of the original apply."""
+    import cv2, numpy as np
+    rng = np.random.default_rng(seed)
+    g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    h, w = g.shape
+    bgr = lambda a: cv2.cvtColor(a, cv2.COLOR_GRAY2BGR)
+    k = seed % 7
+    if k == 3 and max(h, w) < 1200:
+        k = 0  # thinning erases the lines of a small scan
+    if k == 0:
+        return bgr(g)
+    if k == 1:
+        return bgr(cv2.threshold(g, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1])
+    if k == 2:
+        n = 3 if max(h, w) >= 1500 else 2
+        return bgr(cv2.erode(g, np.ones((n, n), np.uint8)))  # dark lines grow
+    if k == 3:
+        return bgr(cv2.dilate(g, np.ones((2, 2), np.uint8)))  # dark lines shrink
+    if k == 4:
+        f = float(rng.uniform(0.5, 0.75))
+        small = cv2.resize(img, (max(8, int(w * f)), max(8, int(h * f))), interpolation=cv2.INTER_AREA)
+        back = cv2.resize(small, (w, h), interpolation=cv2.INTER_LINEAR)
+        return cv2.imdecode(cv2.imencode(".jpg", back, [cv2.IMWRITE_JPEG_QUALITY, int(rng.integers(18, 40))])[1], cv2.IMREAD_COLOR)
+    if k == 5:
+        ink = (255 - g).astype(np.float32) / 255  # white lines on blue
+        return np.stack([120 + ink * 135, 45 + ink * 210, 15 + ink * 240], -1).clip(0, 255).astype(np.uint8)
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
+    light = 0.86 + 0.14 * (xx / w * rng.uniform(-1, 1) + yy / h * rng.uniform(-1, 1))
+    paper = g.astype(np.float32) * light + rng.normal(0, 7, g.shape)
+    tint = np.array([0.80, 0.93, 1.0], np.float32)  # BGR: yellowed paper
+    return (paper[..., None] * tint).clip(0, 255).astype(np.uint8)
+
+
+def _seed(name):
+    import zlib
+    return zlib.crc32(name.encode())
 FIXTURES = {
     "Toilet": "wc",
     "Sink": "sink", "SideSink": "sink", "RoundSink": "sink", "CornerSink": "sink", "DoubleSink": "sink", "DoubleSinkRight": "sink",
@@ -153,6 +207,8 @@ def _parse_one(args):
                         else ("wc_room" if is_wc(lab) else "bathroom") if kind.startswith("Bath")
                         else "balcony" if kind.startswith("Outdoor Balcony")
                         else "sauna_room" if kind.startswith("Sauna") or lab in ("S", "SAUNA") else None)
+                if room is None:
+                    room = next((c for prefix, c in OTHER_ROOMS if kind.startswith(prefix)), None)
                 if room:
                     add(room, *_poly_pts(g), pad=0.0)
             elif "Floorplan" in toks:
@@ -167,9 +223,12 @@ def _parse_one(args):
             errors += 1
     name = folder.strip("/").replace("/", "-")
     shutil.copy(src + "F1_original.png", f"{D}/yolo/images/{split}/{name}.png")
-    with open(f"{D}/yolo/labels/{split}/{name}.txt", "w") as f:
-        for c, x0, y0, x1, y1 in boxes:
-            f.write(f"{c} {(x0 + x1) / 2 / w:.6f} {(y0 + y1) / 2 / h:.6f} {(x1 - x0) / w:.6f} {(y1 - y0) / h:.6f}\n")
+    lines = "".join(f"{c} {(x0 + x1) / 2 / w:.6f} {(y0 + y1) / 2 / h:.6f} {(x1 - x0) / w:.6f} {(y1 - y0) / h:.6f}\n" for c, x0, y0, x1, y1 in boxes)
+    open(f"{D}/yolo/labels/{split}/{name}.txt", "w").write(lines)
+    if split == "train" and _seed(name) % 2 == 0:  # half of the training plans also in another drawing style
+        import cv2
+        cv2.imwrite(f"{D}/yolo/images/{split}/{name}_s.png", style_variant(cv2.imread(src + "F1_original.png"), _seed(name) // 2))
+        open(f"{D}/yolo/labels/{split}/{name}_s.txt", "w").write(lines)
     n = {}
     for c, *_ in boxes:
         n[CLASSES[c]] = n.get(CLASSES[c], 0) + 1
@@ -219,6 +278,173 @@ def convert(exclude: list, limit: int = 0):
     lists = write_lists()
     VOL.commit()
     return dict(splits=info, converted=len(res), failed=len(jobs) - len(res), parse_errors=sum(r[3] for r in res), boxes=dict(counts), train_images=lists)
+
+
+# ---- walls and room outlines (a second, segmentation model on the same scanned plans) --------------------------------
+# The detector gives boxes. Areas and "which wall is this window in" need outlines, so a segmentation model learns
+# CubiCasa's own wall polygons and room polygons. 'outdoor' = balconies, terraces etc. (kept apart so indoor area can
+# be summed); the plot around the building (plain 'Space Outdoor') is not labelled.
+SEG_CLASSES = ["wall", "room", "outdoor"]
+
+
+def _seg_one(args):
+    """One plan -> a YOLO segmentation label file for the image the detector set already holds (and its style variant)."""
+    from xml.dom import minidom
+    from PIL import Image
+    folder, split = args
+    src = f"{D}/cubicasa5k{folder}"
+    name = folder.strip("/").replace("/", "-")
+    if not os.path.exists(f"{D}/yolo/images/{split}/{name}.png"):
+        return None
+    try:
+        w, h = Image.open(src + "F1_original.png").size
+        ws, hs = Image.open(src + "F1_scaled.png").size
+        dom = minidom.parse(src + "model.svg")
+    except Exception:
+        return None
+    sx, sy = w / ws, h / hs
+    lines, n = [], {}
+    for g in dom.getElementsByTagName("g"):
+        cls_attr, gid = g.getAttribute("class"), g.getAttribute("id")
+        if gid == "Wall":
+            cls = "wall"
+        elif cls_attr.startswith("Space "):
+            kind = cls_attr[6:].split()
+            if kind == ["Outdoor"]:
+                continue
+            cls = "outdoor" if kind and kind[0] == "Outdoor" else "room"
+        else:
+            continue
+        X, Y = _poly_pts(g)
+        if len(X) < 3:
+            continue
+        pts = " ".join(f"{min(1.0, max(0.0, x * sx / w)):.6f} {min(1.0, max(0.0, y * sy / h)):.6f}" for x, y in zip(X, Y))
+        lines.append(f"{SEG_CLASSES.index(cls)} {pts}\n")
+        n[cls] = n.get(cls, 0) + 1
+    names = [name] + ([name + "_s"] if os.path.exists(f"{D}/yolo/images/{split}/{name}_s.png") else [])
+    for nm in names:
+        open(f"{D}/yoloseg/labels/{split}/{nm}.txt", "w").write("".join(lines))
+    return name, split, n, len(names)
+
+
+@APP.function(image=image, volumes={D: VOL}, timeout=2 * 3600, cpu=8, memory=16384)
+def convert_seg(exclude: list, limit: int = 0):
+    """Wall and room-outline labels for every scanned plan of the detector set (same splits, same excluded preview plans)."""
+    import shutil, collections
+    from multiprocessing import Pool
+    VOL.reload()
+    shutil.rmtree(f"{D}/yoloseg", ignore_errors=True)
+    for s in ("train", "val"):
+        os.makedirs(f"{D}/yoloseg/labels/{s}", exist_ok=True)
+    ex = set(exclude)
+    read = lambda f: [l.strip() for l in open(f"{D}/cubicasa5k/{f}.txt") if l.strip()]
+    splits = {"train": read("train") + read("test"), "val": read("val")}
+    jobs = []
+    for split, folders in splits.items():
+        kept = [f for f in folders if f not in ex]
+        jobs += [(f, split) for f in (kept[:limit] if limit else kept)]
+    with Pool(8) as p:
+        res = [r for r in p.map(_seg_one, jobs, chunksize=8) if r]
+    counts, files = collections.Counter(), collections.Counter()
+    for name, split, n, k in res:
+        counts.update(n)
+        files[split] += k
+    VOL.commit()
+    return dict(plans=len(res), skipped=len(jobs) - len(res), label_files=dict(files), polygons=dict(counts))
+
+
+def _seg_local():
+    """Copy the segmentation set to the container's local disk (labels from yoloseg, images from the detector set)."""
+    import shutil
+    from concurrent.futures import ThreadPoolExecutor
+    L = "/tmp/yoloseg"
+    pairs = []
+    for split in ("train", "val"):
+        os.makedirs(f"{L}/images/{split}", exist_ok=True)
+        os.makedirs(f"{L}/labels/{split}", exist_ok=True)
+        for lab in glob.glob(f"{D}/yoloseg/labels/{split}/*.txt"):
+            nm = os.path.basename(lab)[:-4]
+            pairs += [(lab, f"{L}/labels/{split}/{nm}.txt"), (f"{D}/yolo/images/{split}/{nm}.png", f"{L}/images/{split}/{nm}.png")]
+    with ThreadPoolExecutor(64) as ex:
+        list(ex.map(lambda p: shutil.copyfile(*p) if not os.path.exists(p[1]) else None, pairs))
+    open(f"{L}/data.yaml", "w").write(f"path: {L}\ntrain: images/train\nval: images/val\nnames:\n" +
+                                      "".join(f"  {i}: {c}\n" for i, c in enumerate(SEG_CLASSES)))
+    return L, len(pairs) // 2
+
+
+@APP.function(image=image, volumes={D: VOL}, gpu=GPU, timeout=24 * 3600, memory=32768, cpu=8)
+def train_seg(run: str, model: str, epochs: int, imgsz: int, batch: int, fraction: float = 1.0):
+    from ultralytics import YOLO
+    VOL.reload()
+    L, n = _seg_local()
+    m = YOLO(model)
+    m.add_callback("on_fit_epoch_end", lambda tr: VOL.commit() if (tr.epoch + 1) % 5 == 0 else None)
+    # mask_ratio=2: masks at half resolution instead of a quarter, because walls are only a few pixels thick
+    m.train(data=f"{L}/data.yaml", epochs=epochs, imgsz=imgsz, batch=batch, project=f"{D}/runs", name=run, exist_ok=True,
+            fliplr=0.5, flipud=0.5, mosaic=0.3, degrees=0, scale=0.3, translate=0.1, hsv_h=0.0, hsv_s=0.4, hsv_v=0.35,
+            close_mosaic=10, patience=15, fraction=fraction, workers=8, plots=False, mask_ratio=2, max_det=600)
+    VOL.commit()
+    best = YOLO(f"{D}/runs/{run}/weights/best.pt")
+    res = best.val(data=f"{L}/data.yaml", imgsz=imgsz, split="val", plots=False, max_det=600)
+    out = dict(run=run, model=model, imgsz=imgsz, images=n,
+               mask_map50={SEG_CLASSES[int(c)]: round(float(v), 3) for c, v in zip(res.seg.ap_class_index, res.seg.ap50)},
+               box_map50={SEG_CLASSES[int(c)]: round(float(v), 3) for c, v in zip(res.box.ap_class_index, res.box.ap50)})
+    json.dump(out, open(f"{D}/runs/{run}/summary.json", "w"))
+    VOL.commit()
+    return out
+
+
+@APP.function(image=image, volumes={D: VOL}, gpu=GPU, timeout=2 * 3600, memory=32768, cpu=8)
+def seg_eval(run: str, imgsz: int, limit: int = 200):
+    """What the outlines are for, measured on held-out plans: room areas against the annotated outlines, and wall
+    coverage. Per room: matched if IoU >= 0.7; area error = |predicted - annotated| / annotated. Per plan: error of the
+    summed indoor area. Walls: pixel IoU of all predicted wall masks against all annotated walls."""
+    import cv2, numpy as np
+    from ultralytics import YOLO
+    VOL.reload()
+    L, _ = _seg_local()
+    m = YOLO(f"{D}/runs/{run}/weights/best.pt")
+    files = sorted(f for f in glob.glob(f"{L}/images/val/*.png") if not f.endswith("_s.png"))[:limit]
+    room_err, plan_err, wall_iou, found, total = [], [], [], 0, 0
+    for f in files:
+        im = cv2.imread(f)
+        h, w = im.shape[:2]
+        gt = {0: [], 1: [], 2: []}
+        for line in open(f.replace("/images/", "/labels/")[:-4] + ".txt"):
+            v = line.split()
+            gt[int(v[0])].append((np.array(v[1:], float).reshape(-1, 2) * [w, h]).astype(np.int32))
+        r = m.predict(im, imgsz=imgsz, conf=0.25, iou=0.6, max_det=600, retina_masks=True, verbose=False)[0]
+        pred = {0: [], 1: [], 2: []}
+        if r.masks is not None:
+            for poly, c in zip(r.masks.xy, r.boxes.cls.tolist()):
+                if len(poly) >= 3:
+                    pred[int(c)].append(poly.astype(np.int32))
+        fill = lambda polys: cv2.fillPoly(np.zeros((h, w), np.uint8), polys, 1) if polys else np.zeros((h, w), np.uint8)
+        gw, pw = fill(gt[0]), fill(pred[0])
+        if gw.sum():
+            wall_iou.append(float((gw & pw).sum()) / float((gw | pw).sum()))
+        pm = [fill([p]).astype(bool) for p in pred[1]]
+        g_area = p_area = 0.0
+        for g in gt[1]:
+            gm = fill([g]).astype(bool)
+            total += 1
+            g_area += gm.sum()
+            best = max(((float((gm & q).sum()) / float((gm | q).sum()), q) for q in pm), key=lambda t: t[0], default=(0, None))
+            if best[0] >= 0.7:
+                found += 1
+                room_err.append(abs(float(best[1].sum()) - float(gm.sum())) / float(gm.sum()))
+        p_area = float(sum(q.sum() for q in pm))
+        if g_area:
+            plan_err.append(abs(p_area - g_area) / g_area)
+    q = lambda a, p: round(float(np.percentile(a, p)), 4) if a else None
+    share = lambda a, t: round(float(np.mean([x <= t for x in a])), 3) if a else None
+    out = dict(run=run, plans=len(files), rooms=total, rooms_matched=round(found / max(total, 1), 3),
+               room_area_error=dict(median=q(room_err, 50), p90=q(room_err, 90), within_2pct=share(room_err, 0.02), within_5pct=share(room_err, 0.05)),
+               plan_indoor_area_error=dict(median=q(plan_err, 50), p90=q(plan_err, 90), within_2pct=share(plan_err, 0.02), within_5pct=share(plan_err, 0.05)),
+               wall_pixel_iou=dict(mean=round(float(np.mean(wall_iou)), 3) if wall_iou else None, p10=q(wall_iou, 10)))
+    json.dump(out, open(f"{D}/runs/{run}/seg_eval.json", "w"))
+    VOL.commit()
+    return out
 
 
 @APP.function(image=dl_image, volumes={D: VOL}, timeout=3 * 3600, cpu=4)
@@ -277,6 +503,9 @@ def _swiss_one(args):
             lab.append(f"{CLASSES.index(c)} {((a0 + a1) / 2 - tx) / tw:.6f} {((b0 + b1) / 2 - ty) / th:.6f} {(a1 - a0) / tw:.6f} {(b1 - b0) / th:.6f}")
         cv2.imwrite(f"{D}/yolo/images/{split}/{name}_t{ti}.png", img[ty:ty + th, tx:tx + tw])
         open(f"{D}/yolo/labels/{split}/{name}_t{ti}.txt", "w").write("\n".join(lab) + ("\n" if lab else ""))
+        if split == "train" and lab and _seed(f"{name}_t{ti}") % 3 == 0:  # a third of the tiles also in another style
+            cv2.imwrite(f"{D}/yolo/images/{split}/{name}_t{ti}_s.png", style_variant(img[ty:ty + th, tx:tx + tw], _seed(f"{name}_t{ti}") // 3))
+            open(f"{D}/yolo/labels/{split}/{name}_t{ti}_s.txt", "w").write("\n".join(lab) + "\n")
     return name, split, n
 
 
@@ -355,6 +584,9 @@ def _ifc_one(args):
             continue  # keep only some empty tiles
         cv2.imwrite(f"{D}/yolo/images/{split}/{name}_t{ti}.png", img[ty:ty + th, tx:tx + tw])
         open(f"{D}/yolo/labels/{split}/{name}_t{ti}.txt", "w").write("\n".join(lab) + ("\n" if lab else ""))
+        if split == "train" and lab and _seed(f"{name}_t{ti}") % 2 == 0:
+            cv2.imwrite(f"{D}/yolo/images/{split}/{name}_t{ti}_s.png", style_variant(img[ty:ty + th, tx:tx + tw], _seed(f"{name}_t{ti}") // 2))
+            open(f"{D}/yolo/labels/{split}/{name}_t{ti}_s.txt", "w").write("\n".join(lab) + "\n")
     return name, split, n, (w, h)
 
 
@@ -407,7 +639,7 @@ def train(run: str, model: str, epochs: int, imgsz: int, batch: int, fraction: f
     m.add_callback("on_fit_epoch_end", lambda tr: VOL.commit() if (tr.epoch + 1) % 5 == 0 else None)  # keep checkpoints
     m.train(data=f"{L}/data_{data}.yaml", epochs=epochs, imgsz=imgsz, batch=batch, project=f"{D}/runs", name=run,
             exist_ok=True, fliplr=0.5, flipud=0.5, mosaic=mosaic, degrees=0, scale=0.3, translate=0.1,
-            hsv_h=0.0, hsv_s=0.2, hsv_v=0.2, close_mosaic=10, patience=20, fraction=fraction, workers=8, plots=False,
+            hsv_h=0.0, hsv_s=0.4, hsv_v=0.35, close_mosaic=10, patience=20, fraction=fraction, workers=8, plots=False,
             classes=list(range(8)) if symbols_only else None)  # symbols_only: drop room/floor labels (classes 8-14)
     VOL.commit()
     best = (RTDETR if "rtdetr" in model else YOLO)(f"{D}/runs/{run}/weights/best.pt")
@@ -726,6 +958,55 @@ def predict(run: str, items: list, imgsz: int, tta: bool = False):
     return [dict(path=name, model=f"yolo:{run}", boxes=[dict(cls=c, bbox=b, conf=s) for c, b, s in d]) for (name, _), d in zip(items, dets)]
 
 
+def _space_one(folder):
+    from xml.dom import minidom
+    try:
+        dom = minidom.parse(f"{D}/cubicasa5k{folder}model.svg")
+    except Exception:
+        return []
+    return [(g.getAttribute("class")[6:], _text(g)) for g in dom.getElementsByTagName("g") if g.getAttribute("class").startswith("Space ")]
+
+
+@APP.function(image=image, volumes={D: VOL}, timeout=3600, cpu=8, memory=8192)
+def space_stats():
+    """How CubiCasa labels rooms: count of every 'Space <kind>' class and the texts printed in the common ones.
+    The result is also saved to the volume (space_stats.json), so a dropped connection does not lose it."""
+    import collections
+    from multiprocessing import Pool
+    VOL.reload()
+    folders = [l.strip() for f in ("train", "val", "test") for l in open(f"{D}/cubicasa5k/{f}.txt") if l.strip()]
+    kinds, texts = collections.Counter(), collections.defaultdict(collections.Counter)
+    with Pool(16) as p:
+        for rows in p.imap_unordered(_space_one, folders, chunksize=16):
+            for kind, lab in rows:
+                kinds[kind] += 1
+                texts[kind][lab.split()[0] if lab else ""] += 1
+    out = dict(plans=len(folders), kinds=kinds.most_common(), texts={k: texts[k].most_common(14) for k, _ in kinds.most_common(24)})
+    json.dump(out, open(f"{D}/space_stats.json", "w"))
+    VOL.commit()
+    return out
+
+
+@APP.function(image=image, volumes={D: VOL}, timeout=24 * 3600)
+def pipeline(run: str, model: str, epochs: int, imgsz: int, batch: int, ex: list, swiss_ex: list, rebuild: bool = True):
+    """Rebuild the dataset with the current CLASSES, train, tune. Progress goes to runs/<run>/pipeline.json on the volume."""
+    log = {}
+
+    def note(k, v):
+        log[k] = v
+        os.makedirs(f"{D}/runs/{run}", exist_ok=True)
+        json.dump(log, open(f"{D}/runs/{run}/pipeline.json", "w"), indent=1, default=str)
+        VOL.commit()
+
+    if rebuild:
+        note("convert", convert.remote(ex))
+        note("convert_swiss", convert_swiss.remote(swiss_ex))
+        note("convert_ifc", convert_ifc.remote())
+    note("train", train.remote(run, model, epochs, imgsz, batch, 1.0, 0.5, "all", False))
+    note("tune", tune.remote(run, imgsz, True, "all"))
+    return log
+
+
 @APP.function(image=image, volumes={D: VOL}, timeout=900)
 def lists():
     VOL.reload()
@@ -775,6 +1056,11 @@ def main(stage: str = "smoke", run: str = "v1", epochs: int = 60, imgsz: int = 1
         print(json.dumps(convert.remote(ex, limit=limit), indent=1))
     if stage == "lists":
         print(lists.remote())
+    if stage == "pipeline":  # e.g. --run d26l --model /data/runs/c26l/weights/best.pt --epochs 30
+        swiss_ex = [os.path.basename(p)[:-4] for p in glob.glob(str(ROOT / "junction-dataset-preview/data/swiss_dwellings/*.dxf"))]
+        print(json.dumps(pipeline.remote(run, model, epochs, imgsz, batch, ex, swiss_ex), indent=1, default=str)[:3000])
+    if stage == "space_stats":
+        print(json.dumps(space_stats.remote(), indent=None))
     if stage == "convert_ifc":
         print(json.dumps(convert_ifc.remote(), indent=1))
     if stage == "fetch_junction":
@@ -813,6 +1099,12 @@ def main(stage: str = "smoke", run: str = "v1", epochs: int = 60, imgsz: int = 1
             if t:
                 json.dump(t, open(ROOT / "models" / f"{name}.thresholds.json", "w"), indent=1)
         print(f"models/{', '.join(targets)} <- run {run} ({len(data) / 1e6:.1f} MB), thresholds: {bool(t)}")
+    if stage == "convert_seg":  # wall + room-outline labels; needs the detector set's images (stage convert) on the volume
+        print(json.dumps(convert_seg.remote(ex, limit=limit), indent=1))
+    if stage == "train_seg":  # e.g. --run seg1 --model yolo26m-seg.pt --epochs 40 --batch 8
+        print(json.dumps(train_seg.remote(run, model, epochs, imgsz, batch, fraction), indent=1))
+    if stage in ("seg_eval", "train_seg"):
+        print(json.dumps(seg_eval.remote(run, imgsz, limit or 200), indent=1))
     if stage == "gt":  # label counts per plan, to check the conversion against the dataset's answers
         json.dump(read_json.remote("yolo/gt_counts.json"), open(os.environ.get("DRAWQA_OUT", "gt_counts.json"), "w"))
     if stage == "summary":

@@ -34,6 +34,16 @@ COUNT_RULES = [
     ("count_rooms_class", "bedroom", r"bedrooms?|makuuhuone"),
     ("count_rooms_class", "balcony", r"balcon(y|ies)|parveke"),
     ("count_floors", None, r"floors \(storeys\)|kerrosta"),
+    # room types beyond the dataset's templates (found by the detector on images)
+    ("count_rooms_class", "living_room", r"living ?rooms?|lounges?|olohuone"),
+    ("count_rooms_class", "dining", r"dining|ruokailu"),
+    ("count_rooms_class", "entry", r"entrance|entry|hallways?|\bhalls?\b|lobb(y|ies)|eteinen|eteis"),
+    ("count_rooms_class", "storage", r"storage|closets?|wardrobes?|varasto|vaatehuone"),
+    ("count_rooms_class", "utility", r"utility|laundry|technical rooms?|kodinhoito"),
+    ("count_rooms_class", "dressing_room", r"dressing rooms?|changing rooms?|pukuhuone"),
+    ("count_rooms_class", "terrace", r"terraces?|porch(es)?|patios?|verandas?|terassi|kuisti"),
+    ("count_rooms_class", "garage", r"garages?|car ?ports?|autotalli"),
+    ("count_floors", None, r"\bfloors\b|storeys|stories"),
 ]
 COUNT_WORDS = r"How many|Kuinka monta|Wie viele|Combien|Quant[ie]|Mitu|Hvor mange"
 AREA_WORDS = r"area|Fläche|surface|superficie|pind|areal"
@@ -92,4 +102,6 @@ def parse(question):
             return dict(intent="label_area", label=quoted[0])
         if re.search(r"total|gesamte|totale", q, re.I):
             return dict(intent="floor_area")
+    if re.search(r"\b(scale|ma(ss|ß)stab|[ée]chelle|scala|mittakaava)\b", q, re.I) and not is_count and not is_area:
+        return dict(intent="scale")
     return dict(intent="unknown")

@@ -17,7 +17,8 @@ import json, os
 from . import detect
 
 OPENINGS = {"door", "window"}
-ROOM_TYPES = {"bedroom", "kitchen", "bathroom", "wc_room", "balcony", "sauna_room"}
+ROOM_TYPES = {"bedroom", "kitchen", "bathroom", "wc_room", "balcony", "sauna_room",
+              "room", "living_room", "dining", "entry", "storage", "utility", "dressing_room", "terrace", "garage", "other_room"}
 
 
 def sniff(path):
@@ -165,12 +166,15 @@ def convert(path, page=0, use_detector=True):
         return dict(source=path, source_type="unknown", kind=kind, format="drawqa-sheet/1",
                     note=f"File type '{kind}' cannot be read yet.", render=dict(type="none"))
     if img is not None and use_detector and detect.available():
-        from .postprocess import apply
-        dets = apply(raw_detections(path, page, img), detect.thresholds(), detect.tuned().get("rules"))
+        from .postprocess import apply, detector_fit
+        raw = raw_detections(path, page, img)
+        sheet["detector_fit"] = detector_fit(raw, detect.thresholds())
+        dets = apply(raw, detect.thresholds(), detect.tuned().get("rules"))
         if kind == "pdf" and vector and os.environ.get("DRAWQA_SNAP", "1") == "1":
             dets, sheet["linework_notes"] = snap_to_linework(dets, pdfsheet.quads(pg, pdfsheet.DPI / 72))
         add_elements(sheet, dets, found_by="detector")
         sheet["model"] = "element detector"
+        sheet["detector_classes"] = sorted(detect.thresholds()) or None  # what this detector was trained to find
         if not (sheet.get("scale") or {}).get("m_per_px"):
             sheet["scale"] = estimate_scale_from_doors(sheet) or sheet.get("scale")
     sheet["format"] = "drawqa-sheet/1"

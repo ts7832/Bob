@@ -10,7 +10,8 @@ from PIL import Image
 PRED_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "predictions")
 BASELINE_MAP = {"Window": "window", "Door": "door", "Toilet": "wc", "Sink": "sink", "Bathtub": "bathtub", "Sauna Bench": "sauna_bench"}
 OPENINGS = {"door", "window"}
-ROOMS = {"bedroom", "kitchen", "bathroom", "wc_room", "balcony", "sauna_room"}
+ROOMS = {"bedroom", "kitchen", "bathroom", "wc_room", "balcony", "sauna_room",
+         "room", "living_room", "dining", "entry", "storage", "utility", "dressing_room", "terrace", "garage", "other_room"}
 CONF_MIN = float(os.environ.get("DRAWQA_CONF", 0.35))
 
 _preds = None
@@ -83,5 +84,9 @@ def load(path):
     for i, (cls, bb, conf) in enumerate(_boxes(r)):
         group = "openings" if cls in OPENINGS else "rooms" if cls in ROOMS else "floors" if cls == "floor" else "fixtures"
         sheet[group].append(dict(id=f"{cls}{i}", cls=cls, bbox=bb, conf=conf))
+    sheet["detector_classes"] = sorted(thresholds()) or None  # what this detector was trained to find
+    if "boxes" in r:
+        from .postprocess import detector_fit
+        sheet["detector_fit"] = detector_fit(r["boxes"], thresholds(), CONF_MIN)
     sheet["room_classes_available"] = any(b.get("cls") in ROOMS or b.get("cls") == "floor" for b in r.get("boxes", []))
     return sheet
