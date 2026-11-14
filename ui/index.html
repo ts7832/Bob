@@ -324,11 +324,27 @@ function renderAnswer(res, question) {
       ${read ? `<dt>Question read by</dt><dd>${esc(read)}</dd>` : ""}
       ${res.honesty?.style_warning ? `<dt>Warning</dt><dd>${esc(res.honesty.style_warning)}</dd>` : ""}
       <dt>Time</dt><dd>${res._seconds.toFixed(1)} s</dd>
+      ${res.cost ? `<dt>Cost</dt><dd>${costHtml(res.cost)}</dd>` : ""}
     </dl>
     ${check}
     ${evHtml}
   </div>`;
   $("answer").querySelectorAll(".evlist button").forEach((b) => b.onclick = () => { if (view) view.select(b.dataset.id); markEvidence(b.dataset.id); });
+}
+
+// Measured by tools/ui_cost.py while the answer was computed: dollars, model calls and the drawing's running total
+function usd(v) { return v === 0 ? "$0" : v < 0.01 ? `$${v.toFixed(4)}` : `$${v.toFixed(2)}`; }
+function costHtml(c) {
+  const head = c.usd === null
+    ? `at least ${usd(c.usd_known)}`   // some call had no known price: say so instead of guessing
+    : usd(c.usd);
+  let html = `<b>${esc(head)}</b> · ${esc(c.text)}`;
+  if (c.incomplete && c.incomplete.length) html += `<br><span class="muted">${esc(c.incomplete.join("; "))}</span>`;
+  if (c.drawing) {
+    const d = c.drawing;
+    html += `<br><span class="muted">This drawing so far: ${esc(usd(d.usd))}${d.unpriced_calls ? " + unpriced calls" : ""} over ${d.requests} request${d.requests === 1 ? "" : "s"}, ${d.model_calls} model call${d.model_calls === 1 ? "" : "s"} (opening it included)</span>`;
+  }
+  return html;
 }
 
 function markEvidence(id) {
@@ -343,7 +359,8 @@ function renderHistory() {
     const div = document.createElement("div");
     div.className = "h";
     const tier = x.res.honesty?.tier || "";
-    div.innerHTML = `<b>${esc(x.res.answer == null ? "cannot determine" : fmt(x.res.answer, x.res.unit))}</b> <span class="muted">· ${esc(tier)}</span><br>${esc(x.question)}`;
+    const cost = x.res.cost ? ` · ${x.res.cost.usd === null ? "≥ " + usd(x.res.cost.usd_known) : usd(x.res.cost.usd)}` : "";
+    div.innerHTML = `<b>${esc(x.res.answer == null ? "cannot determine" : fmt(x.res.answer, x.res.unit))}</b> <span class="muted">· ${esc(tier)}${esc(cost)}</span><br>${esc(x.question)}`;
     div.onclick = () => { $("q").value = x.question; lastAnswer = x.res; if (view) view.showAnswer(x.res, x.question); renderAnswer(x.res, x.question); $("answersec").hidden = false; };
     $("hist").appendChild(div);
   });
