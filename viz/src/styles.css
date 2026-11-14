@@ -1,0 +1,65 @@
+/* DrawView styles. Injected once by mount(); every rule is scoped under .dv-root so the host page is untouched. */
+.dv-root {
+  --dv-bg: #1a1f2b;
+  --dv-card: rgba(17, 21, 31, 0.92);
+  --dv-line: #2c3446;
+  --dv-text: #e8ebf2;
+  --dv-muted: #8f99ad;
+  --dv-accent: #ff6a00;
+  --dv-low: #e0a100;
+  position: relative; width: 100%; height: 100%; min-height: 320px; overflow: hidden;
+  background: var(--dv-bg); color: var(--dv-text);
+  font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+.dv-root *, .dv-root *::before, .dv-root *::after { box-sizing: border-box; }
+.dv-root button { font: inherit; color: inherit; }
+.dv-view { position: absolute; inset: 0; }
+.dv-overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+
+.dv-badge {
+  position: absolute; top: 14px; left: 14px; max-width: min(440px, calc(100% - 28px));
+  background: var(--dv-card); border: 1px solid var(--dv-line); border-radius: 12px; padding: 10px 14px;
+  backdrop-filter: blur(6px); pointer-events: none;
+}
+.dv-value { font-size: 30px; font-weight: 800; color: var(--dv-accent); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.dv-q { font-size: 12px; color: var(--dv-muted); margin-top: 2px; }
+.dv-badge p { margin: 8px 0 0; font-size: 13px; }
+.dv-note { color: var(--dv-muted); }
+.dv-warn { color: var(--dv-low); }
+.dv-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.dv-chip { font-size: 11px; color: var(--dv-muted); border: 1px solid var(--dv-line); border-radius: 99px; padding: 1px 8px; }
+.dv-tier-read, .dv-tier-measured { color: #7ee2b8; border-color: #2f6b55; }
+.dv-tier-detected { color: #ffd27a; border-color: #6b5a2f; border-style: dashed; }
+.dv-tier-estimated { color: #ffb38a; border-color: #6b452f; }
+.dv-cannot { border-color: #6b3a3a; background: rgba(42, 29, 34, 0.94); max-width: min(520px, calc(100% - 28px)); }
+.dv-cannot .dv-eyebrow { color: #ff8f8f; }
+.dv-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dv-muted); }
+
+.dv-tools { position: absolute; top: 14px; right: 14px; display: flex; gap: 6px; }
+.dv-tools button { background: var(--dv-card); border: 1px solid var(--dv-line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.dv-tools button:hover { border-color: var(--dv-muted); }
+.dv-tools .dv-on { border-color: var(--dv-accent); }
+
+.dv-detail {
+  position: absolute; right: 14px; bottom: 14px; width: 330px; max-width: calc(100% - 28px);
+  background: var(--dv-card); border: 1px solid var(--dv-line); border-radius: 12px; padding: 12px 14px; backdrop-filter: blur(6px);
+}
+.dv-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.dv-x { background: none; border: 0; font-size: 20px; line-height: 1; cursor: pointer; color: var(--dv-muted); }
+.dv-crop { display: block; border-radius: 6px; background: #fff; max-width: 100%; }
+.dv-detail dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 10px 0 0; font-size: 13px; }
+.dv-detail dt { color: var(--dv-muted); }
+.dv-detail dd { margin: 0; overflow-wrap: anywhere; }
+.dv-detail code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.dv-status { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: var(--dv-muted); text-align: center; max-width: 80%; }
+.dv-error { color: #ff8f8f; }
+
+/* labels on the drawing (portalled into .dv-overlay) */
+.dv-tag {
+  background: var(--dv-accent); color: #fff; font: 600 12px/1 ui-sans-serif, system-ui, sans-serif; padding: 3px 6px;
+  border-radius: 99px; white-space: nowrap; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); font-variant-numeric: tabular-nums;
+}
+.dv-tag-low { background: var(--dv-low); color: #1a1a1a; }
+.dv-tag-active { transform: scale(1.2); outline: 2px solid #fff; }
