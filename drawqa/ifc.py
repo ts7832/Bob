@@ -78,9 +78,24 @@ def _elements(m, cls, storey=None):
     return [e for e in els if storey is None or ((s := _storey(e)) is not None and s.Name == storey)]
 
 
+def _slug(s):
+    s = "".join(ch for ch in str(s) if ord(ch) < 128)  # the plan file names drop non-ASCII letters ("Kælder" -> "klder")
+    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+
+
+def plan_storey(path, model):
+    """The storey a plan file shows ("..._plan-04-4-korrus.pdf" -> "4.korrus"), or None for the model itself."""
+    m = re.search(r"_plan-\d+-(.+)$", os.path.splitext(os.path.basename(path))[0])
+    if not m or not model:
+        return None
+    want = _slug(m.group(1))
+    return next((s.Name for s in _model(model).by_type("IfcBuildingStorey") if s.Name and _slug(s.Name) == want), None)
+
+
 def load(path):
     svg = plan_svg(path)
-    return dict(source=path, source_type="ifc", model=model_path(path),
+    f = model_path(path)
+    return dict(source=path, source_type="ifc", model=f, plan_storey=plan_storey(path, f),
                 render=dict(type="svg", svg_path=svg) if svg else dict(type="none"))
 
 
@@ -94,8 +109,12 @@ def execute(sheet, intent):
     if it == "ifc_count" or (it in ("count_openings", "count_fixtures") and intent.get("cls") in CLS):
         els = _elements(m, intent["cls"], intent.get("storey"))
         where = f"storey '{intent['storey']}'" if intent.get("storey") else "the whole model"
+        note = ""
+        if intent.get("storey_from") == "plan":  # no storey named: the one this plan shows; say what the building has
+            note = (f" No storey was named, so this counts the storey this plan shows; the whole building model has "
+                    f"{len(_elements(m, intent['cls'], None))}.")
         return dict(answer=len(els), unit="count", evidence=ev(els, None),
-                    explanation=f"{len(els)} {CLS[intent['cls']]} elements in {where}.")
+                    explanation=f"{len(els)} {CLS[intent['cls']]} elements in {where}.{note}")
     if it == "ifc_room_area":
         sp = [s for s in _elements(m, "space", intent["storey"]) if s.Name == intent["number"]]
         if not sp:

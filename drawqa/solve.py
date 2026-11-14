@@ -1,5 +1,5 @@
 """Single entry point: solve(path, question) -> answer + evidence + explanation."""
-import os
+import os, re
 from functools import lru_cache
 
 from . import router, query, swiss, scan
@@ -83,6 +83,12 @@ def honesty(sheet, intent, res):
         out = dict(tier="detected", deterministic=False, basis=note, weakest=min(confs) if confs else None)
         fit = sheet.get("detector_fit") or {}
         if fit.get("level") in ("weak", "none"):  # say so when the drawing is unlike what the detector was trained on
+            # a 0 is not a measurement when the detector recognises nothing on this drawing, or when it recognises
+            # windows but not one door and doors are asked for. Other zeros on a weak drawing stay (on the 5 weak
+            # preview scans, 32 zeros such as "0 saunas" are right), with the warning
+            if res.get("answer") == 0 and (fit["level"] == "none" or (fit.get("missing") == "door" and intent.get("cls") == "door")):
+                return dict(tier="cannot determine", deterministic=None, style_warning=fit["note"],
+                            basis=f"the trained detector found none, but {fit['note']}")
             out["style_warning"] = fit["note"]
             out["basis"] = note + ". Warning: " + fit["note"]
         return out
@@ -247,6 +253,9 @@ def _finish(sheet, intent, res, read_by):
     res["method"] = {"vector-dxf": "exact vector geometry", "vector-pdf": "PDF text and linework", "ifc": "BIM model query",
                      "raster": sheet.get("model", "detector")}.get(sheet["source_type"], "n/a")
     res["honesty"] = honesty(sheet, intent, res)
+    if res["honesty"]["tier"] == "cannot determine" and res.get("answer") is not None:  # e.g. a 0 from an unfamiliar style
+        res["answer"] = None
+        res["explanation"] = "Cannot determine: " + res["honesty"]["basis"] + ". (The detector's own count was 0.)"
     res.pop("elements_used", None)
     res.pop("area_sources", None)
     w = res["honesty"].get("weakest")
@@ -306,6 +315,27 @@ def combine(parts, how, read_by, sheet):
                              basis="; ".join(f"{t}: {r['honesty']['tier']}, {r['honesty']['basis']}" for t, r in parts)))
 
 
+BUILDING_WIDE = re.compile(r"\b(model|building|whole|entire|all (floors|storeys|stories|levels)|every (floor|storey)|"
+                           r"mudel\w*|hoone\w*|modellen|bygning\w*|Modell|Gebäude|gesamt\w*|rakennu\w*|koko)\b", re.I)
+PLAN_STOREY_INTENTS = ("ifc_count", "count_openings", "count_fixtures", "opening_width")
+
+
+def _on_plan_storey(sheet, intent, question):
+    """A storey plan of a building model is open and the question names no storey: it is about the storey on screen
+    ("how many doors are there?" on the 4th-floor plan), unless it says building / model / all floors."""
+    st = sheet.get("plan_storey")
+    if (st and sheet.get("source_type") == "ifc" and intent.get("intent") in PLAN_STOREY_INTENTS
+            and not intent.get("storey") and not BUILDING_WIDE.search(question)):
+        return dict(intent, storey=st, storey_from="plan")
+    return intent
+
+
+def _step(sheet, st, question, read_by):
+    """One step of a model's plan, run and finished (with the plan's storey when it names none)."""
+    st = _on_plan_storey(sheet, st, question)
+    return _finish(sheet, st, _run(sheet, st), read_by)
+
+
 def _model_plan(question, sheet):
     from . import llm_router
     return llm_router.parse(question, sheet)
@@ -352,13 +382,14 @@ def solve(path, question, generic=False, llm=False):
         elif not loose_on_ifc:
             read_by = dict(by="nobody", note=note)
     if plan is not None and len(plan["steps"]) > 1:
-        parts = [(st["title"], _finish(sheet, st, _run(sheet, st), read_by)) for st in plan["steps"]]
+        parts = [(st["title"], _step(sheet, st, question, read_by)) for st in plan["steps"]]
         return combine(parts, plan["combine"], read_by, sheet)
     if intent["intent"] == "unknown":
         res = dict(answer=None, explanation="This question was not understood, so nothing was measured: " + read_by["note"]
                    if read_by["by"] == "nobody" else
                    "This question does not match a known pattern, and free wording was not sent to a language model.")
     else:
+        intent = _on_plan_storey(sheet, intent, question)
         res = _run(sheet, intent)
     if res.get("answer") is None and llm and not asked_model and sheet.get("source_type") != "unknown":
         # a known pattern matched, but its tool found nothing: the pattern may have misread free wording ("wall area
@@ -368,13 +399,13 @@ def solve(path, question, generic=False, llm=False):
         if plan2 is not None:
             rb2 = _model_read_by(plan2, note2, model2)
             if len(plan2["steps"]) > 1:
-                out = combine([(st["title"], _finish(sheet, st, _run(sheet, st), rb2)) for st in plan2["steps"]], plan2["combine"], rb2, sheet)
+                out = combine([(st["title"], _step(sheet, st, question, rb2)) for st in plan2["steps"]], plan2["combine"], rb2, sheet)
                 if out.get("answer") is not None:
                     return out
             else:
-                res2 = _run(sheet, plan2["steps"][0])
+                res2 = _step(sheet, plan2["steps"][0], question, rb2)
                 if res2.get("answer") is not None:
-                    return _finish(sheet, plan2["steps"][0], res2, rb2)
+                    return res2
     if res.get("answer") is None:  # nothing from the drawing itself: maybe a table on the sheet answers it
         alt = table_answer(path, question, use_model=llm)
         if alt is not None:

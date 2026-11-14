@@ -133,6 +133,9 @@ Rules:
   listed, matching the question's wording to it across languages (a question about "the kitchen" on a German plan
   means the room named "Küche"). If nothing listed matches, return no steps.
 - When the drawing type is "ifc", use the ifc_* tools (and opening_width); otherwise never use the ifc_* tools.
+- When `this_plan_shows_storey` is given, the person is looking at the plan of that one storey: a question that names
+  no storey ("how many doors are there?") is about that storey, so set storey to it. Use the whole model (storey "")
+  only when the question says building, model or all floors.
 - Prefer a room-type count (count_rooms_class) when the drawing lists no room names, and a label-based tool when it does.
 - A question about how much material to order for certain rooms: flooring or floor tiles = the floor area of those
   rooms (an area tool); paint or wall tiles = wall_area; skirting = room_perimeter. "Tiling" with no word about walls
@@ -157,6 +160,8 @@ def _context(sheet):
     if sheet.get("source_type") == "ifc" and sheet.get("model"):
         from . import ifc
         ctx["storeys"] = [s.Name for s in ifc._model(sheet["model"]).by_type("IfcBuildingStorey")]
+        if sheet.get("plan_storey"):
+            ctx["this_plan_shows_storey"] = sheet["plan_storey"]
     return json.dumps(ctx, ensure_ascii=False, sort_keys=True)
 
 

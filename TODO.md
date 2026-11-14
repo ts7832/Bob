@@ -33,6 +33,14 @@ walls, areas and free-form questions). Written at 14:31, updated at 15:15 (secti
   ESDH3066) or a column word plus a cell word ("area" + "locker") is a table question, so it no longer converts the
   42x30 sheet first. Skipped when the patterns read the question as a BIM query. On the 2,644 preview PDF questions
   exactly 14 change, all `opening_design`.
+- **Storey plans of BIM models** (found by the user testing the demo, 15:20): on `..._plan-04-4-korrus.pdf`, "how many
+  doors are there?" counted the whole building (211). `ifc.load` now sets `plan_storey` from the file name ("4.korrus",
+  "Kælder"); a question naming no storey and no building / model / all floors counts that storey (42), and the model's
+  context says which storey the plan shows. BIM 97.7% unchanged.
+- **A 0 from a detector that does not know the style** (with the other session's `detector_fit` check: windows but
+  no door gives `missing="door"`): a door count of 0 then, or any 0 when nothing at all is recognised, is "cannot
+  determine" with the reason. Narrowed from "any 0 on a weak fit", which cost 32 right zeros on 5 weak preview scans
+  ("0 saunas"); scans stay 85.0%.
 - **Check script:** `tools/freeform_check.py swiss|scan|ifc|all`: about 30 Stoa-style questions, 20 with known
   answers. Swiss (11) and BIM (8) passed in full; the two scan misses were fixed and re-checked one by one.
 - **Scoreboards on this code:** Swiss 2,326 / 2,358 = 98.6%, BIM 1,025 / 1,049 = 97.7% (both unchanged); scans not
@@ -126,10 +134,11 @@ for q in ['which apartment is bigger, A or B?','How much bigger is apartment A t
 
 ### 3. Table path through `solve()`: run by the other session at about 14:55
 
-With the sheet conversion stubbed out (no memory risk): 22 of 64 right without the model, 43 of 64 with it (the
-direct table run at 13:51: 49). Seven table questions that did not name a table were routed to the drawing first;
-fixed at 15:05 (`mentions_table_values`, see "Changes"). **Check:** the other session's re-run on that fix, and its
-`schedule.py` fix for areas returned as text ("29690 SF"). The three A-701 fixture questions need the drawing itself.
+With the sheet conversion stubbed out (no memory risk), latest run (after the 15:05 routing fix
+`mentions_table_values` and the other session's `schedule.py` fixes: header words placed by column borders, multi-word
+and "/" values matched, a value missing from the table gives None instead of 0, areas as numbers in sqft):
+**26 of 64 right without the model, 51 of 64 with it** (was 22 / 43 at 14:55; the direct table run at 13:51 got 49).
+The three A-701 fixture questions need the drawing itself.
 
 `drawqa/schedule.py` (other session) rebuilds tables from a PDF's words and ruled lines. `solve()` now goes to the
 table first when the question names a table or says schedule / scheduled / listed, refuses to fall back to
