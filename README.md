@@ -4,7 +4,8 @@ Answers natural-language questions about construction drawings and BIM models, s
 says for every answer how it was obtained. This file is the entry point for any person or agent picking the project
 up: what exists, what is measured, what is running, and the plan. `HANDOFF.md` has the long-form detail.
 
-State as of 2026-11-14, about 13:45 local time. Every number below was measured that day unless it says otherwise.
+State as of 2026-11-14, about 13:45 local time, with corrections at 14:40. Every number below was measured that day
+unless it says otherwise. **What is running and what to do next: `TODO.md`** (newer than this file where they differ).
 
 ## 1. What we are judged on
 
@@ -23,7 +24,7 @@ English, metric or imperial, schedules), not only the Finnish apartment scans th
    - Session A (`junction-d0`, wrote this file): `demo/`, `drawqa/reader.py`, `drawqa/detect.py`, `drawqa/postprocess.py`,
      `drawqa/trace.py`, `tools/modal_reader.py`, `tools/eval_*.py`, the detector stages of `tools/modal_train.py`,
      `README.md`, `HANDOFF.md` sections 1-10.
-   - Session B (`junction-f9`): `drawqa/convert.py`, `segment.py`, `ocr.py`, `llm_router.py`, `router.py`, `query.py`, `solve.py`,
+   - Session B (`junction-f9`): `drawqa/convert.py`, `segment.py`, `ocr.py`, `llm_router.py`, `router.py`, `query.py`, `solve.py`, `ifc.py`, `pdfsheet.py`, `textlayer.py`, `tags.py`, `scalebar.py`, `slabs.py`,
      the `*_seg` stages of `tools/modal_train.py`, `HANDOFF.md` section 11.
    Do not edit the other side's files without messaging first. Commit only your own files, by name (`git add -A`
    sweeps in someone else's half-finished work).
@@ -35,8 +36,8 @@ English, metric or imperial, schedules), not only the Finnish apartment scans th
    and `DRAWQA_SPAWN=1 --stage tune` do) and read results from the volume.
 5. **`--stage convert`, `convert_swiss`, `convert_ifc` delete and rebuild `/data/yolo` on the Modal volume.** Ask the
    other session before running them. The segmentation data lives separately in `/data/yoloseg`.
-6. **No Anthropic API key on this machine.** `drawqa/llm_router.py` (free-form questions) has only been tested with
-   stubbed replies.
+6. **No Anthropic API key on this machine.** `drawqa/llm_router.py` (free-form questions) falls back to the open
+   model on Modal (`reader.text`); single-step questions work that way, the Claude API path has never run live.
 7. Check `df -h` before installing anything; do not download the 10 GB dataset to the Mac (it is on the Modal volume).
 
 ## 3. How it works
@@ -85,7 +86,7 @@ Scoreboard on the preview set (count questions exact, areas within 2%):
 | Swiss plans, PDF only, 24 plans from sites never used | 798 / 824 = 96.8% | `tools/eval_heldout.py`; the independent check of the row above |
 | BIM models (IFC) | 1,025 / 1,049 = 97.7% | misses need a model that is not in the preview |
 | Scanned plans (CubiCasa) | 3,628 / 4,270 = 85.0% | detector `c26l`; floors, saunas, WCs, bathrooms 93-98%, doors 75%, windows 50% |
-| Real US drawing sets (`opening_design`) | 0 of 64 attempted | schedule questions; see the plan |
+| Real US drawing sets (`opening_design`) | 51 of 64 with the model, 28 without; gold set (drafts) on US sets 51 of 70 | through `solve()` (15:35); tables rebuilt by `drawqa/schedule.py`, the Modal model writes the query, code runs it. 3 more are right but worded differently from the key; 3 need the drawing (fixtures in an enlarged plan) and are not answered |
 | BIM free-text questions (`ifc_bench`) | 0 of 249 attempted | |
 
 Other measurements that shape the design:
@@ -112,9 +113,9 @@ Other measurements that shape the design:
 | Model | What | State |
 |---|---|---|
 | `c26l` | YOLO26-l detector, 15 classes, three drawing styles | **in use** (`models/detector.pt`) |
-| `d26l` | `c26l` fine-tuned with 10 more room types and style-varied copies | cut at epoch 18 of 30 by the network drop; held-out 85.7% against 85.8% on the scored types, new room types counted exactly on 85-98% of held-out plans; preview score and install decision pending |
-| `e26l` | `d26l` + sauna-room labels, 12 epochs | spawned on Modal about 13:37; progress in `runs/e26l/pipeline.json` on the volume |
-| `seg1` | YOLO26-m-seg, walls and room outlines | resumed after the drop, ends about 14:45; `models/segmenter.pt` is an interim checkpoint |
+| `d26l` | `c26l` fine-tuned with 10 more room types and style-varied copies | cut at epoch 18 of 30 by the network drop; held-out 85.7% against 85.8% on the scored types, new room types counted exactly on 85-98% of held-out plans; preview scans 85.3% (against 85.0%); Swiss PDF check and install decision pending |
+| `e26l` | `d26l` + sauna-room labels, 12 epochs | finished; held-out 86.0%, best of the three; preview not scored, weights still on the volume (`runs/e26l/`) |
+| `seg1` | YOLO26-m-seg, walls and room outlines | **in use**, final (`models/segmenter.pt`). 200 held-out plans: 87.3% of rooms outlined, room area error 1.9% median, plan indoor area error 3.6% median (16.8% worst tenth), wall IoU 0.77 |
 | Qwen3-VL-32B | room-name reader, not trained by us | deployed as `drawqa-reader`; cold start about 11 minutes, 13-35 s per drawing when warm, stays up 10 minutes after a call |
 
 Earlier runs (`a11m`, `a26m`, `s11m`, `b11m`, `artd`) and what each showed: HANDOFF section 4. Modal spend so far
@@ -170,7 +171,8 @@ The aim is generality for an international firm: any language, metric or imperia
 
 - **Licences.** Junction says submissions are MIT. Ultralytics is AGPL-3.0 and CubiCasa5k is CC BY-NC-SA. Unresolved;
   ask the organizers.
-- **DWG** files cannot be read (no converter installed).
+- **DWG** files: `drawqa/cad.py` converts them (LibreDWG `dwg2dxf`, installed) to a PDF page; the demo routes them
+  there, but that path has not been run end to end and `convert()` does not use it.
 - **Symbols on a drawing style nobody trained on** are not solved; the unfamiliar-style warning reports it.
 - **Windows on scans (50%)**: one long window and several panes are labelled inconsistently in the training data.
 - **Reader cold start (11 minutes)** and its GPU cost; warm it before a demo.
