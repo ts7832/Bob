@@ -68,6 +68,7 @@ walls, areas and free-form questions). Written at 14:31, updated at 15:15 (secti
   `data/predictions/active.txt` = `yolo_e26l_tta.jsonl` (c26l kept as `models/c26l.pt`). UK school hand-checked
   wing: 23/23 doors found (c26l 16/23), 5 false on furniture. Scoreboards: scans 86.1% (was 85.0%), Swiss 98.6%,
   BIM 97.7%. Local only: the weights are not in git; the routing fixes went to `freeform-tools` as e993360.
+  FloorPlanCAD data (for f26l): `/data/yolo_fpc`, `tools/modal_fpc.py` (3,765 train images, CC BY-NC 4.0).
 
 ## Changes 16:45-17:40 (session B; branch `freeform-tools`)
 

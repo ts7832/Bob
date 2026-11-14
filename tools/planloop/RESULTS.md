@@ -69,3 +69,7 @@ score them; `build_gallery.py` + `make_page.py` render the picture page. Room la
 builds work folders (outlines + symbols + OCR); agents follow `briefs/brief_candidates_v3.md`; `room_eval.py <dirs>`
 and `room_diag.py <dir>` score them against `gt/<plan>/model.svg` + `F1_scaled.png` (CubiCasa annotation files, not
 in the repo).
+
+Run (from the repo root, project venv): `prep_fix.py <outdir> <plans...>` builds start models, keys and engine answers;
+agents write `model_final.json` per plan; `score_fix.py <fixdir> <keydir>`, `merge_test.py`, `roomfilter_test.py`
+score them; `build_gallery.py` + `make_page.py` render the picture page.

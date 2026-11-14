@@ -1,0 +1,32 @@
+{
+  "name": "drawview",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.0",
+    "@react-three/fiber": "^9.8.0",
+    "@react-three/postprocessing": "^3.2.2",
+    "camera-controls": "^3.1.2",
+    "n8ao": "^2.0.2",
+    "postprocessing": "^6.39.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "three": "^0.187.0",
+    "three-gpu-pathtracer": "^0.0.28",
+    "three-mesh-bvh": "^0.9.18"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/three": "^0.187.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}

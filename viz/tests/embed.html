@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- Integration test: the built bundle on a plain page, used the way demo/index.html will use it.
+     Serve viz/ with the Vite dev server (proxy to the demo on :8765), open /tests/embed.html?path=...&q=... -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>DrawView embed test</title>
+  <style>
+    body { margin: 0; display: grid; grid-template-columns: 3fr 1fr; height: 100vh; font: 14px system-ui; }
+    main { min-width: 0; } #viewer { width: 100%; height: 100%; }
+    aside { padding: 12px; background: #f6f7f9; overflow: auto; } pre { white-space: pre-wrap; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <main><div id="viewer"></div></main>
+  <aside><b>embed test</b><pre id="log"></pre></aside>
+  <script src="/dist/drawview.js"></script>
+  <script>
+    const log = (...a) => { document.getElementById("log").textContent += a.join(" ") + "\n" };
+    const P = new URLSearchParams(location.search);
+    const path = P.get("path") || "data/cubicasa5k/colorful-11397.png";
+    const question = P.get("q");
+    const view = DrawView.mount(document.getElementById("viewer"));
+    window.view = view;
+    view.onLoad(({ render, plan }) => log("loaded", render.type, "plan items", (plan && plan.items || []).length));
+    view.onSelect(el => log("selected", el ? el.id : "none"));
+    (async () => {
+      await view.open(path);
+      if (!question) return;
+      const r = await (await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path, question }) })).json();
+      log("answer", r.answer, r.unit, (r.honesty || {}).tier, "evidence", (r.evidence || []).length);
+      view.showAnswer(r, question);
+      if (P.get("sel") === "first" && r.evidence && r.evidence[0]) view.select(r.evidence[0].id);
+      window.done = true;
+    })().catch(e => { log("ERROR", e); window.done = true; });
+  </script>
+</body>
+</html>

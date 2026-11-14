@@ -1,0 +1,51 @@
+[
+ {
+  "stem": "site1102_bldg2242_floor10281",
+  "path": "data/swiss_dwellings/site1102_bldg2242_floor10281.pdf",
+  "title": "Swiss floor plan (Italian labels)",
+  "source": "swiss_dwellings",
+  "render_type": "vector"
+ },
+ {
+  "stem": "site11692_bldg18240_floor48820",
+  "path": "data/swiss_dwellings/site11692_bldg18240_floor48820.pdf",
+  "title": "Swiss floor plan (German, no printed areas)",
+  "source": "swiss_dwellings",
+  "render_type": "vector"
+ },
+ {
+  "stem": "site1138_bldg2292_floor10584",
+  "path": "data/swiss_dwellings/site1138_bldg2292_floor10584.pdf",
+  "title": "Swiss floor plan (French, large)",
+  "source": "swiss_dwellings",
+  "render_type": "vector"
+ },
+ {
+  "stem": "bsc-esplanades_1807-ep-ar-v18_plan-04-4-korrus",
+  "path": "data/ifc_models/bsc-esplanades_1807-ep-ar-v18_plan-04-4-korrus.pdf",
+  "title": "BIM plan: Esplanades, 4th floor (Estonian)",
+  "source": "ifc_models",
+  "render_type": "svg"
+ },
+ {
+  "stem": "bsc-molio_molio-with-uris_plan-02-klder",
+  "path": "data/ifc_models/bsc-molio_molio-with-uris_plan-02-klder.pdf",
+  "title": "BIM plan: Molio, basement (Danish)",
+  "source": "ifc_models",
+  "render_type": "svg"
+ },
+ {
+  "stem": "colorful-11397",
+  "path": "data/cubicasa5k/colorful-11397.png",
+  "title": "Scanned plan (Finnish)",
+  "source": "cubicasa5k",
+  "render_type": "image"
+ },
+ {
+  "stem": "colorful-11400",
+  "path": "data/cubicasa5k/colorful-11400.png",
+  "title": "Scanned plan (Finnish)",
+  "source": "cubicasa5k",
+  "render_type": "image"
+ }
+]

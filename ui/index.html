@@ -1,0 +1,1160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DrawQA</title>
+<style>
+:root{
+  --bg:#f4f4f1; --panel:#ffffff; --fg:#1c1c1a; --muted:#6a6a64; --line:#e2e2dc; --soft:#f0f0ec;
+  --accent:#ff6a00; --accent-fg:#fff;
+  --read:#1f7a3f; --measured:#1d5fa8; --detected:#a86400; --estimated:#7a3fa8; --cannot:#9b2c2c;
+  --ok:#1f7a3f; --bad:#b3261e;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#121211; --panel:#1b1b1a; --fg:#ececea; --muted:#a2a29c; --line:#2f2f2c; --soft:#242422;
+  --read:#7fd39b; --measured:#8bbcf2; --detected:#f0c36b; --estimated:#c9a2f2; --cannot:#f2a6a6;
+  --ok:#7fd39b; --bad:#f2a6a6;
+}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+header .brand{font-weight:700;font-size:16px;letter-spacing:.2px}
+header .brand span{color:var(--accent)}
+header .title{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+header a{color:var(--muted);font-size:12px}
+main{flex:1;display:flex;min-height:0}
+#viewer{flex:1;position:relative;min-width:0;background:#1a1f2b}
+#viewer .missing{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#e8e8e8;padding:24px;text-align:center}
+aside{width:420px;max-width:46vw;display:flex;flex-direction:column;border-left:1px solid var(--line);background:var(--panel);min-height:0}
+.scroll{overflow:auto;flex:1;min-height:0}
+section{padding:14px 16px;border-bottom:1px solid var(--line)}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:0 0 8px;font-weight:600}
+.tabs{display:flex;gap:4px;margin-bottom:8px}
+.tabs button{flex:1;border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:8px;padding:6px 8px;cursor:pointer;font:inherit;font-size:13px}
+.tabs button.on{background:var(--fg);color:var(--panel);border-color:var(--fg)}
+.list{display:flex;flex-direction:column;gap:4px;max-height:210px;overflow:auto}
+.item{border:1px solid var(--line);border-radius:8px;padding:7px 9px;cursor:pointer;background:var(--panel)}
+.item:hover{border-color:var(--muted)}
+.item.on{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.item b{display:block;font-weight:600;font-size:13px}
+.item small{color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drop{border:1.5px dashed var(--line);border-radius:10px;padding:14px;text-align:center;color:var(--muted);cursor:pointer}
+.drop b{display:block;color:var(--fg)}
+body.dragging .drop{border-color:var(--accent);color:var(--fg)}
+input[type=text],textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;background:var(--panel);color:var(--fg)}
+textarea{resize:vertical;min-height:58px}
+.row{display:flex;gap:8px;align-items:center;margin-top:8px}
+button.ask{background:var(--accent);color:var(--accent-fg);border:0;border-radius:8px;padding:8px 16px;font:inherit;font-weight:600;cursor:pointer}
+button.ask:disabled{opacity:.5;cursor:wait}
+label.toggle{color:var(--muted);font-size:12px;display:flex;gap:6px;align-items:center;margin-left:auto;cursor:pointer}
+.chips{display:flex;flex-direction:column;gap:4px;margin-top:10px}
+.chip{border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer;font-size:14px;min-height:40px;background:var(--soft);text-align:left;color:var(--fg);font-family:inherit}
+.chip:hover{border-color:var(--muted)}
+.chip .exp{color:var(--muted);font-size:12px;margin-left:6px;white-space:nowrap}
+.card{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel)}
+.value{font-size:34px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.value.cannot{font-size:18px;color:var(--cannot)}
+.q{color:var(--muted);margin:4px 0 10px}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;border:1px solid currentColor}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.t-read{color:var(--read)}.t-measured{color:var(--measured)}.t-detected{color:var(--detected)}.t-estimated{color:var(--estimated)}.t-cannot{color:var(--cannot)}
+dl{display:grid;grid-template-columns:96px 1fr;gap:4px 10px;margin:12px 0 0;font-size:13px}
+dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
+.check{margin-top:12px;padding:8px 10px;border-radius:8px;font-size:13px;background:var(--soft)}
+.check.ok{color:var(--ok)}.check.bad{color:var(--bad)}
+.check small{display:block;color:var(--muted)}
+.ev{margin-top:12px}
+.ev h3{font-size:12px;color:var(--muted);margin:0 0 6px;font-weight:600}
+.evlist{display:flex;flex-wrap:wrap;gap:4px;max-height:140px;overflow:auto}
+.evlist button{border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:8px;padding:5px 9px;min-width:34px;min-height:32px;font:13px ui-monospace,SFMono-Regular,Consolas,monospace;cursor:pointer}
+.evlist button.on{border-color:var(--accent);background:var(--accent);color:var(--accent-fg)}
+.error{color:var(--bad);background:var(--soft);border-radius:8px;padding:8px 10px;margin-top:8px;font-size:13px}
+.small{font-size:12px}
+.legend{display:flex;flex-wrap:wrap;gap:4px;margin:-2px 0 8px}
+.legend .pill{font-size:10px;padding:0 7px;font-weight:500}
+.legend .pill::before{width:5px;height:5px}
+button.mic{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:15px}
+button.mic.on{border-color:var(--bad);background:var(--bad);color:#fff}
+.found{font-size:13px}
+.found .line{margin:3px 0}
+.found .lbl{color:var(--muted);display:inline-block;min-width:78px}
+.fchip{border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:999px;padding:5px 12px;margin:3px 3px 3px 0;font:inherit;font-size:13px;cursor:pointer}
+.fchip:hover{border-color:var(--accent)}
+.fchip b{font-variant-numeric:tabular-nums}
+#suggested .chip{border-style:dashed}
+#suggested h3,.found h3{font-size:12px;color:var(--muted);margin:10px 0 4px;font-weight:600}
+.roomfacts{margin-top:8px;padding:8px 10px;border:1px solid var(--accent);border-radius:8px;font-size:13px}
+.roomfacts .chip{margin-top:4px}
+.feedback{margin-top:10px;font-size:13px}
+.feedback .row input{flex:1;min-width:0}
+.feedback .row button{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:8px;padding:6px 10px;cursor:pointer;font:inherit}
+.formula{margin:10px 0 0;font-size:13px;line-height:2;font-variant-numeric:tabular-nums}
+.term{border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:6px;padding:0 6px;font:inherit;cursor:pointer;line-height:1.6}
+.term small{color:var(--muted);margin-left:4px;font-size:11px}
+.term:hover{border-color:var(--accent)}
+.term.out{text-decoration:line-through;opacity:.5}
+.corrected{margin-top:8px;padding:6px 10px;border-left:3px solid var(--accent);background:var(--soft);border-radius:6px;font-size:13px}
+button.link{border:0;background:none;color:var(--accent);cursor:pointer;font:inherit;font-size:12px;padding:0 4px;text-decoration:underline}
+.actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.actions button,.review button{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:10px;padding:8px 13px;min-height:38px;font:inherit;font-size:14px;cursor:pointer}
+.actions button:hover,.review button:hover{border-color:var(--accent)}
+.review button.on{background:var(--fg);color:var(--panel);border-color:var(--fg)}
+.review button:disabled{opacity:.4;cursor:default}
+#playline{font-size:12px;margin-top:6px;min-height:1em}
+.review{margin-top:8px;padding:8px 10px;border:1px solid var(--detected);border-radius:8px;font-size:13px}
+.review .row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.looked{margin-top:12px;padding:10px 12px;background:var(--soft);border-radius:8px;font-size:13px}
+.looked h3{font-size:12px;color:var(--muted);margin:0 0 4px;font-weight:600}
+.looked ul{margin:0;padding-left:18px}
+.evlist button.unsure{border-color:var(--detected);border-style:dashed}
+.evlist button.out{text-decoration:line-through;opacity:.45}
+.evlist button .x{margin-left:5px;color:var(--muted);font-size:10px}
+.evlist button .x:hover{color:var(--bad)}
+.muted{color:var(--muted)}
+.hist{display:flex;flex-direction:column;gap:6px}
+.hist .h{font-size:13px;border-left:3px solid var(--line);padding:2px 0 2px 8px;cursor:pointer}
+.hist .h b{font-variant-numeric:tabular-nums}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* tablets and phones: drawing on top, then the answer first, then everything else */
+@media (max-width:1100px){main{flex-direction:column}#viewer{min-height:52vh}aside{width:auto;max-width:none;border-left:0;border-top:1px solid var(--line)}
+  .scroll{display:flex;flex-direction:column}#answersec{order:-1}}
+body.simple .expert-only{display:none!important}
+header .modebtn{border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+.how{margin:10px 0 0;font-size:15px}
+.counted{margin-top:6px;font-size:13px;color:var(--muted)}
+.counted b{color:var(--fg);font-weight:600}
+.meta{margin-top:8px;font-size:12px;color:var(--muted)}
+details.more{margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
+details.more summary{cursor:pointer;color:var(--muted);font-size:13px;min-height:28px}
+.tryask{margin-top:12px}
+.tryask h3,.sheets h3{font-size:12px;color:var(--muted);margin:0 0 4px;font-weight:600}
+.sheets{margin-top:10px}
+.sheets .fchip.on{border-color:var(--accent);background:var(--accent);color:var(--accent-fg)}
+</style>
+</head>
+<body class="simple">
+<header>
+  <div class="brand">Draw<span>QA</span></div>
+  <div class="title" id="title">Open a drawing</div>
+  <button id="modebtn" class="modebtn" title="Switch between a simple view and the full details">Expert view</button>
+  <a href="/classic" class="expert-only">classic demo page</a>
+</header>
+<main>
+  <div id="viewer"></div>
+  <aside>
+    <div class="scroll">
+      <section>
+        <h2>Drawing</h2>
+        <div class="tabs" id="tabs">
+          <button data-tab="gold" class="on">Checked set</button>
+          <button data-tab="samples">Samples</button>
+          <button data-tab="mine">Your file</button>
+        </div>
+        <div id="tab-gold" class="list"></div>
+        <div id="tab-samples" class="list" hidden></div>
+        <div id="tab-mine" hidden>
+          <div class="drop" id="drop"><b>Drop a drawing here</b>or click to choose: PDF, PNG, JPG, DXF, DWG or IFC</div>
+          <input type="file" id="pick" hidden accept=".pdf,.png,.jpg,.jpeg,.dxf,.dwg,.ifc,.tif,.tiff,.bmp,image/*,application/pdf">
+          <div class="row"><input type="text" id="openpath" placeholder="or paste a file's full path and press Enter"></div>
+          <div class="list" id="minelist" style="margin-top:8px"></div>
+        </div>
+        <div id="drawerr"></div>
+      </section>
+
+      <section id="understoodsec" hidden>
+        <h2>What it found on this drawing</h2>
+        <div id="understood"></div>
+      </section>
+
+      <section>
+        <h2>Question</h2>
+        <textarea id="q" placeholder="e.g. How many doors are shown on this floor plan?"></textarea>
+        <div class="row">
+          <button class="ask" id="askbtn">Ask</button>
+          <button class="mic" id="micbtn" title="Ask by voice" hidden>🎤</button>
+          <label class="toggle expert-only"><input type="checkbox" id="showexp" checked> show checked answers</label>
+        </div>
+        <div id="suggested"></div>
+        <div class="chips" id="chips"></div>
+      </section>
+
+      <section id="answersec" hidden>
+        <h2>Answer</h2>
+        <div class="legend" title="How each answer was obtained">
+          <span class="pill t-read">read</span><span class="pill t-measured">measured</span><span class="pill t-detected">detected</span><span class="pill t-estimated">estimated</span><span class="pill t-cannot">cannot determine</span>
+        </div>
+        <div id="answer"></div>
+      </section>
+
+      <section id="histsec" hidden>
+        <h2>Asked on this drawing</h2>
+        <div class="hist" id="hist"></div>
+        <div class="actions"><button id="reportbtn">Download report of all answers</button></div>
+      </section>
+    </div>
+  </aside>
+</main>
+
+<script src="/viz/drawview.js"></script>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const UNIT = {m2:"m²", m3:"m³", m:"m", ft2:"ft²", sqft:"ft²", sf:"ft²", ft:"ft", ft3:"ft³", in:"in", count:""};
+const TIER = {read:["Read from the sheet","t-read"], measured:["Measured from geometry","t-measured"],
+  detected:["Detected by a model","t-detected"], estimated:["Estimated","t-estimated"], "cannot determine":["Cannot determine","t-cannot"]};
+// unit -> [dimension, factor to SI]; used only to compare an answer with the checked one (counts exact, others 2%)
+const SI = {m2:["area",1], ft2:["area",0.09290304], sqft:["area",0.09290304], sf:["area",0.09290304],
+  m:["length",1], ft:["length",0.3048], in:["length",0.0254], m3:["volume",1], ft3:["volume",0.028316846592]};
+
+let view = null, current = null, lastAnswer = null, gold = [], samples = [];
+const history = new Map();   // drawing path -> [{question, answer}]
+
+function mountView() {
+  if (!window.DrawView) {
+    $("viewer").innerHTML = `<div class="missing"><div><b>The drawing view is not loaded.</b><br>
+      The page needs <code>viz/dist/drawview.js</code> (PR #5). Start the server with <code>--viz &lt;path&gt;</code> or merge PR #5.<br>
+      Questions still work; the evidence list below lists what the answer used.</div></div>`;
+    return;
+  }
+  view = DrawView.mount($("viewer"));
+  view.onSelect((el) => {
+    if (exploring && el && exploring.byId.has(el.id)) return showRoomFacts(exploring.byId.get(el.id));   // exploring: a room's facts
+    markEvidence(el ? el.id : null);
+  });
+}
+
+async function getJSON(url, opts) {
+  const r = await fetch(url, opts);
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(`${url.split("?")[0]}: HTTP ${r.status}, not JSON`); }
+  if (!r.ok || (j && j.error)) throw new Error(j && j.error ? j.error : `${url.split("?")[0]}: HTTP ${r.status}`);
+  return j;
+}
+
+function fileName(p) { return p.replace(/^file:/, "").split(/[\\/]/).pop(); }
+
+function goldTitle(g) {
+  const name = fileName(g.path).replace(/\.(pdf|png|jpg)$/i, "");
+  const src = g.path.split("/")[1];
+  return { name: name.length > 46 ? name.slice(0, 44) + "…" : name,
+           meta: `${src}${g.page > 1 ? ` · page ${g.page}` : ""} · ${g.questions.length} checked question${g.questions.length > 1 ? "s" : ""}${g.topic ? " · " + g.topic : ""}` };
+}
+
+function renderLists() {
+  const gl = $("tab-gold");
+  gl.innerHTML = "";
+  gold.forEach((g, i) => {
+    const t = goldTitle(g), div = document.createElement("div");
+    div.className = "item"; div.dataset.key = "g" + i;
+    div.innerHTML = `<b>${esc(t.name)}</b><small>${esc(t.meta)}</small>`;
+    div.onclick = () => openGold(g, div);
+    gl.appendChild(div);
+  });
+  const sl = $("tab-samples");
+  sl.innerHTML = "";
+  samples.forEach((s, i) => {
+    const div = document.createElement("div");
+    div.className = "item"; div.dataset.key = "s" + i;
+    div.innerHTML = `<b>${esc(s.title)}</b><small>${esc(s.path.replace("data/", ""))}</small>`;
+    div.onclick = () => openDrawing({ path: s.path, title: s.title, questions: s.questions.map((q) => ({ question: q.question, dataset: q.answer, unit: q.unit })) }, div);
+    sl.appendChild(div);
+  });
+}
+
+function selectItem(div) { document.querySelectorAll(".item").forEach((x) => x.classList.toggle("on", x === div)); }
+
+async function openGold(g, div) {
+  const qs = g.questions.map((q) => ({ question: q.question, checked: q.answer, unit: q.unit, type: q.type, tol: q.tolerance || 0.02, expected_tier: q.expected_tier, id: q.id, note: q.evidence_note, hasCheck: true }));
+  if (g.page > 1) {   // a question about one sheet of a set: open that sheet itself (drawqa reads the first page of a PDF)
+    selectItem(div);
+    try {
+      const pages = (await getJSON("/api/pages?path=" + encodeURIComponent(g.path))).pages;
+      return openSheetPage({ path: g.path, title: fileName(g.path), questions: qs, pages }, g.page, qs, div);
+    } catch (e) { return setStatus(`<div class="error">Could not open page ${g.page} of ${esc(fileName(g.path))}: ${esc(e.message)}</div>`); }
+  }
+  if (g.generic) {   // open it as an unknown file, the way a judge's file arrives (no CAD sibling, no stored predictions)
+    selectItem(div);
+    setStatus(`<span class="spinner"></span>Reading ${esc(fileName(g.path))} as an unknown file…`);
+    try {
+      const d = await getJSON("/api/open?file=" + encodeURIComponent(g.abs_path));
+      return openDrawing({ path: d.path, title: fileName(g.path) + " (as an unknown file)", questions: qs, page: g.page }, div);
+    } catch (e) { return setStatus(`<div class="error">Could not open ${esc(fileName(g.path))}: ${esc(e.message)}</div>`); }
+  }
+  openDrawing({ path: g.path, title: fileName(g.path), questions: qs, page: g.page }, div);
+}
+
+function setStatus(html) { $("drawerr").innerHTML = html; }
+
+async function openDrawing(d, div) {
+  selectItem(div);
+  current = d; lastAnswer = null;
+  $("title").textContent = d.title;
+  $("answersec").hidden = true;
+  setStatus("");
+  renderChips();
+  renderHistory();
+  // the sheet's own data (room names, areas, detector confidence by id) and render info, for formulas, review and export
+  const q = encodeURIComponent(d.path);
+  d.sheetP = getJSON("/api/sheet?path=" + q).catch(() => null);
+  d.renderP = getJSON("/api/render?path=" + q).catch(() => null);
+  d.tablesP = getJSON("/api/tables?path=" + q).catch(() => null);
+  if (!d.set && /\.pdf$/i.test(d.path)) d.pagesP = getJSON("/api/pages?path=" + q).then((r) => r.pages).catch(() => null);
+  exploring = null;
+  renderUnderstood(d);
+  if (view) {
+    try { await view.open(d.path); }
+    catch (e) { setStatus(`<div class="error">The drawing view could not open this file: ${esc(e.message)}</div>`); }
+  }
+}
+
+function renderChips() {
+  const box = $("chips"), show = $("showexp").checked;
+  box.innerHTML = "";
+  (current?.questions || []).forEach((q) => {
+    const b = document.createElement("button");
+    b.className = "chip";
+    let exp = "";
+    if (show && q.hasCheck) exp = `<span class="exp">checked: ${esc(fmt(q.checked, q.unit))}</span>`;
+    else if (show && q.dataset !== undefined && q.dataset !== null) exp = `<span class="exp">dataset label: ${esc(fmt(q.dataset, q.unit))}</span>`;
+    b.innerHTML = esc(q.question) + exp;
+    b.onclick = () => { $("q").value = q.question; ask(); };
+    box.appendChild(b);
+  });
+}
+
+function fmt(v, unit) {
+  if (v === null || v === undefined) return "cannot determine";
+  const u = UNIT[unit] ?? unit ?? "";
+  return `${v}${u ? " " + u : ""}`;
+}
+
+function parseNum(answer, unit) {
+  if (typeof answer === "number") return [answer, unit];
+  const m = String(answer ?? "").match(/^\s*(-?[\d,]*\.?\d+)\s*([A-Za-z²³]+)?\s*$/);
+  if (!m) return [null, unit];
+  const u = unit || (m[2] && (/^sf$/i.test(m[2]) ? "sqft" : m[2].replace("²", "2").replace("³", "3")));
+  return [parseFloat(m[1].replace(/,/g, "")), u];
+}
+
+// Compare with a checked answer: counts exact, measures within 2% after unit conversion; null means "cannot determine" is right
+function compare(res, q) {
+  const checked = q.checked;
+  if (checked === null || checked === undefined) return { ok: res.answer === null || res.answer === undefined, text: "The checked answer is “cannot determine”." };
+  const [v, u] = parseNum(res.answer, res.unit);
+  if (v === null) return { ok: false, text: `Checked answer: ${fmt(checked, q.unit)}.` };
+  if (q.type === "count" || q.unit === "count") return { ok: v === checked, text: `Checked answer: ${fmt(checked, q.unit)}.` };
+  let val = v;
+  if (u && q.unit && u !== q.unit && SI[u] && SI[q.unit] && SI[u][0] === SI[q.unit][0]) val = v * SI[u][1] / SI[q.unit][1];
+  const tol = q.tol || 0.02;
+  return { ok: Math.abs(val - checked) <= tol * Math.abs(checked), text: `Checked answer: ${fmt(checked, q.unit)} (within ${Math.round(tol * 100)}%${tol > 0.02 ? ", a hand measurement" : ""}).` };
+}
+
+async function ask() {
+  const question = $("q").value.trim();
+  if (!current) return setStatus(`<div class="error">Open a drawing first.</div>`);
+  if (!question) return;
+  const btn = $("askbtn");
+  btn.disabled = true;
+  exploring = null;
+  $("answersec").hidden = false;
+  const t0 = performance.now();
+  const spin = () => { $("answer").innerHTML = `<div class="card"><span class="spinner"></span>Working on it… ${Math.round((performance.now() - t0) / 1000)} s</div>`; };
+  spin();
+  const spinTimer = setInterval(spin, 1000);
+  let res;
+  try {
+    res = await getJSON("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: current.path, question }) });
+  } catch (e) {
+    clearInterval(spinTimer);
+    btn.disabled = false;
+    $("answer").innerHTML = `<div class="card"><div class="error">The server failed on this question: ${esc(e.message)}</div></div>`;
+    return;
+  }
+  clearInterval(spinTimer);
+  btn.disabled = false;
+  res._seconds = (performance.now() - t0) / 1000;
+  lastAnswer = res;
+  if (view) view.showAnswer(res, question);
+  await renderAnswer(res, question);
+  const h = history.get(current.path) || [];
+  h.unshift({ question, res, work });   // its work keeps the reviewer's corrections, for the report
+  history.set(current.path, h.slice(0, 12));
+  renderHistory();
+}
+
+async function renderAnswer(res, question, keep) {
+  const tier = res.honesty?.tier || (res.answer == null ? "cannot determine" : null);
+  const [tierText, tierCls] = TIER[tier] || [tier || "no tier", ""];
+  const cannot = res.answer === null || res.answer === undefined;
+  const q = (current.questions || []).find((x) => x.question.trim() === question.trim());
+  let check = "";
+  if (q && q.hasCheck) {
+    const c = compare(res, q);
+    check = `<div class="check ${c.ok ? "ok" : "bad"}">${c.ok ? "✓ Matches the checked answer." : "✗ Differs from the checked answer."}<small>${esc(c.text)}${q.note ? " Where to look: " + esc(q.note) : ""}</small></div>`;
+  } else if (res.dataset_answer !== undefined) {
+    check = `<div class="check"><span class="muted">Dataset label: ${esc(fmt(res.dataset_answer, res.unit))}</span><small>Written by people; some labels are wrong.</small></div>`;
+  }
+  const sheet = current.sheetP ? await current.sheetP : null;
+  work = keep || buildWork(res, question, sheet);   // a history entry keeps its own corrections
+  const ev = work.items;
+  const evHead = simpleMode()
+    ? `Check it: tap a number to see that item on the drawing${work.correctable ? " · ✕ if one is wrong" : ""}`
+    : `Evidence used (${ev.length}) · click to show it on the drawing${work.correctable ? " · ✕ to leave one out" : ""}`;
+  const evHtml = ev.length ? `<div class="ev"><h3>${evHead}</h3><div class="evlist">${
+    ev.slice(0, 300).map((it) => `<button data-id="${esc(it.id)}" title="${esc(itemTitle(it))}"${it.conf != null && it.conf < LOW_CONF ? ' class="unsure"' : ""}>${esc(it.mark)}${work.correctable ? `<span class="x" data-x="${esc(it.id)}" title="leave this one out">✕</span>` : ""}</button>`).join("")
+  }${ev.length > 300 ? `<span class="muted">+${ev.length - 300} more</span>` : ""}</div></div>` : "";
+  const read = res.question_read ? `${res.question_read.by}${res.question_read.model ? " (" + res.question_read.model + ")" : ""}` : "";
+  const unsure = ev.filter((it) => it.conf != null && it.conf < LOW_CONF);
+  const actions = (ev.length || !cannot) ? `<div class="actions">
+      ${ev.length ? `<button id="replaybtn">▶ Show me</button>` : ""}
+      ${unsure.length ? `<button id="reviewbtn">Review ${unsure.length} uncertain</button>` : ""}
+      <button id="exportbtn">Export card</button>
+      ${ev.length ? `<button id="csvbtn">Export CSV</button>` : ""}
+    </div><div id="playline" class="muted"></div><div id="reviewbox"></div>` : `<div class="actions"><button id="exportbtn">Export card</button></div>`;
+  const looked = cannot ? await lookedHtml(res, sheet) : "";
+  const counted = countedAs(res, question);
+  const cost = res.cost ? (res.cost.usd === null ? "≥ " + usd(res.cost.usd_known) : usd(res.cost.usd)) : null;
+  $("answer").innerHTML = `<div class="card">
+    <div class="value ${cannot ? "cannot" : ""}">${cannot ? (notUnderstood(res) ? "Question not understood" : simpleMode() ? "Not shown on this drawing" : "Cannot determine from this drawing") : esc(fmt(res.answer, res.unit))}</div>
+    <div class="q">${esc(question)}</div>
+    <span class="pill ${tierCls}">${esc(tierLabel(tier, tierText))}</span>${res.honesty?.deterministic === false ? ` <span class="muted expert-only" style="font-size:12px">not deterministic</span>` : ""}
+    <div class="how">${esc(plainSentence(res, cannot))}</div>
+    ${counted ? `<div class="counted"><b>Counted as:</b> ${esc(counted)}</div>` : ""}
+    <div id="formula">${formulaHtml()}</div>
+    <div id="corrected"></div>
+    ${actions}
+    ${looked}
+    ${cannot ? tryAskHtml(res, question) : ""}
+    ${evHtml}
+    <div class="meta">${res._seconds.toFixed(1)} s${cost ? ` · cost ${esc(cost)}${res.cost.model_calls ? "" : " (no AI call)"}` : ""}</div>
+    <details class="more"${simpleMode() ? "" : " open"}><summary>Details: how it was worked out</summary>
+    <dl>
+      ${res.honesty?.basis ? `<dt>How</dt><dd>${esc(res.honesty.basis)}</dd>` : ""}
+      ${res.explanation && res.explanation !== res.honesty?.basis ? `<dt>Explanation</dt><dd>${esc(res.explanation)}</dd>` : ""}
+      ${res.method ? `<dt>Method</dt><dd>${esc(res.method)}</dd>` : ""}
+      ${read ? `<dt>Question read by</dt><dd>${esc(read)}</dd>` : ""}
+      ${res.honesty?.style_warning ? `<dt>Warning</dt><dd>${esc(res.honesty.style_warning)}</dd>` : ""}
+      <dt>Time</dt><dd>${res._seconds.toFixed(1)} s</dd>
+      ${res.cost ? `<dt>Cost</dt><dd>${costHtml(res.cost)}</dd>` : ""}
+    </dl>
+    <div class="expert-only">${check}</div>
+    </details>
+    <div class="feedback"><button class="link" id="fbopen">Wrong answer? Tell us the right one</button><div id="fbform"></div></div>
+  </div>`;
+  wireAnswer();
+}
+
+// ------------------------------------------------------------------ simple view (default) vs expert view
+// Simple: the answer in plain words, how to check it, and nothing a site engineer has to decode. Expert: everything.
+const PLAIN = { read: "Read off the drawing", measured: "Measured on the drawing", detected: "Found by AI: check the marked items",
+                estimated: "Estimate, based on an assumption", "cannot determine": "Not shown on this drawing" };
+function simpleMode() { return document.body.classList.contains("simple"); }
+function tierLabel(tier, expertText) { return simpleMode() ? (PLAIN[tier] || expertText) : expertText; }
+function setMode(simple, save = true) {
+  document.body.classList.toggle("simple", simple);
+  $("modebtn").textContent = simple ? "Expert view" : "Simple view";
+  if (save) { try { localStorage.setItem("drawqa-mode", simple ? "simple" : "expert"); } catch (e) { /* private window: not remembered */ } }
+  $("tabs").querySelector('[data-tab="gold"]').textContent = simple ? "Examples" : "Checked set";
+  $("tabs").querySelector('[data-tab="samples"]').textContent = simple ? "More examples" : "Samples";
+  $("showexp").checked = !simple;
+  renderLegend();
+  renderChips();
+  if (lastAnswer && work) renderAnswer(lastAnswer, work.question, work);
+}
+function renderLegend() {
+  const tiers = ["read", "measured", "detected", "estimated", "cannot determine"];
+  const cls = { read: "t-read", measured: "t-measured", detected: "t-detected", estimated: "t-estimated", "cannot determine": "t-cannot" };
+  document.querySelector(".legend").innerHTML = tiers.map((t) => `<span class="pill ${cls[t]}">${esc(simpleMode() ? PLAIN[t].split(":")[0] : t)}</span>`).join("");
+}
+
+// One plain sentence: what was done and how to check it
+function plainSentence(res, cannot) {
+  const tier = res.honesty?.tier;
+  if (cannot) {
+    if (notUnderstood(res)) return "The system didn't recognise this wording, so it gave no number rather than guess. Try one of the wordings below.";
+    const first = String(res.explanation || "").split(/(?<=\.)\s/)[0];
+    return first && first.length < 170 && !/pattern|language model/.test(first) ? first : "The drawing does not give this. It says so instead of guessing.";
+  }
+  const n = work ? work.items.length : 0;
+  if (work?.countMatch) {
+    const k = work.items.map((it) => it.kind).filter(Boolean);
+    const kind = k.length && k.every((x) => x === k[0]) ? `${k[0].replace(/_/g, " ")}${n === 1 ? "" : "s"}` : `item${n === 1 ? "" : "s"}`;
+    return `Found ${n} ${kind} on the drawing, each one numbered. Tap a number to check it.`;
+  }
+  if (work?.termsMatch) return `Added up the areas of ${n} room${n === 1 ? "" : "s"} on the drawing. Tap a number to see that room.`;
+  if (tier === "read") return `Read from the text printed on the sheet${n ? "; the marked items show where" : ""}.`;
+  if (tier === "measured") return `Measured from the drawing's own lines at its scale${n ? "; the marked items show what was measured" : ""}.`;
+  if (tier === "detected") return `Found by a trained model${n ? "; the marked items show what it found" : ""}. Check them before relying on the number.`;
+  if (tier === "estimated") return "An estimate that depends on an assumption: open Details to see it.";
+  return "";
+}
+
+// The rule the answer used, in one line, where the answer says it (counts: which symbols count once; areas: which rooms)
+function countedAs(res, question) {
+  if (Array.isArray(res.counting) && res.counting.length) {
+    const used = res.counting.find((c) => c.used) || res.counting[0];
+    const others = res.counting.filter((c) => c !== used && c.count !== used.count).map((c) => `${c.count} if ${c.rule}`);
+    return used.rule + (others.length ? ` (${others.join("; ")})` : "");
+  }
+  const m = String(res.explanation || "").match(/^[^:]{0,80}\(([^)]{3,60})\):/);
+  if (m) return m[1];
+  if (/net floor area/i.test(question)) return "net floor area, measured inside the walls" + (/balcon|loggia|terrace|outdoor/i.test(question) ? "; outdoor spaces left out" : "");
+  if (/baseboard|skirting/i.test(question)) return "room perimeter minus door openings";
+  return "";
+}
+
+// The question's wording was not understood (no pattern matched and no language model read it), as opposed to
+// the drawing not containing the answer: the page must not blame the drawing for that
+function notUnderstood(res) {
+  return /does not match a known pattern|could not be turned into a query|not recognised/i.test(`${res.explanation || ""} ${res.honesty?.basis || ""}`);
+}
+
+// When the wording was not understood: the closest questions this drawing does answer well
+function tryAskHtml(res, question) {
+  if (!notUnderstood(res)) return "";
+  const stop = new Set("what which many much this that there with from have does shown drawn plan floor drawing sheet total".split(" "));
+  const words = (s) => new Set(String(s).toLowerCase().match(/[a-zäöüåéèà]{4,}/g)?.filter((w) => !stop.has(w)) || []);
+  const mine = words(question);
+  const pool = [...document.querySelectorAll("#suggested [data-q]")].map((b) => b.dataset.q).concat((current?.questions || []).map((q) => q.question));
+  const scored = [...new Set(pool)].filter((q) => q.trim() !== question.trim()).map((q) => { const w = words(q); let s = 0; mine.forEach((x) => { if (w.has(x)) s++; }); return [s, q]; })
+    .filter(([s]) => s > 0).sort((a, b) => b[0] - a[0]).slice(0, 3);
+  const list = scored.length ? scored.map(([, q]) => q) : pool.filter((q) => q.trim() !== question.trim()).slice(0, 3);
+  if (!list.length) return "";
+  return `<div class="tryask"><h3>The wording wasn't understood. Try asking it like this:</h3>${list.map((q) => `<button class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join("")}</div>`;
+}
+
+// ------------------------------------------------------------------ multi-page sets: pick a sheet, open that page
+async function openSheetPage(parent, page, questions, div) {
+  const info = (parent.pages || []).find((p) => p.page === page) || {};
+  const label = [info.number, info.title].filter(Boolean).join(" ") || `page ${page}`;
+  setStatus(`<span class="spinner"></span>Opening sheet ${esc(label)}…`);
+  try {
+    const d = await getJSON(`/api/sheetpage?path=${encodeURIComponent(parent.path)}&page=${page}`);
+    setStatus("");
+    const qs = questions || (parent.questions || []).filter((q) => !q.page || q.page === page);
+    return openDrawing({ path: d.path, title: `${fileName(parent.path)} · ${label}`, questions: qs, page: 1,
+                         set: { path: parent.path, title: parent.title, questions: parent.questions, pages: parent.pages }, sheetPage: page }, div);
+  } catch (e) { setStatus(`<div class="error">Could not open ${esc(label)}: ${esc(e.message)}</div>`); }
+}
+
+function sheetsHtml(d) {
+  const pages = d.set ? d.set.pages : d.pages;
+  if (!pages || pages.length < 2) return "";
+  const at = d.sheetPage || 1;
+  return `<div class="sheets"><h3>This PDF is a set of ${pages.length} sheets. Open one:</h3>${pages.map((p) =>
+    `<button class="fchip${p.page === at ? " on" : ""}" data-page="${p.page}" title="page ${p.page}">${esc(p.number || "p" + p.page)}${p.title ? ` · ${esc(p.title.toLowerCase())}` : ""}</button>`).join("")}</div>`;
+}
+
+// ------------------------------------------------------------------ evidence, formula, correction, replay, review, export
+const LOW_CONF = 0.6;   // same threshold as the drawing view's amber "unsure" marks
+let work = null;        // the answer on screen: {res, question, items, excluded:Set, added, correctable, kind, ...}
+
+function sheetIndex(sheet) {
+  const ix = new Map();
+  if (!sheet) return ix;
+  for (const k of ["rooms", "openings", "fixtures", "elements", "floors", "walls", "units_list"])
+    for (const x of sheet[k] || []) if (x && x.id) ix.set(x.id, x);
+  return ix;
+}
+
+function buildWork(res, question, sheet) {
+  const ix = sheetIndex(sheet);
+  const items = (res.evidence || []).map((e, i) => {
+    const s = ix.get(e.id) || {};
+    const area = s.area_m2 ?? s.area ?? null;
+    return { id: e.id ?? "ev" + i, idx: i, mark: e.label && String(e.label).length < 14 ? String(e.label) : String(i + 1),
+             shape: e.shape, bbox: e.bbox, pts: e.pts, conf: s.conf ?? null, kind: s.cls || s.type || null,
+             name: s.name || null, number: s.number || null, area: typeof area === "number" ? area : null };
+  });
+  const [val, unit] = parseNum(res.answer, res.unit);
+  const isCount = res.unit === "count" || (Number.isInteger(val) && !unit);
+  const isArea = /^(m2|sqft|ft2|sf)$/i.test(unit || "");
+  // A correction is only meaningful when the marks ARE the answer: one mark per counted item, or one area per room summed
+  const areaSum = items.reduce((s, it) => s + (it.area ?? 0), 0);
+  const termsMatch = isArea && items.length > 0 && items.every((it) => it.area != null) && Math.abs(areaSum - val) <= Math.max(0.02, 0.01 * Math.abs(val));
+  const countMatch = isCount && items.length > 0 && items.length === val;
+  return { res, question, items, excluded: new Set(), added: 0, val, unit, isCount, isArea, termsMatch, countMatch,
+           correctable: countMatch || termsMatch, timer: null, reviewAt: -1 };
+}
+
+function itemTitle(it) {
+  return [it.kind, it.number && it.name ? `${it.number} ${it.name}` : it.name || it.number, it.area != null ? `${it.area} ${UNIT[work?.unit] || ""}` : "",
+          it.conf != null ? `confidence ${Math.round(it.conf * 100)}%` : "", it.id].filter(Boolean).join(" · ");
+}
+
+const round2 = (v) => Math.round(v * 100) / 100;
+
+// 1. The answer written out as its working, each term linked to its mark on the drawing
+function formulaHtml() {
+  if (!work || !work.items.length) return "";
+  const u = UNIT[work.unit] ?? work.unit ?? "";
+  if (work.termsMatch) {
+    const terms = work.items.map((it) => `<button class="term${work.excluded.has(it.id) ? " out" : ""}" data-id="${esc(it.id)}" title="${esc(itemTitle(it))}">${esc(String(it.area))}<small>${esc(it.number || it.name || it.mark)}</small></button>`);
+    return `<div class="formula"><b>${esc(String(work.val))} ${esc(u)}</b> = ${terms.join(" + ")}</div>`;
+  }
+  if (work.countMatch) {
+    const byKind = {};
+    work.items.forEach((it) => { const k = it.kind || "marked item"; byKind[k] = (byKind[k] || 0) + 1; });
+    const kinds = Object.entries(byKind);
+    const parts = kinds.length > 1 ? " = " + kinds.map(([k, n]) => `${n} ${esc(k.replace(/_/g, " "))}`).join(" + ") : ` ${esc((kinds[0][0]).replace(/_/g, " "))}${kinds[0][1] === 1 ? "" : "s"}`;
+    return `<div class="formula"><b>${esc(String(work.val))}</b>${parts} · each one numbered on the drawing</div>`;
+  }
+  if (work.isArea && work.items.some((it) => it.area != null)) {
+    const shown = work.items.filter((it) => it.area != null);
+    return `<div class="formula muted">Areas used: ${shown.map((it) => `<button class="term" data-id="${esc(it.id)}">${esc(String(it.area))}<small>${esc(it.number || it.name || it.mark)}</small></button>`).join(" ")}</div>`;
+  }
+  return "";
+}
+
+// 3. A person leaves out a wrong mark (or adds one the system missed) and the total updates
+function correctedValue(w = work) {
+  if (w.termsMatch) return round2(w.items.filter((it) => !w.excluded.has(it.id)).reduce((s, it) => s + it.area, 0));
+  return w.val - w.excluded.size + w.added;
+}
+function renderCorrected() {
+  const box = $("corrected");
+  if (!box || !work.correctable) return;
+  const n = work.excluded.size, a = work.added;
+  if (!n && !a) { box.innerHTML = work.countMatch ? `<div class="muted small">Missed one? <button class="link" id="addone">+ add one you see</button></div>` : ""; }
+  else {
+    const u = UNIT[work.unit] ?? work.unit ?? "";
+    box.innerHTML = `<div class="corrected"><b>Your check: ${esc(String(work.val))} → ${esc(String(correctedValue()))} ${esc(u)}</b>
+      <span class="muted">(${n ? `${n} left out by you` : ""}${n && a ? ", " : ""}${a ? `${a} added by you` : ""})</span>
+      ${work.countMatch ? `<button class="link" id="addone">+ add one</button>` : ""} <button class="link" id="undoall">undo</button></div>`;
+  }
+  $("addone") && ($("addone").onclick = () => { work.added++; renderCorrected(); });
+  $("undoall") && ($("undoall").onclick = () => { work.excluded.clear(); work.added = 0; refreshMarks(); });
+}
+function toggleExclude(id) {
+  work.excluded.has(id) ? work.excluded.delete(id) : work.excluded.add(id);
+  refreshMarks();
+}
+function refreshMarks() {
+  $("answer").querySelectorAll(".evlist button").forEach((b) => b.classList.toggle("out", work.excluded.has(b.dataset.id)));
+  $("formula").innerHTML = formulaHtml();
+  wireTerms();
+  renderCorrected();
+}
+
+function selectEvidence(id) { if (view) view.select(id); markEvidence(id); }
+function wireTerms() { $("answer").querySelectorAll("#formula .term").forEach((b) => b.onclick = () => selectEvidence(b.dataset.id)); }
+
+// 2. "Show me": step through the marks one by one while a counter ticks up
+function stopReplay(msg) {
+  if (work?.timer) { clearInterval(work.timer); work.timer = null; }
+  if ($("replaybtn")) $("replaybtn").textContent = "▶ Show me";
+  if (msg !== undefined && $("playline")) $("playline").textContent = msg;
+}
+function replay() {
+  if (work.timer) return stopReplay("");
+  const list = work.items.filter((it) => !work.excluded.has(it.id));
+  if (!list.length) return;
+  const step = Math.max(180, Math.min(800, 12000 / list.length));   // whole run in about 12 s at most
+  let i = 0;
+  $("replaybtn").textContent = "■ Stop";
+  const tick = () => {
+    if (i >= list.length) {
+      stopReplay(`${list.length} ${list.length === 1 ? "item" : "items"} shown${work.isCount ? ` = ${list.length + work.added}${work.added ? ` with ${work.added} added by you` : ""}` : ""}.`);
+      if (view) { view.select(null); view.reset(); }
+      markEvidence(null);
+      return;
+    }
+    const it = list[i++];
+    selectEvidence(it.id);
+    $("playline").textContent = `${work.isCount ? "Counting" : "Showing"} ${i} / ${list.length}: ${itemTitle(it)}`;
+  };
+  tick();
+  work.timer = setInterval(tick, step);
+}
+
+// 4. Only the marks the system is unsure of, one at a time: keep or leave out
+function review(dir = 0) {
+  const unsure = work.items.filter((it) => it.conf != null && it.conf < LOW_CONF);
+  if (!unsure.length) return;
+  stopReplay("");
+  work.reviewAt = Math.max(0, Math.min(unsure.length - 1, work.reviewAt + dir));
+  const it = unsure[work.reviewAt];
+  selectEvidence(it.id);
+  const out = work.excluded.has(it.id);
+  $("reviewbox").innerHTML = `<div class="review"><b>Uncertain ${work.reviewAt + 1} of ${unsure.length}</b>: mark ${esc(it.mark)}, ${esc(itemTitle(it))}
+    <div class="row"><button id="rvkeep"${out ? "" : ' class="on"'}>Keep</button><button id="rvout"${out ? ' class="on"' : ""}>Leave out</button>
+    <button id="rvprev"${work.reviewAt === 0 ? " disabled" : ""}>‹ Prev</button><button id="rvnext"${work.reviewAt === unsure.length - 1 ? " disabled" : ""}>Next ›</button>
+    <button id="rvdone">Done</button></div></div>`;
+  $("rvkeep").onclick = () => { work.excluded.delete(it.id); refreshMarks(); review(0); };
+  $("rvout").onclick = () => { work.excluded.add(it.id); refreshMarks(); review(0); };
+  $("rvprev").onclick = () => review(-1);
+  $("rvnext").onclick = () => review(1);
+  $("rvdone").onclick = () => { $("reviewbox").innerHTML = ""; work.reviewAt = -1; };
+}
+
+// 11. A refusal shows where it looked and what it found there, so "cannot determine" is itself checkable
+async function lookedHtml(res, sheet) {
+  const tables = current.tablesP ? await current.tablesP : null;
+  const li = [];
+  const intent = res.intent || {};
+  const read = res.question_read || {};
+  li.push(`<li><b>Question read as</b>: ${esc(intent.intent || "not recognised")}${intent.cls ? ` (${esc(intent.cls)})` : ""}${read.by ? ` · by ${esc(read.by)}` : ""}</li>`);
+  if (sheet) {
+    const rooms = sheet.rooms || [];
+    const named = rooms.filter((r) => r.name);
+    const names = [...new Set(named.map((r) => r.name))];
+    li.push(`<li><b>Rooms</b>: ${rooms.length}${named.length ? `, ${named.length} with printed names (${esc(names.slice(0, 6).join(", "))}${names.length > 6 ? ", …" : ""})` : ", none with a printed name"}</li>`);
+    const kinds = {};
+    for (const x of [...(sheet.openings || []), ...(sheet.fixtures || []), ...(sheet.elements || [])]) { const k = x.cls || x.type || "item"; kinds[k] = (kinds[k] || 0) + 1; }
+    const kl = Object.entries(kinds).sort((a, b) => b[1] - a[1]);
+    li.push(`<li><b>Drawn items found</b>: ${kl.length ? esc(kl.slice(0, 6).map(([k, n]) => `${n} ${k.replace(/_/g, " ")}`).join(", ")) : "none"}</li>`);
+    const sc = sheet.scale && (sheet.scale.source || sheet.scale.note);
+    li.push(`<li><b>Scale</b>: ${esc(sc || (sheet.units === "m" ? "drawing units are metres" : "not found"))}</li>`);
+  }
+  if (Array.isArray(tables)) li.push(`<li><b>Tables</b>: ${tables.length ? esc(tables.slice(0, 4).map((t) => (t.title || "untitled").slice(0, 40)).join("; ")) : "none"}</li>`);
+  return `<div class="looked"><h3>Where it looked</h3><ul>${li.join("")}</ul><div class="muted small">None of these gives the answer, so it says so instead of guessing.</div></div>`;
+}
+
+// 14. One image a person can keep or put on a slide: the drawing with the marks, the answer, how it was obtained, the cost
+async function exportCard() {
+  const btn = $("exportbtn"); btn.disabled = true; btn.textContent = "Exporting…";
+  try {
+    download(await makeCard(work), `drawqa-${fileName(current.path).replace(/\.[^.]+$/, "")}-answer.png`);
+  } catch (e) {
+    $("playline").textContent = "Export failed: " + e.message;
+  } finally { btn.disabled = false; btn.textContent = "Export card"; }
+}
+
+function download(href, name) {
+  const a = document.createElement("a");
+  a.href = href; a.download = name; a.click();
+}
+
+// The card as a PNG data URL, for any answer (the one on screen, or one from the history for the report)
+async function makeCard(w) {
+  {
+    const W = 1600, DH = 900, TH = 420;
+    const c = document.createElement("canvas"); c.width = W; c.height = DH + TH;
+    const g = c.getContext("2d");
+    g.fillStyle = "#ffffff"; g.fillRect(0, 0, W, DH + TH);
+    await drawSheetPart(g, W, DH, w);
+    g.fillStyle = "#f4f4f1"; g.fillRect(0, DH, W, TH);
+    const work = w;   // the lines below describe this answer
+    const res = work.res, tier = res.honesty?.tier || (res.answer == null ? "cannot determine" : "");
+    let y = DH + 56;
+    g.fillStyle = "#ff6a00"; g.font = "700 40px system-ui, sans-serif"; g.fillText("DrawQA", 40, y);
+    g.fillStyle = "#6a6a64"; g.font = "20px system-ui, sans-serif"; g.fillText(fileName(current.path), 220, y - 4);
+    y += 60;
+    g.fillStyle = "#1c1c1a"; g.font = "700 46px system-ui, sans-serif";
+    const changed = work.correctable && (work.excluded.size || work.added);
+    const valueText = res.answer == null ? "Cannot determine" : fmt(res.answer, res.unit) + (changed ? `  →  ${correctedValue(work)} after human check` : "");
+    g.fillText(valueText, 40, y);
+    y += 42; g.font = "24px system-ui, sans-serif"; g.fillStyle = "#3a3a36";
+    y = wrap(g, work.question, 40, y, W - 80, 30, 2);
+    const tierColor = { read: "#1f7a3f", measured: "#1d5fa8", detected: "#a86400", estimated: "#7a3fa8", "cannot determine": "#9b2c2c" }[tier] || "#6a6a64";
+    y += 14; g.fillStyle = tierColor; g.font = "700 24px system-ui, sans-serif"; g.fillText((TIER[tier] || [tier])[0], 40, y);
+    g.fillStyle = "#3a3a36"; g.font = "20px system-ui, sans-serif";
+    y += 34; y = wrap(g, res.honesty?.basis || res.explanation || "", 40, y, W - 80, 26, 3);
+    const cost = res.cost ? `Cost ${res.cost.usd === null ? "≥ " + usd(res.cost.usd_known) : usd(res.cost.usd)} · ${res.cost.text}` : "";
+    g.fillStyle = "#6a6a64"; g.font = "18px system-ui, sans-serif";
+    g.fillText([`${work.items.length} evidence mark${work.items.length === 1 ? "" : "s"}`, cost, new Date().toLocaleString()].filter(Boolean).join("   ·   "), 40, DH + TH - 28);
+    return c.toDataURL("image/png");
+  }
+}
+
+function wrap(g, text, x, y, maxW, lh, maxLines) {
+  const words = String(text).split(/\s+/); let line = "", n = 0;
+  for (const w of words) {
+    const t = line ? line + " " + w : w;
+    if (g.measureText(t).width > maxW && line) {
+      g.fillText(n === maxLines - 1 ? line + " …" : line, x, y); y += lh; line = w; n++;
+      if (n >= maxLines) return y;
+    } else line = t;
+  }
+  if (line) { g.fillText(line, x, y); y += lh; }
+  return y;
+}
+
+// Sheet part of the card: the real page image cropped to the marks (scans, PDF pages), or the plan drawn from its
+// own geometry (CAD and BIM sheets, whose evidence is in drawing units), with the marks numbered on top.
+async function drawSheetPart(g, W, H, w) {
+  const render = current.renderP ? await current.renderP : null;
+  const sheet = current.sheetP ? await current.sheetP : null;
+  const items = w.items;
+  const ptsOf = (it) => it.pts || (it.bbox ? [[it.bbox[0], it.bbox[1]], [it.bbox[2], it.bbox[1]], [it.bbox[2], it.bbox[3]], [it.bbox[0], it.bbox[3]]] : null);
+  const marks = items.map((it) => ({ it, pts: ptsOf(it) })).filter((m) => m.pts && m.pts.length);
+  if (render && render.type === "image" && render.url) {
+    const img = await new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => bad(new Error("could not load the page image")); im.src = render.url; });
+    const sx = img.naturalWidth / (render.width || img.naturalWidth), sy = img.naturalHeight / (render.height || img.naturalHeight);
+    let box = [0, 0, render.width || img.naturalWidth, render.height || img.naturalHeight];
+    if (marks.length) {
+      const xs = marks.flatMap((m) => m.pts.map((p) => p[0])), ys = marks.flatMap((m) => m.pts.map((p) => p[1]));
+      const pad = Math.max(60, 0.15 * Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)));
+      box = [Math.max(0, Math.min(...xs) - pad), Math.max(0, Math.min(...ys) - pad), Math.min(box[2], Math.max(...xs) + pad), Math.min(box[3], Math.max(...ys) + pad)];
+    }
+    const k = Math.min(W / (box[2] - box[0]), H / (box[3] - box[1]));
+    const ox = (W - (box[2] - box[0]) * k) / 2, oy = (H - (box[3] - box[1]) * k) / 2;
+    g.drawImage(img, box[0] * sx, box[1] * sy, (box[2] - box[0]) * sx, (box[3] - box[1]) * sy, ox, oy, (box[2] - box[0]) * k, (box[3] - box[1]) * k);
+    drawMarks(g, marks, (p) => [ox + (p[0] - box[0]) * k, oy + (p[1] - box[1]) * k], w);
+    return;
+  }
+  // geometry: room outlines of the sheet (y up when y_flip; evidence is already y down) as context, marks on top
+  const flip = sheet && sheet.y_flip ? (p) => [p[0], -p[1]] : (p) => p;
+  const ctx = (sheet?.rooms || []).map((r) => (r.polygon || []).map(flip)).filter((p) => p.length > 2);
+  const all = [...ctx.flat(), ...marks.flatMap((m) => m.pts)];
+  if (!all.length) { g.fillStyle = "#6a6a64"; g.font = "24px system-ui"; g.fillText("No drawing geometry to show for this answer.", 40, H / 2); return; }
+  const xs = all.map((p) => p[0]), ys = all.map((p) => p[1]);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+  const k = 0.92 * Math.min(W / (x1 - x0 || 1), H / (y1 - y0 || 1));
+  const ox = (W - (x1 - x0) * k) / 2, oy = (H - (y1 - y0) * k) / 2;
+  const T = (p) => [ox + (p[0] - x0) * k, oy + (p[1] - y0) * k];
+  g.strokeStyle = "#9a9a94"; g.lineWidth = 1.5;
+  for (const poly of ctx) { g.beginPath(); poly.forEach((p, i) => { const [x, y] = T(p); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.stroke(); }
+  drawMarks(g, marks, T, w);
+}
+
+function drawMarks(g, marks, T, w) {
+  for (const { it, pts } of marks) {
+    const out = w.excluded.has(it.id), unsure = it.conf != null && it.conf < LOW_CONF;
+    g.beginPath(); pts.forEach((p, i) => { const [x, y] = T(p); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath();
+    g.fillStyle = out ? "rgba(120,120,120,0.10)" : "rgba(255,106,0,0.16)"; g.fill();
+    g.setLineDash(out ? [6, 6] : unsure ? [10, 6] : []);
+    g.strokeStyle = out ? "#8a8a84" : unsure ? "#e0a100" : "#ff6a00"; g.lineWidth = 3; g.stroke(); g.setLineDash([]);
+    const [cx, cy] = T(pts.reduce((a, p) => [a[0] + p[0] / pts.length, a[1] + p[1] / pts.length], [0, 0]));
+    g.font = "700 18px system-ui"; const label = it.mark; const lw = g.measureText(label).width + 10;
+    g.fillStyle = out ? "#8a8a84" : "#ff6a00"; g.fillRect(cx - lw / 2, cy - 12, lw, 24);
+    g.fillStyle = "#fff"; g.fillText(label, cx - lw / 2 + 5, cy + 6);
+  }
+}
+
+// ------------------------------------------------------------------ what it found, suggestions, explore rooms
+const SOURCE = { "vector-dxf": "CAD drawing (DXF)", "vector-pdf": "vector PDF", raster: "scan / image", ifc: "BIM model (IFC)" };
+let exploring = null;   // {title, byId: Map(id -> sheet item)} while the drawing shows found items instead of an answer
+let readTimer = null;
+
+// A sheet item as evidence the drawing view can highlight (its frame: image px, or CAD metres with y down)
+function evidenceOf(x, sheet, i) {
+  const flip = sheet && sheet.y_flip;
+  const label = String(x.number || (x.name && x.name.length < 14 ? x.name : "") || i + 1);
+  if (x.polygon && x.polygon.length > 2) return { id: x.id, shape: "polygon", pts: flip ? x.polygon.map((p) => [p[0], -p[1]]) : x.polygon, label };
+  if (x.bbox) { const [a, b, c, d] = x.bbox; return { id: x.id, shape: "box", bbox: flip ? [a, -d, c, -b] : [a, b, c, d], label }; }
+  return null;
+}
+
+function showFound(title, list, sheet) {
+  if (!view || !list.length) return;
+  const ev = list.map((x, i) => evidenceOf(x, sheet, i)).filter(Boolean);
+  const detected = list.some((x) => x.conf != null);
+  exploring = { title, byId: new Map(list.map((x) => [x.id, x])) };
+  view.showAnswer({ answer: ev.length, unit: "count", evidence: ev,
+    honesty: { tier: detected ? "detected" : "read", basis: "Found on the sheet when it was opened, not an answer to a question. Click one for its details." },
+    explanation: title }, title);
+  $("answersec").hidden = true;
+}
+
+function countBy(list, key) {
+  const m = {};
+  for (const x of list) { const k = key(x); if (k) (m[k] = m[k] || []).push(x); }
+  return Object.entries(m).sort((a, b) => b[1].length - a[1].length);
+}
+
+async function renderUnderstood(d) {
+  const box = $("understood");
+  $("understoodsec").hidden = false;
+  const t0 = Date.now();
+  clearInterval(readTimer);
+  const tick = () => {
+    const s = Math.round((Date.now() - t0) / 1000);
+    box.innerHTML = `<div class="muted small"><span class="spinner"></span>Reading the drawing… ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}${s > 15 ? "<br>A large scan is read once at full resolution (text, scale, rooms, symbols); this can take a few minutes the first time, and is instant after that." : ""}</div>`;
+  };
+  tick(); readTimer = setInterval(tick, 1000);
+  const [sheet, render, tables, pages] = await Promise.all([d.sheetP, d.renderP, d.tablesP, d.pagesP || null]);
+  clearInterval(readTimer);
+  if (current !== d) return;
+  if (pages) d.pages = pages;
+  const wireSheets = () => box.querySelectorAll(".sheets [data-page]").forEach((b) => b.onclick = () => {
+    const page = +b.dataset.page, set = d.set ? { ...d.set } : d;
+    if (!d.set && page === 1) return;   // already the first page
+    openSheetPage(set, page, null, document.querySelector(".item.on"));
+  });
+  if (!sheet) { box.innerHTML = `<div class="muted small">Nothing could be read from this sheet.</div>${sheetsHtml(d)}`; wireSheets(); renderSuggested(null, tables); return; }
+  const rooms = sheet.rooms || [];
+  const named = rooms.filter((r) => r.name);
+  const items = [...(sheet.openings || []), ...(sheet.fixtures || []), ...(sheet.elements || [])];
+  const scale = sheet.scale && (sheet.scale.source || sheet.scale.note);
+  const lines = [];
+  lines.push(`<div class="line"><span class="lbl">File</span>${esc(SOURCE[sheet.source_type] || sheet.source_type || "drawing")}${scale ? ` · scale ${esc(scale)}` : sheet.units === "m" ? " · drawn in metres" : ""}</div>`);
+  if (rooms.length) {
+    const groups = named.length ? countBy(named, (r) => r.name) : countBy(rooms, (r) => r.cls);
+    lines.push(`<div class="line"><span class="lbl">Rooms</span><button class="fchip" data-found="rooms"><b>${rooms.length}</b> all</button>${
+      groups.slice(0, 8).map(([k, v]) => `<button class="fchip" data-found="room:${esc(k)}"><b>${v.length}</b> ${esc(k.replace(/_/g, " "))}</button>`).join("")}${groups.length > 8 ? `<span class="muted small"> +${groups.length - 8} more</span>` : ""}</div>`);
+  }
+  if ((sheet.units_list || []).length) lines.push(`<div class="line"><span class="lbl">Apartments</span><button class="fchip" data-found="units"><b>${sheet.units_list.length}</b> ${esc(sheet.units_list.map((u) => u.label).filter(Boolean).join(", "))}</button></div>`);
+  if (items.length) lines.push(`<div class="line"><span class="lbl">Drawn items</span>${countBy(items, (x) => x.cls || x.type).slice(0, 8).map(([k, v]) => `<button class="fchip" data-found="item:${esc(k)}"><b>${v.length}</b> ${esc(k.replace(/_/g, " "))}</button>`).join("")}</div>`);
+  if ((sheet.floors || []).length) lines.push(`<div class="line"><span class="lbl">Floors</span><button class="fchip" data-found="floors"><b>${sheet.floors.length}</b> drawn</button></div>`);
+  if (Array.isArray(tables) && tables.length) lines.push(`<div class="line"><span class="lbl">Tables</span>${esc(tables.slice(0, 4).map((t) => (t.title || "untitled").slice(0, 36) + (t.rows ? ` (${t.rows.length} rows)` : "")).join("; "))}</div>`);
+  if (sheet.source_type === "ifc") lines.push(`<div class="line muted">A building model: ask about doors, windows, rooms, walls, columns or slabs, per storey or for the whole model.</div>`);
+  if (sheet.detector_fit && /weak|none/.test(sheet.detector_fit.level || "")) lines.push(`<div class="line" style="color:var(--detected)">⚠ ${esc(sheet.detector_fit.note || "unfamiliar drawing style: symbol counts may be wrong")}</div>`);
+  const canExplore = rooms.some((r) => r.polygon || r.bbox);
+  box.innerHTML = `<div class="found">${lines.join("")}
+    ${canExplore ? `<div class="actions"><button id="explorebtn">Explore rooms: click one on the drawing</button></div>` : ""}
+    <div id="roomfacts"></div>${sheetsHtml(d)}</div>`;
+  wireSheets();
+  box.querySelectorAll(".fchip").forEach((b) => b.onclick = () => {
+    const f = b.dataset.found;
+    if (f === "rooms") return showFound(`All ${rooms.length} rooms`, rooms, sheet);
+    if (f === "units") return showFound("Apartments", sheet.units_list, sheet);
+    if (f === "floors") return showFound("Floors", sheet.floors, sheet);
+    if (f.startsWith("room:")) { const k = f.slice(5); const l = rooms.filter((r) => (r.name || r.cls) === k); return showFound(`${l.length} × ${k}`, l, sheet); }
+    if (f.startsWith("item:")) { const k = f.slice(5); const l = items.filter((x) => (x.cls || x.type) === k); return showFound(`${l.length} × ${k.replace(/_/g, " ")}`, l, sheet); }
+  });
+  $("explorebtn") && ($("explorebtn").onclick = () => showFound("Rooms: click one for its details and questions", rooms.filter((r) => r.polygon || r.bbox), sheet));
+  renderSuggested(sheet, tables);
+}
+
+// 3. Click a room on the drawing (while exploring): its facts and one-click questions about it
+function showRoomFacts(x) {
+  const box = $("roomfacts");
+  if (!box) return;
+  const facts = [];
+  const title = [x.number, x.name || (x.cls || "").replace(/_/g, " ")].filter(Boolean).join(" ") || x.id;
+  if (x.area_m2 != null) facts.push(`Area <b>${esc(String(round2(x.area_m2)))} m²</b>${x.drawing_unit === "sqft" ? ` (${esc(String(Math.round(x.area_m2 / 0.09290304)))} ft²)` : ""}${x.area_source ? ` · ${esc(x.area_source)}` : ""}`);
+  if (x.printed_text) facts.push(`Printed: “${esc(x.printed_text)}”`);
+  if (x.polygon && x.polygon.length > 2 && (x.area_m2 != null || x.geom_area != null)) {
+    let per = 0; for (let i = 0; i < x.polygon.length; i++) { const a = x.polygon[i], b = x.polygon[(i + 1) % x.polygon.length]; per += Math.hypot(b[0] - a[0], b[1] - a[1]); }
+    facts.push(`Perimeter about <b>${esc(String(round2(per)))} m</b> (outline; doors not subtracted)`);
+  }
+  if (x.unit) facts.push(`Apartment ${esc(x.unit)}`);
+  if (x.outdoor) facts.push("Outdoor space");
+  if (x.conf != null) facts.push(`Detected with ${Math.round(x.conf * 100)}% confidence`);
+  const qs = [];
+  if (x.number) qs.push(`What is the net floor area of room ${x.number}${x.name ? ` ('${x.name}')` : ""} in m²?`);
+  else if (x.name) qs.push(`What is the area of the ${x.name.toLowerCase()}?`);
+  if (x.name) qs.push(`How many rooms labelled '${x.name}' are there on this floor?`);
+  box.innerHTML = `<div class="roomfacts"><b>${esc(title)}</b><div>${facts.join("<br>") || '<span class="muted">No more facts read for this room.</span>'}</div>
+    ${qs.map((q) => `<button class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join("")}</div>`;
+  box.querySelectorAll("[data-q]").forEach((b) => b.onclick = () => { $("q").value = b.dataset.q; ask(); });
+}
+
+// 2. Questions this drawing can answer well, built from what was found on it (wordings the system knows)
+function renderSuggested(sheet, tables) {
+  const out = [];
+  const have = new Set((current?.questions || []).map((q) => q.question.trim()));
+  const add = (q) => { if (!have.has(q) && !out.includes(q)) out.push(q); };
+  if (sheet) {
+    const rooms = sheet.rooms || [];
+    const named = rooms.filter((r) => r.name);
+    const groups = countBy(named, (r) => r.name);
+    const items = [...(sheet.openings || []), ...(sheet.fixtures || []), ...(sheet.elements || [])];
+    const kinds = new Set(items.map((x) => x.cls || x.type));
+    if ((sheet.units_list || []).length) add("How many apartments (residential units) are shown on this floor plan?");
+    if (groups.length) add(`How many rooms labelled '${groups[0][0]}' are there on this floor?`);
+    const numbered = named.filter((r) => r.number);
+    if (numbered.length) { const r = numbered.reduce((a, b) => ((b.area_m2 || 0) > (a.area_m2 || 0) ? b : a)); add(`What is the net floor area of room ${r.number} ('${r.name}') in m²?`); }
+    else if (named.length) { const r = named.reduce((a, b) => ((b.area_m2 || 0) > (a.area_m2 || 0) ? b : a)); add(`What is the area of the ${r.name.toLowerCase()}?`); }
+    if (groups.length && groups[0][1].length > 1 && groups[0][1].every((r) => r.area_m2 != null)) add(`What is the total net floor area of all rooms labelled '${groups[0][0]}' on this floor, in m²?`);
+    if ((sheet.units_list || []).some((u) => u.label)) add(`What is the net floor area of apartment ${sheet.units_list.find((u) => u.label).label} in m², summing all its rooms except balconies, loggias, terraces and other outdoor spaces?`);
+    if (kinds.has("door") || sheet.source_type !== "ifc") add("How many doors are shown on this floor plan?");
+    if (kinds.has("window") || sheet.source_type !== "ifc") add("How many windows are shown on this floor plan?");
+    if (kinds.has("wc")) add("How many toilet bowls (WC seats) are drawn on this floor plan?");
+    if (kinds.has("sink") || kinds.has("washbasin")) add("How many sinks and wash basins are drawn on this floor plan?");
+    if (kinds.has("shower") || kinds.has("bathtub")) add("How many showers and bathtubs are drawn on this floor plan in total?");
+    if ((sheet.floors || []).length) add("How many floors (storeys) does this floor plan show?");
+    if (sheet.source_type === "ifc") { add("How many doors are there in the whole model?"); add("How many rooms (spaces) are there in the whole model?"); }
+  }
+  const box = $("suggested");
+  box.innerHTML = out.length ? `<h3>Suggested for this drawing</h3><div class="chips">${out.slice(0, 8).map((q) => `<button class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join("")}</div>` : "";
+  box.querySelectorAll("[data-q]").forEach((b) => b.onclick = () => { $("q").value = b.dataset.q; ask(); });
+}
+
+// ------------------------------------------------------------------ takeoff CSV, session report, feedback, voice
+function exportCsv() {
+  const w = work, res = w.res;
+  const head = ["question", "answer", "unit", "tier", "mark", "id", "kind", "number", "name", "area", "confidence", "included", "x_min", "y_min", "x_max", "y_max"];
+  const q = (v) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const rows = w.items.map((it) => {
+    const pts = it.pts || (it.bbox ? [[it.bbox[0], it.bbox[1]], [it.bbox[2], it.bbox[3]]] : []);
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    return [w.question, res.answer, res.unit, res.honesty?.tier, it.mark, it.id, it.kind, it.number, it.name, it.area, it.conf,
+            w.excluded.has(it.id) ? "no (left out by reviewer)" : "yes",
+            xs.length ? round2(Math.min(...xs)) : "", ys.length ? round2(Math.min(...ys)) : "", xs.length ? round2(Math.max(...xs)) : "", ys.length ? round2(Math.max(...ys)) : ""].map(q).join(",");
+  });
+  if (w.added) rows.push([w.question, res.answer, res.unit, res.honesty?.tier, "", "", "added by reviewer", "", "", "", "", `yes (${w.added} added, no position)`, "", "", "", ""].map(q).join(","));
+  const csv = "﻿" + [head.join(","), ...rows].join("\r\n");   // BOM so Excel reads UTF-8
+  download(URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })), `drawqa-${fileName(current.path).replace(/\.[^.]+$/, "")}-takeoff.csv`);
+}
+
+async function exportReport() {
+  const btn = $("reportbtn"); const h = (history.get(current.path) || []).slice().reverse();
+  if (!h.length) return;
+  btn.disabled = true;
+  try {
+    const parts = [];
+    let total = 0, unknown = false;
+    for (let i = 0; i < h.length; i++) {
+      btn.textContent = `Building report… ${i + 1} / ${h.length}`;
+      const e = h[i], w = e.work, res = e.res;
+      const img = await makeCard(w);
+      if (res.cost) { if (res.cost.usd === null) unknown = true; total += res.cost.usd_known || 0; }
+      const changed = w.correctable && (w.excluded.size || w.added);
+      parts.push(`<section><h2>${i + 1}. ${esc(e.question)}</h2>
+        <p class="ans">${esc(res.answer == null ? "Cannot determine" : fmt(res.answer, res.unit))}${changed ? ` → <b>${esc(String(correctedValue(w)))}</b> after human check (${w.excluded.size} left out, ${w.added} added)` : ""}
+        · <span class="tier">${esc((TIER[res.honesty?.tier] || [res.honesty?.tier || ""])[0])}</span></p>
+        <p>${esc(res.honesty?.basis || "")}</p>${res.explanation && res.explanation !== res.honesty?.basis ? `<p class="muted">${esc(res.explanation)}</p>` : ""}
+        <p class="muted">${w.items.length} evidence marks${res.cost ? ` · cost ${esc(res.cost.usd === null ? "≥ " + usd(res.cost.usd_known) : usd(res.cost.usd))}` : ""} · ${res._seconds ? res._seconds.toFixed(1) + " s" : ""}</p>
+        <img src="${img}" alt="answer card"></section>`);
+    }
+    const doc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DrawQA report</title>
+      <style>body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:0 auto;padding:24px;color:#1c1c1a}h1{margin:0}h1 span{color:#ff6a00}
+      section{border-top:1px solid #ddd;padding:16px 0}h2{font-size:17px;margin:0 0 6px}.ans{font-size:20px;margin:4px 0}.tier{font-size:14px;color:#1d5fa8}
+      .muted{color:#6a6a64;font-size:13px}img{width:100%;border:1px solid #ddd;border-radius:8px}</style></head><body>
+      <h1>Draw<span>QA</span> report</h1><p class="muted">${esc(fileName(current.path))} · ${h.length} question${h.length === 1 ? "" : "s"} · total model cost ${esc((unknown ? "≥ " : "") + usd(total))} · ${esc(new Date().toLocaleString())}</p>
+      ${parts.join("")}</body></html>`;
+    download(URL.createObjectURL(new Blob([doc], { type: "text/html" })), `drawqa-${fileName(current.path).replace(/\.[^.]+$/, "")}-report.html`);
+  } catch (e) { setStatus(`<div class="error">Report failed: ${esc(e.message)}</div>`); }
+  finally { btn.disabled = false; btn.textContent = "Download report of all answers"; }
+}
+
+// "Wrong answer?": the correction goes to gold/feedback.jsonl, to be checked and turned into gold questions
+function openFeedback() {
+  const box = $("fbform"), res = work.res;
+  box.innerHTML = `<div class="row"><input type="text" id="fbval" placeholder="the right answer (a number, or 'cannot determine')">
+    <input type="text" id="fbnote" placeholder="where you see it (optional)"><button id="fbsave">Save</button></div><div id="fbmsg" class="muted small"></div>`;
+  $("fbsave").onclick = async () => {
+    try {
+      const r = await getJSON("/api/feedback", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: current.path, file: fileName(current.path), question: work.question, answer: res.answer, unit: res.unit,
+                               tier: res.honesty?.tier, correction: $("fbval").value.trim(), note: $("fbnote").value.trim() }) });
+      $("fbmsg").textContent = `Saved (${r.saved} correction${r.saved === 1 ? "" : "s"} so far). The team reviews them and adds them to the gold set.`;
+    } catch (e) { $("fbmsg").textContent = "Could not save: " + e.message; }
+  };
+}
+
+function setupVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return;   // the browser has no speech recognition: no button
+  const btn = $("micbtn"); btn.hidden = false;
+  let rec = null;
+  btn.onclick = () => {
+    if (rec) { rec.stop(); return; }
+    rec = new SR(); rec.lang = navigator.language || "en-US"; rec.interimResults = true;
+    btn.classList.add("on");
+    rec.onresult = (e) => {
+      const t = [...e.results].map((r) => r[0].transcript).join(" ");
+      $("q").value = t;
+      if (e.results[e.results.length - 1].isFinal) { rec.stop(); ask(); }
+    };
+    rec.onerror = (e) => setStatus(`<div class="error">Voice input: ${esc(e.error)}</div>`);
+    rec.onend = () => { btn.classList.remove("on"); rec = null; };
+    rec.start();
+  };
+}
+
+function wireAnswer() {
+  $("answer").querySelectorAll(".tryask [data-q]").forEach((b) => b.onclick = () => { $("q").value = b.dataset.q; ask(); });
+  $("csvbtn") && ($("csvbtn").onclick = exportCsv);
+  $("fbopen") && ($("fbopen").onclick = openFeedback);
+  $("answer").querySelectorAll(".evlist button").forEach((b) => b.onclick = (e) => {
+    if (e.target.dataset.x) { e.stopPropagation(); return toggleExclude(e.target.dataset.x); }
+    selectEvidence(b.dataset.id);
+  });
+  wireTerms();
+  renderCorrected();
+  $("replaybtn") && ($("replaybtn").onclick = replay);
+  $("reviewbtn") && ($("reviewbtn").onclick = () => { work.reviewAt = -1; review(1); });
+  $("exportbtn") && ($("exportbtn").onclick = exportCard);
+}
+
+// Measured by tools/ui_cost.py while the answer was computed: dollars, model calls and the drawing's running total
+function usd(v) { return v === 0 ? "$0" : v < 0.01 ? `$${v.toFixed(4)}` : `$${v.toFixed(2)}`; }
+function costHtml(c) {
+  const head = c.usd === null
+    ? `at least ${usd(c.usd_known)}`   // some call had no known price: say so instead of guessing
+    : usd(c.usd);
+  let html = `<b>${esc(head)}</b> · ${esc(c.text)}`;
+  if (c.incomplete && c.incomplete.length) html += `<br><span class="muted">${esc(c.incomplete.join("; "))}</span>`;
+  if (c.drawing) {
+    const d = c.drawing;
+    html += `<br><span class="muted">This drawing so far: ${esc(usd(d.usd))}${d.unpriced_calls ? " + unpriced calls" : ""} over ${d.requests} request${d.requests === 1 ? "" : "s"}, ${d.model_calls} model call${d.model_calls === 1 ? "" : "s"} (opening it included)</span>`;
+  }
+  return html;
+}
+
+function markEvidence(id) {
+  $("answer").querySelectorAll(".evlist button").forEach((b) => b.classList.toggle("on", b.dataset.id === id));
+}
+
+function renderHistory() {
+  const h = history.get(current?.path) || [];
+  $("histsec").hidden = !h.length;
+  $("hist").innerHTML = "";
+  h.forEach((x) => {
+    const div = document.createElement("div");
+    div.className = "h";
+    const tier = x.res.honesty?.tier || "";
+    const cost = x.res.cost ? ` · ${x.res.cost.usd === null ? "≥ " + usd(x.res.cost.usd_known) : usd(x.res.cost.usd)}` : "";
+    div.innerHTML = `<b>${esc(x.res.answer == null ? "cannot determine" : fmt(x.res.answer, x.res.unit))}</b> <span class="muted">· ${esc(tier)}${esc(cost)}</span><br>${esc(x.question)}`;
+    div.onclick = () => { exploring = null; $("q").value = x.question; lastAnswer = x.res; if (view) view.showAnswer(x.res, x.question); renderAnswer(x.res, x.question, x.work); $("answersec").hidden = false; };
+    $("hist").appendChild(div);
+  });
+}
+
+async function openLocal(promise, label) {
+  setStatus(`<span class="spinner"></span>Reading ${esc(label)}…`);
+  try {
+    const d = await promise;
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `<b>${esc(d.title)}</b><small>${esc(d.note || "your file")}</small>`;
+    const entry = { path: d.path, title: d.title, questions: (d.questions || []).map((q) => ({ question: q.question })) };
+    div.onclick = () => openDrawing(entry, div);
+    $("minelist").prepend(div);
+    openDrawing(entry, div);
+  } catch (e) { setStatus(`<div class="error">Could not read ${esc(label)}: ${esc(e.message)}</div>`); }
+}
+
+function upload(file) {
+  openLocal(getJSON("/api/upload?name=" + encodeURIComponent(file.name), { method: "POST", body: file }), file.name);
+}
+
+function wire() {
+  $("tabs").querySelectorAll("button").forEach((b) => b.onclick = () => {
+    $("tabs").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+    ["gold", "samples", "mine"].forEach((t) => $("tab-" + t).hidden = t !== b.dataset.tab);
+  });
+  $("askbtn").onclick = ask;
+  $("q").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); } });
+  $("showexp").onchange = () => { renderChips(); if (lastAnswer) renderAnswer(lastAnswer, work?.question || $("q").value.trim(), work); };
+  $("reportbtn").onclick = exportReport;
+  setupVoice();
+  $("drop").onclick = () => $("pick").click();
+  $("pick").onchange = () => { if ($("pick").files[0]) upload($("pick").files[0]); $("pick").value = ""; };
+  let depth = 0;
+  addEventListener("dragenter", (e) => { if (e.dataTransfer?.types.includes("Files")) { depth++; document.body.classList.add("dragging"); } });
+  addEventListener("dragleave", () => { if (--depth <= 0) { depth = 0; document.body.classList.remove("dragging"); } });
+  addEventListener("dragover", (e) => e.preventDefault());
+  addEventListener("drop", (e) => { e.preventDefault(); depth = 0; document.body.classList.remove("dragging"); if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]); });
+  $("openpath").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || !e.target.value.trim()) return;
+    const p = e.target.value.trim(); e.target.value = "";
+    openLocal(getJSON("/api/open?file=" + encodeURIComponent(p)), fileName(p));
+  });
+}
+
+async function init() {
+  wire();
+  mountView();
+  let saved = null;
+  try { saved = localStorage.getItem("drawqa-mode"); } catch (e) { /* private window */ }
+  setMode(saved !== "expert", false);   // simple view unless this browser chose the expert view before
+  $("modebtn").onclick = () => setMode(!simpleMode());
+  try { [gold, samples] = await Promise.all([getJSON("/api/gold"), getJSON("/api/samples")]); }
+  catch (e) { return setStatus(`<div class="error">Could not load the drawing lists: ${esc(e.message)}</div>`); }
+  renderLists();
+  const first = $("tab-gold").querySelector(".item");
+  if (first) first.click();
+}
+init();
+</script>
+</body>
+</html>

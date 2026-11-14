@@ -1,0 +1,1098 @@
+[
+ {
+  "question": "How many windows are shown on this floor plan?",
+  "truth": 14,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 13,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "window9",
+     "shape": "box",
+     "bbox": [
+      290.0,
+      1091.2,
+      365.0,
+      1121.1
+     ],
+     "label": "1"
+    },
+    {
+     "id": "window10",
+     "shape": "box",
+     "bbox": [
+      49.6,
+      567.6,
+      78.3,
+      613.7
+     ],
+     "label": "2"
+    },
+    {
+     "id": "window11",
+     "shape": "box",
+     "bbox": [
+      476.6,
+      568.7,
+      505.8,
+      615.0
+     ],
+     "label": "3"
+    },
+    {
+     "id": "window12",
+     "shape": "box",
+     "bbox": [
+      476.9,
+      916.3,
+      505.8,
+      1080.6
+     ],
+     "label": "4"
+    },
+    {
+     "id": "window13",
+     "shape": "box",
+     "bbox": [
+      629.1,
+      1093.8,
+      792.2,
+      1122.3
+     ],
+     "label": "5"
+    },
+    {
+     "id": "window14",
+     "shape": "box",
+     "bbox": [
+      476.6,
+      290.9,
+      506.3,
+      462.1
+     ],
+     "label": "6"
+    },
+    {
+     "id": "window15",
+     "shape": "box",
+     "bbox": [
+      518.8,
+      1093.7,
+      571.9,
+      1122.5
+     ],
+     "label": "7"
+    },
+    {
+     "id": "window16",
+     "shape": "box",
+     "bbox": [
+      91.5,
+      229.0,
+      234.5,
+      256.7
+     ],
+     "label": "8"
+    },
+    {
+     "id": "window17",
+     "shape": "box",
+     "bbox": [
+      241.7,
+      229.0,
+      311.6,
+      256.3
+     ],
+     "label": "9"
+    },
+    {
+     "id": "window18",
+     "shape": "box",
+     "bbox": [
+      517.9,
+      230.1,
+      736.0,
+      252.3
+     ],
+     "label": "10"
+    },
+    {
+     "id": "window19",
+     "shape": "box",
+     "bbox": [
+      91.8,
+      1095.0,
+      145.1,
+      1121.1
+     ],
+     "label": "11"
+    },
+    {
+     "id": "window20",
+     "shape": "box",
+     "bbox": [
+      49.9,
+      1003.9,
+      76.8,
+      1079.0
+     ],
+     "label": "12"
+    },
+    {
+     "id": "window21",
+     "shape": "box",
+     "bbox": [
+      49.6,
+      915.1,
+      78.1,
+      997.5
+     ],
+     "label": "13"
+    }
+   ],
+   "explanation": "Counted 13 window element(s); each one is numbered on the drawing. Counting rule: each separately drawn symbol counts once. Under other rules: 11 if symbols that touch in a row along one wall count as one window (double leaves, window bands).",
+   "counting": [
+    {
+     "rule": "each separately drawn symbol counts once",
+     "count": 13,
+     "used": true
+    },
+    {
+     "rule": "symbols drawn on top of each other count once",
+     "count": 13,
+     "used": false
+    },
+    {
+     "rule": "symbols that touch in a row along one wall count as one window (double leaves, window bands)",
+     "count": 11,
+     "used": false
+    }
+   ],
+   "intent": {
+    "intent": "count_openings",
+    "cls": "window"
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "raster",
+   "method": "yolo:c26l",
+   "honesty": {
+    "tier": "detected",
+    "deterministic": false,
+    "basis": "13 element(s) found by the trained detector; 1 with confidence below 0.6",
+    "weakest": 0.391
+   },
+   "confidence": 0.39,
+   "dataset_answer": 14
+  }
+ },
+ {
+  "question": "Kuinka monta ikkunaa pohjapiirustuksessa on?",
+  "truth": 14,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 13,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "window9",
+     "shape": "box",
+     "bbox": [
+      290.0,
+      1091.2,
+      365.0,
+      1121.1
+     ],
+     "label": "1"
+    },
+    {
+     "id": "window10",
+     "shape": "box",
+     "bbox": [
+      49.6,
+      567.6,
+      78.3,
+      613.7
+     ],
+     "label": "2"
+    },
+    {
+     "id": "window11",
+     "shape": "box",
+     "bbox": [
+      476.6,
+      568.7,
+      505.8,
+      615.0
+     ],
+     "label": "3"
+    },
+    {
+     "id": "window12",
+     "shape": "box",
+     "bbox": [
+      476.9,
+      916.3,
+      505.8,
+      1080.6
+     ],
+     "label": "4"
+    },
+    {
+     "id": "window13",
+     "shape": "box",
+     "bbox": [
+      629.1,
+      1093.8,
+      792.2,
+      1122.3
+     ],
+     "label": "5"
+    },
+    {
+     "id": "window14",
+     "shape": "box",
+     "bbox": [
+      476.6,
+      290.9,
+      506.3,
+      462.1
+     ],
+     "label": "6"
+    },
+    {
+     "id": "window15",
+     "shape": "box",
+     "bbox": [
+      518.8,
+      1093.7,
+      571.9,
+      1122.5
+     ],
+     "label": "7"
+    },
+    {
+     "id": "window16",
+     "shape": "box",
+     "bbox": [
+      91.5,
+      229.0,
+      234.5,
+      256.7
+     ],
+     "label": "8"
+    },
+    {
+     "id": "window17",
+     "shape": "box",
+     "bbox": [
+      241.7,
+      229.0,
+      311.6,
+      256.3
+     ],
+     "label": "9"
+    },
+    {
+     "id": "window18",
+     "shape": "box",
+     "bbox": [
+      517.9,
+      230.1,
+      736.0,
+      252.3
+     ],
+     "label": "10"
+    },
+    {
+     "id": "window19",
+     "shape": "box",
+     "bbox": [
+      91.8,
+      1095.0,
+      145.1,
+      1121.1
+     ],
+     "label": "11"
+    },
+    {
+     "id": "window20",
+     "shape": "box",
+     "bbox": [
+      49.9,
+      1003.9,
+      76.8,
+      1079.0
+     ],
+     "label": "12"
+    },
+    {
+     "id": "window21",
+     "shape": "box",
+     "bbox": [
+      49.6,
+      915.1,
+      78.1,
+      997.5
+     ],
+     "label": "13"
+    }
+   ],
+   "explanation": "Counted 13 window element(s); each one is numbered on the drawing. Counting rule: each separately drawn symbol counts once. Under other rules: 11 if symbols that touch in a row along one wall count as one window (double leaves, window bands).",
+   "counting": [
+    {
+     "rule": "each separately drawn symbol counts once",
+     "count": 13,
+     "used": true
+    },
+    {
+     "rule": "symbols drawn on top of each other count once",
+     "count": 13,
+     "used": false
+    },
+    {
+     "rule": "symbols that touch in a row along one wall count as one window (double leaves, window bands)",
+     "count": 11,
+     "used": false
+    }
+   ],
+   "intent": {
+    "intent": "count_openings",
+    "cls": "window"
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "raster",
+   "method": "yolo:c26l",
+   "honesty": {
+    "tier": "detected",
+    "deterministic": false,
+    "basis": "13 element(s) found by the trained detector; 1 with confidence below 0.6",
+    "weakest": 0.391
+   },
+   "confidence": 0.39,
+   "dataset_answer": 14
+  }
+ },
+ {
+  "question": "How many toilet bowls (WC seats) are drawn on this floor plan?",
+  "truth": 2,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 2,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "wc22",
+     "shape": "box",
+     "bbox": [
+      738.3,
+      770.4,
+      766.7,
+      817.2
+     ],
+     "label": "1"
+    },
+    {
+     "id": "wc23",
+     "shape": "box",
+     "bbox": [
+      244.4,
+      858.1,
+      291.0,
+      886.1
+     ],
+     "label": "2"
+    }
+   ],
+   "explanation": "Counted 2 wc element(s); each one is numbered on the drawing.",
+   "intent": {
+    "intent": "count_fixtures",
+    "cls": "wc"
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "raster",
+   "method": "yolo:c26l",
+   "honesty": {
+    "tier": "detected",
+    "deterministic": false,
+    "basis": "2 element(s) found by the trained detector; 0 with confidence below 0.6",
+    "weakest": 0.838
+   },
+   "confidence": 0.84,
+   "dataset_answer": 2
+  }
+ },
+ {
+  "question": "Kuinka monta WC-istuinta pohjapiirustukseen on piirretty?",
+  "truth": 2,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 2,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "wc22",
+     "shape": "box",
+     "bbox": [
+      738.3,
+      770.4,
+      766.7,
+      817.2
+     ],
+     "label": "1"
+    },
+    {
+     "id": "wc23",
+     "shape": "box",
+     "bbox": [
+      244.4,
+      858.1,
+      291.0,
+      886.1
+     ],
+     "label": "2"
+    }
+   ],
+   "explanation": "Counted 2 wc element(s); each one is numbered on the drawing.",
+   "intent": {
+    "intent": "count_fixtures",
+    "cls": "wc"
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "raster",
+   "method": "yolo:c26l",
+   "honesty": {
+    "tier": "detected",
+    "deterministic": false,
+    "basis": "2 element(s) found by the trained detector; 0 with confidence below 0.6",
+    "weakest": 0.838
+   },
+   "confidence": 0.84,
+   "dataset_answer": 2
+  }
+ },
+ {
+  "question": "How many sinks and wash basins (kitchen and bathroom combined; a double-bowl sink counts as one) are drawn on this floor plan?",
+  "truth": 3,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 3,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "sink36",
+     "shape": "box",
+     "bbox": [
+      793.4,
+      581.4,
+      836.5,
+      623.1
+     ],
+     "label": "1"
+    },
+    {
+     "id": "sink37",
+     "shape": "box",
+     "bbox": [
+      666.9,
+      769.5,
+      710.4,
+      799.1
+     ],
+     "label": "2"
+    },
+    {
+     "id": "sink38",
+     "shape": "box",
+     "bbox": [
+      381.4,
+      840.9,
+      409.2,
+      876.5
+     ],
+     "label": "3"
+    }
+   ],
+   "explanation": "Counted 3 sink/washbasin element(s); each one is numbered on the drawing.",
+   "intent": {
+    "intent": "count_fixtures",
+    "cls": "sink"
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "raster",
+   "method": "yolo:c26l",
+   "honesty": {
+    "tier": "detected",
+    "deterministic": false,
+    "basis": "3 element(s) found by the trained detector; 0 with confidence below 0.6",
+    "weakest": 0.743
+   },
+   "confidence": 0.74,
+   "dataset_answer": 3
+  }
+ },
+ {
+  "question": "Kuinka monta pesu- ja tiskiallasta (keittiö ja kylpytilat yhteensä; kaksoisallas lasketaan yhdeksi) pohjapiirustukseen on piirretty?",
+  "truth": 3,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 3,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "sink36",
+     "shape": "box",
+     "bbox": [
+      793.4,
+      581.4,
+      836.5,
+      623.1
+     ],
+     "label": "1"
+    },
+    {
+     "id": "sink37",
+     "shape": "box",
+     "bbox": [
+      666.9,
+      769.5,
+      710.4,
+      799.1
+     ],
+     "label": "2"
+    },
+    {
+     "id": "sink38",
+     "shape": "box",
+     "bbox": [
+      381.4,
+      840.9,
+      409.2,
+      876.5
+     ],
+     "label": "3"
+    }
+   ],
+   "explanation": "Counted 3 sink/washbasin element(s); each one is numbered on the drawing.",
+   "intent": {
+    "intent": "count_fixtures",
+    "cls": "sink"
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "raster",
+   "method": "yolo:c26l",
+   "honesty": {
+    "tier": "detected",
+    "deterministic": false,
+    "basis": "3 element(s) found by the trained detector; 0 with confidence below 0.6",
+    "weakest": 0.743
+   },
+   "confidence": 0.74,
+   "dataset_answer": 3
+  }
+ },
+ {
+  "question": "How many showers and bathtubs are drawn on this floor plan in total?",
+  "truth": 3,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 3,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "shower39",
+     "shape": "box",
+     "bbox": [
+      242.2,
+      923.5,
+      255.9,
+      945.6
+     ],
+     "label": "1"
+    },
+    {
+     "id": "shower40",
+     "shape": "box",
+     "bbox": [
+      394.8,
+      923.0,
+      408.9,
+      945.8
+     ],
+     "label": "2"
+    },
+    {
+     "id": "shower41",
+     "shape": "box",
+     "bbox": [
+      796.4,
+      793.2,
+      821.0,
+      807.9
+     ],
+     "label": "3"
+    }
+   ],
+   "explanation": "Counted 3 bathtub/shower element(s); each one is numbered on the drawing.",
+   "intent": {
+    "intent": "count_fixtures",
+    "cls": "shower+bathtub"
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "raster",
+   "method": "yolo:c26l",
+   "honesty": {
+    "tier": "detected",
+    "deterministic": false,
+    "basis": "3 element(s) found by the trained detector; 0 with confidence below 0.6",
+    "weakest": 0.758
+   },
+   "confidence": 0.76,
+   "dataset_answer": 3
+  }
+ },
+ {
+  "question": "Kuinka monta suihkua ja kylpyammetta pohjapiirustukseen on piirretty yhteensä?",
+  "truth": 3,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 3,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "shower39",
+     "shape": "box",
+     "bbox": [
+      242.2,
+      923.5,
+      255.9,
+      945.6
+     ],
+     "label": "1"
+    },
+    {
+     "id": "shower40",
+     "shape": "box",
+     "bbox": [
+      394.8,
+      923.0,
+      408.9,
+      945.8
+     ],
+     "label": "2"
+    },
+    {
+     "id": "shower41",
+     "shape": "box",
+     "bbox": [
+      796.4,
+      793.2,
+      821.0,
+      807.9
+     ],
+     "label": "3"
+    }
+   ],
+   "explanation": "Counted 3 bathtub/shower element(s); each one is numbered on the drawing.",
+   "intent": {
+    "intent": "count_fixtures",
+    "cls": "shower+bathtub"
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "raster",
+   "method": "yolo:c26l",
+   "honesty": {
+    "tier": "detected",
+    "deterministic": false,
+    "basis": "3 element(s) found by the trained detector; 0 with confidence below 0.6",
+    "weakest": 0.758
+   },
+   "confidence": 0.76,
+   "dataset_answer": 3
+  }
+ },
+ {
+  "question": "How many floors (storeys) does this floor plan show?",
+  "truth": 2,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 2,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "floor6",
+     "shape": "box",
+     "bbox": [
+      476.1,
+      94.3,
+      848.5,
+      1129.0
+     ],
+     "label": "1"
+    },
+    {
+     "id": "floor7",
+     "shape": "box",
+     "bbox": [
+      48.0,
+      48.8,
+      423.3,
+      1181.3
+     ],
+     "label": "2"
+    }
+   ],
+   "explanation": "Counted 2 floor drawing element(s); each one is numbered on the drawing.",
+   "intent": {
+    "intent": "count_floors",
+    "cls": null
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "raster",
+   "method": "yolo:c26l",
+   "honesty": {
+    "tier": "detected",
+    "deterministic": false,
+    "basis": "2 element(s) found by the trained detector; 0 with confidence below 0.6",
+    "weakest": 0.895
+   },
+   "confidence": 0.9,
+   "dataset_answer": 2
+  }
+ },
+ {
+  "question": "Kuinka monta kerrosta pohjapiirustuksessa on esitetty?",
+  "truth": 2,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 2,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "floor6",
+     "shape": "box",
+     "bbox": [
+      476.1,
+      94.3,
+      848.5,
+      1129.0
+     ],
+     "label": "1"
+    },
+    {
+     "id": "floor7",
+     "shape": "box",
+     "bbox": [
+      48.0,
+      48.8,
+      423.3,
+      1181.3
+     ],
+     "label": "2"
+    }
+   ],
+   "explanation": "Counted 2 floor drawing element(s); each one is numbered on the drawing.",
+   "intent": {
+    "intent": "count_floors",
+    "cls": null
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "raster",
+   "method": "yolo:c26l",
+   "honesty": {
+    "tier": "detected",
+    "deterministic": false,
+    "basis": "2 element(s) found by the trained detector; 0 with confidence below 0.6",
+    "weakest": 0.895
+   },
+   "confidence": 0.9,
+   "dataset_answer": 2
+  }
+ },
+ {
+  "question": "How many doors are there?",
+  "truth": null,
+  "truth_unit": null,
+  "probe": true,
+  "seconds": 0.0,
+  "response": {
+   "answer": 12,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "door24",
+     "shape": "box",
+     "bbox": [
+      150.2,
+      1098.4,
+      220.6,
+      1121.1
+     ],
+     "label": "1"
+    },
+    {
+     "id": "door25",
+     "shape": "box",
+     "bbox": [
+      316.4,
+      228.6,
+      380.1,
+      257.4
+     ],
+     "label": "2"
+    },
+    {
+     "id": "door26",
+     "shape": "box",
+     "bbox": [
+      647.8,
+      798.0,
+      657.6,
+      861.5
+     ],
+     "label": "3"
+    },
+    {
+     "id": "door27",
+     "shape": "box",
+     "bbox": [
+      143.9,
+      611.5,
+      153.8,
+      667.7
+     ],
+     "label": "4"
+    },
+    {
+     "id": "door28",
+     "shape": "box",
+     "bbox": [
+      165.2,
+      548.7,
+      229.4,
+      558.5
+     ],
+     "label": "5"
+    },
+    {
+     "id": "door29",
+     "shape": "box",
+     "bbox": [
+      287.2,
+      717.9,
+      350.9,
+      727.1
+     ],
+     "label": "6"
+    },
+    {
+     "id": "door30",
+     "shape": "box",
+     "bbox": [
+      154.8,
+      981.3,
+      218.5,
+      990.7
+     ],
+     "label": "7"
+    },
+    {
+     "id": "door31",
+     "shape": "box",
+     "bbox": [
+      233.3,
+      558.5,
+      242.5,
+      622.1
+     ],
+     "label": "8"
+    },
+    {
+     "id": "door32",
+     "shape": "box",
+     "bbox": [
+      233.5,
+      739.7,
+      243.1,
+      804.1
+     ],
+     "label": "9"
+    },
+    {
+     "id": "door33",
+     "shape": "box",
+     "bbox": [
+      583.1,
+      864.4,
+      647.4,
+      875.2
+     ],
+     "label": "10"
+    },
+    {
+     "id": "door34",
+     "shape": "box",
+     "bbox": [
+      743.4,
+      229.5,
+      807.7,
+      257.7
+     ],
+     "label": "11"
+    },
+    {
+     "id": "door35",
+     "shape": "box",
+     "bbox": [
+      285.4,
+      965.4,
+      346.1,
+      970.5
+     ],
+     "label": "12"
+    }
+   ],
+   "explanation": "Counted 12 door element(s); each one is numbered on the drawing. Counting rule: each separately drawn symbol counts once. The count is the same if overlapping or touching symbols are merged.",
+   "counting": [
+    {
+     "rule": "each separately drawn symbol counts once",
+     "count": 12,
+     "used": true
+    },
+    {
+     "rule": "symbols drawn on top of each other count once",
+     "count": 12,
+     "used": false
+    },
+    {
+     "rule": "symbols that touch in a row along one wall count as one door (double leaves, window bands)",
+     "count": 12,
+     "used": false
+    }
+   ],
+   "intent": {
+    "intent": "count_openings",
+    "cls": "door"
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "raster",
+   "method": "yolo:c26l",
+   "honesty": {
+    "tier": "detected",
+    "deterministic": false,
+    "basis": "12 element(s) found by the trained detector; 1 with confidence below 0.6",
+    "weakest": 0.592
+   },
+   "confidence": 0.59
+  }
+ },
+ {
+  "question": "What is the total floor area?",
+  "truth": null,
+  "truth_unit": null,
+  "probe": true,
+  "seconds": 0.0,
+  "response": {
+   "answer": null,
+   "explanation": "All indoor rooms: area cannot be determined; this is an image: rooms are found as boxes by a detector, not as measurable outlines, and no scale is printed.",
+   "evidence": [],
+   "unit": null,
+   "intent": {
+    "intent": "floor_area"
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "raster",
+   "method": "yolo:c26l",
+   "honesty": {
+    "tier": "cannot determine",
+    "deterministic": null,
+    "basis": "All indoor rooms: area cannot be determined; this is an image: rooms are found as boxes by a detector, not as measurable outlines, and no scale is printed."
+   },
+   "confidence": null
+  }
+ },
+ {
+  "question": "What is the ceiling height?",
+  "truth": null,
+  "truth_unit": null,
+  "probe": true,
+  "seconds": 0.0,
+  "response": {
+   "answer": null,
+   "explanation": "This question was not understood, so nothing was measured: the language model is switched off (DRAWQA_LLM=0)",
+   "evidence": [],
+   "unit": null,
+   "intent": {
+    "intent": "unknown"
+   },
+   "question_read": {
+    "by": "nobody",
+    "note": "the language model is switched off (DRAWQA_LLM=0)"
+   },
+   "source_type": "raster",
+   "method": "yolo:c26l",
+   "honesty": {
+    "tier": "cannot determine",
+    "deterministic": null,
+    "basis": "This question was not understood, so nothing was measured: the language model is switched off (DRAWQA_LLM=0)"
+   },
+   "confidence": null
+  }
+ }
+]
