@@ -78,9 +78,24 @@ def _elements(m, cls, storey=None):
     return [e for e in els if storey is None or ((s := _storey(e)) is not None and s.Name == storey)]
 
 
+def _slug(s):
+    s = "".join(ch for ch in str(s) if ord(ch) < 128)  # the plan file names drop non-ASCII letters ("Kælder" -> "klder")
+    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+
+
+def plan_storey(path, model):
+    """The storey a plan file shows ("..._plan-04-4-korrus.pdf" -> "4.korrus"), or None for the model itself."""
+    m = re.search(r"_plan-\d+-(.+)$", os.path.splitext(os.path.basename(path))[0])
+    if not m or not model:
+        return None
+    want = _slug(m.group(1))
+    return next((s.Name for s in _model(model).by_type("IfcBuildingStorey") if s.Name and _slug(s.Name) == want), None)
+
+
 def load(path):
     svg = plan_svg(path)
-    return dict(source=path, source_type="ifc", model=model_path(path),
+    f = model_path(path)
+    return dict(source=path, source_type="ifc", model=f, plan_storey=plan_storey(path, f),
                 render=dict(type="svg", svg_path=svg) if svg else dict(type="none"))
 
 
@@ -94,8 +109,12 @@ def execute(sheet, intent):
     if it == "ifc_count" or (it in ("count_openings", "count_fixtures") and intent.get("cls") in CLS):
         els = _elements(m, intent["cls"], intent.get("storey"))
         where = f"storey '{intent['storey']}'" if intent.get("storey") else "the whole model"
+        note = ""
+        if intent.get("storey_from") == "plan":  # no storey named: the one this plan shows; say what the building has
+            note = (f" No storey was named, so this counts the storey this plan shows; the whole building model has "
+                    f"{len(_elements(m, intent['cls'], None))}.")
         return dict(answer=len(els), unit="count", evidence=ev(els, None),
-                    explanation=f"{len(els)} {CLS[intent['cls']]} elements in {where}.")
+                    explanation=f"{len(els)} {CLS[intent['cls']]} elements in {where}.{note}")
     if it == "ifc_room_area":
         sp = [s for s in _elements(m, "space", intent["storey"]) if s.Name == intent["number"]]
         if not sp:
@@ -118,4 +137,25 @@ def execute(sheet, intent):
         unit = {"net volume": "m3", "length": "m", "net side area": "m2"}[intent["quantity"]]
         return dict(answer=round(tot, 3), unit=unit, evidence=ev(els),
                     explanation=f"Sum of {intent['quantity']} over {len(els)} {intent['cls']}s on '{intent['storey']}' = {tot:.3f} {unit}.")
+    if it == "opening_width" and intent.get("cls") in ("door", "window"):
+        els = _elements(m, intent["cls"], intent.get("storey"))
+        k = UU.calculate_unit_scale(m)  # model length unit -> metres
+        ws = [(e, round(float(e.OverallWidth) * k, 2)) for e in els if getattr(e, "OverallWidth", None)]
+        if not ws:
+            return dict(answer=None, explanation=f"None of the {len(els)} {CLS[intent['cls']]} elements carries an OverallWidth.")
+        vals = sorted(w for _, w in ws)
+        groups = {}
+        for w in vals:
+            groups[w] = groups.get(w, 0) + 1
+        listing = ", ".join(f"{g:.2f} m × {n}" for g, n in sorted(groups.items()))
+        where = f"storey '{intent['storey']}'" if intent.get("storey") else "the whole model"
+        base = (f"OverallWidth of {len(ws)} {CLS[intent['cls']]} elements in {where}: {listing}."
+                + (f" {len(els) - len(ws)} more carry no width." if len(ws) < len(els) else ""))
+        pick = (intent.get("quantity") or "").lower()
+        if pick in ("largest", "smallest"):
+            w = vals[-1] if pick == "largest" else vals[0]
+            chosen = [e for e, x in ws if x == w]
+            return dict(answer=w, unit="m", evidence=ev(chosen, lambda e: f"{w:.2f} m"),
+                        explanation=f"The {'widest' if pick == 'largest' else 'narrowest'} {intent['cls']} is {w:.2f} m. " + base)
+        return dict(answer=listing, unit=None, evidence=ev([e for e, _ in ws], None), explanation=base)
     return dict(answer=None, explanation=f"Not supported for BIM yet ({it}).")

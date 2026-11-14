@@ -308,18 +308,16 @@ against the live API: this machine has no key.** Tested only with stubbed replie
 **Segmentation model for walls and room outlines** (`--stage convert_seg`, `train_seg`, `resume_seg`, `seg_eval`,
 `seg_keep_val`). YOLO26-m-seg, classes wall / room / outdoor, labels = CubiCasa's own wall and room polygons, 6,545
 training images (4,376 plans + 2,169 style variants), 383 held-out plans, 1280 px, mask ratio 2.
-- Run `seg1`: started on an H100, cut off at epoch 9 of 30 at 13:17 when this Mac's network dropped (the `--detach`
-  run stopped with the local client), resumed at 13:20 with `--stage resume_seg` (spawned, so it no longer depends on
-  the local client). **Check `modal app list` / `runs/seg1/results.csv` for whether it finished.**
-- `models/segmenter.pt` is currently the **interim** checkpoint (about epoch 10). Scores on 200 held-out plans with
-  the local path's settings (`models/segmenter.eval.json`): 84.9% of annotated rooms outlined (IoU >= 0.7); outlines
-  run 3.4% small (median); after dividing areas by that shortfall, fitted on 100 plans and scored on the other 100,
-  room-area error is 2.2% median, 9.7% at the 90th percentile; summed indoor area per plan is off by 5.7% median and
-  22% at the 90th percentile (missed rooms); wall pixel IoU 0.665. Re-run `--stage seg_eval --run seg1` and
-  `--stage weights --run seg1` when training ends, then copy `models/seg1.pt` and `models/seg1.eval.json` to
-  `models/segmenter.pt` / `.eval.json`.
-- On 20 random preview scans the interim model changed none of the 240 count answers, attached 417 of 424 doors and
-  windows to a wall and gave all 98 typed room boxes an outline.
+- Run `seg1`: cut off at epoch 9 of 30 by a network drop at 13:17, resumed with `--stage resume_seg`, finished all
+  30 epochs at 14:48 (mask mAP50 0.767). **Installed at 14:51** as `models/segmenter.pt` + `.eval.json`; the interim
+  epoch-10 checkpoint is kept in `models/old/`.
+- Final scores on 200 held-out plans (`DRAWQA_FILL=0.15`, the local path's settings): 87.3% of annotated rooms
+  outlined (interim 84.9%); outlines run 3.3% small (median); after dividing by that, fitted on 100 plans and scored
+  on the other 100, room-area error is 1.9% median, 8.3% at the 90th percentile (interim 2.2% / 9.7%); summed indoor
+  area per plan off by 3.6% median, 16.8% at the 90th percentile (missed rooms); wall pixel IoU 0.77 (interim 0.665).
+- Live path (`generic=True`) on the first 10 preview scans: the final model changed none of the 186 count answers
+  (168 right with and without outlines). The interim model changed none of 240 on 20 scans, attached 417 of 424 doors
+  and windows to a wall and gave all 98 typed room boxes an outline.
 
 **What `convert()` now adds on an image or scanned PDF** (only when `models/segmenter.pt` exists; `DRAWQA_OUTLINES=0`
 switches it off): `texts` from RapidOCR (`pip install rapidocr`); `walls` (polygon, centre line, thickness); each
@@ -341,6 +339,34 @@ unclaimed outlines become rooms with `cls="unlabelled"`; an untyped outline hold
 - Area answers on images are tier "read" (all printed, not deterministic because a reader can misread) or
   "estimated" (any outline at an estimated scale), and quote the held-out scores above.
 
+**Free-form questions, state at 15:10.** With no API key the model is Qwen3-VL-32B on Modal (`reader.text`); its
+replies vary between runs, so `_validate` repairs the common slips (a single value in the list field, several classes
+in one step: split and summed). Plans: several steps combined by `solve.combine` (sum, difference, largest, smallest,
+each); `storey = "*"` repeats a BIM step for every storey. The pattern router hands over questions it would misread:
+two things of one kind ("doors and windows"), two apartment letters, "how many metres / square metres ...", area
+questions about walls; with `llm=True`, a pattern reading whose tool finds nothing gets one model reading too. New
+tools: `opening_width` (scans: along the wall; vector PDF: long side of the symbol at the printed scale; BIM:
+OverallWidth), `room_perimeter`, `wall_area` (perimeter x the question's height, else 2.5 m assumed and tier
+"estimated"). Tables: a question that uses a table's cell codes (115.A, F4, ESDH3066) or a column word with a cell
+word is a table question (`mentions_table_values`), except when the patterns read it as a BIM query.
+`tools/freeform_check.py swiss|scan|ifc`: about 30 Stoa-style questions, 20 with known answers. Swiss and BIM passed
+in full at about 15:00; the two scan misses found after that were fixed and re-checked one by one, not in a full run.
+
+**Reading the drawing's own text (evening, for Stoa's example sheets).** Stoa's examples are large CAD-drawn sheets
+(UK school plan, US dorm plan, US foundation/slab plan, US piping plan; 9934-14000 px images) and test files may be
+any format. These tools work on the sheet's list of texts, whatever produced it (PDF text layer, OCR, CAD text):
+- `textlayer.py`: OCR of big images in native-resolution 2000 px tiles (piping plan: 24 -> 54 of ~56 tags).
+- `scalebar.py`: scale from the bar measured on the image, the printed scale + paper size, and dimension strings;
+  on the four sheets they agree within 0.1%. `convert.scale_from_text` uses it; `pdfsheet` imperial scales fixed.
+- `tags.py`: tag inventory with gaps and the sheet's own definitions, pipe sizes, find-text, numbered notes,
+  "label = value" lists, and US room labels (name over "218 SF", unit totals "(762 SF)").
+- `slabs.py`: slab callouts and area per type, tier estimated (callout-to-region assignment is judged).
+- Question tools: `count_tags`, `find_text`, `read_value`, `pipe_size`, `slab_areas`, `count_rooms`; tier "read".
+- Checks: Stoa example questions (`tools/freeform_check.py piping|dorm|slab`, text-only with `DRAWQA_DETECT=0`):
+  12 / 12. Gold set (teammates' judge-style drafts): 60 / 83 at first; the 9 US floor-plan misses then 9 / 9.
+- Units and arithmetic from the question are done by code (`solve._finalize`); US sheets answer in SF.
+- `DRAWQA_DETECT=0`: a light, text-only conversion (no detector, no wall model): OCR text, scale, tables.
+
 **Not done.** Walls and outlines are not produced for vector PDFs (they carry exact outlines; the model was trained
-on scans read whole). No question yet uses the per-opening widths. The licence question in section 7 now also
+on scans read whole). The licence question in section 7 now also
 covers RapidOCR (Apache-2.0) and the Anthropic SDK (MIT), which are fine, and still Ultralytics (AGPL).
