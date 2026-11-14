@@ -37,7 +37,8 @@ Owner: the evaluation / demo pair (not Session A or B). Files here and `tools/go
 ```
 
 Optional fields: `"generic": true` (solve the file as an unknown file, no DXF sibling or stored predictions, the way a
-judge's file arrives), `"page": 7` (1-based page of a multi-page PDF the question is about), `"topic"` (e.g. `piping`).
+judge's file arrives), `"page": 7` (1-based page of a multi-page PDF the question is about), `"topic"` (e.g. `piping`),
+`"tolerance": 0.10` (relative tolerance for a hand measurement such as an area taken off a scan; default 0.02).
 
 A path starting with `extra/` is a sheet outside the dataset, kept in `gold/extra/` (git-ignored, e.g. the setters'
 DfE sample from `~/BOB/STOA-extra_examples`). A machine without the file reports those lines as not scored; the UI
