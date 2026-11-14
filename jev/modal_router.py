@@ -74,11 +74,11 @@ def generate(seed: list, per_label: int = 40, seed_val: int = 0):
 
 
 @app.function(image=train_image, gpu="L4", volumes={"/data": VOL}, timeout=3600)
-def train(seed: list, epochs: int = 4):
+def train(seed: list, epochs: int = 4, para_file: str = "paraphrases.json", out: str = "router1"):
     import math, numpy as np, torch, torch.nn.functional as F
     from transformers import AutoModel, AutoTokenizer
     VOL.reload()
-    para = json.load(open(f"{D}/paraphrases.json"))
+    para = json.load(open(f"{D}/{para_file}"))
     rnd = random.Random(1)
     srcs = sorted({r["source"] for r in para})
     rnd.shuffle(srcs)
@@ -155,20 +155,21 @@ def train(seed: list, epochs: int = 4):
     res = dict(labels=len(labels), train=len(tr), val=len(va), temperature=best,
                test_rewordings=report([r for r in te if r["source"] != r["question"]]),
                router_cannot_read=report(hard))
-    os.makedirs(f"{D}/router1", exist_ok=True)
-    torch.save(dict(head=head.state_dict(), labels=labels, temperature=best), f"{D}/router1/head.pt")
-    enc.save_pretrained(f"{D}/router1/encoder")
-    tok.save_pretrained(f"{D}/router1/encoder")
-    json.dump(dict(res, test_rows=[dict(question=r["question"], label=r["label"]) for r in te if r["source"] != r["question"]]), open(f"{D}/router1/report.json", "w"), ensure_ascii=False)
+    os.makedirs(f"{D}/{out}", exist_ok=True)
+    torch.save(dict(head=head.state_dict(), labels=labels, temperature=best), f"{D}/{out}/head.pt")
+    enc.save_pretrained(f"{D}/{out}/encoder")
+    tok.save_pretrained(f"{D}/{out}/encoder")
+    json.dump(dict(res, test_rows=[dict(question=r["question"], label=r["label"]) for r in te if r["source"] != r["question"]]), open(f"{D}/{out}/report.json", "w"), ensure_ascii=False)
     VOL.commit()
     return res
 
 
 @app.local_entrypoint()
-def main(stage: str = "all", per_label: int = 40, epochs: int = 4):
+def main(stage: str = "all", per_label: int = 40, epochs: int = 4, para_file: str = "paraphrases.json", out: str = "router1"):
     seed = json.load(open(HERE / "router_seed.json"))
     if stage in ("all", "gen"):
         g = generate.remote(seed, per_label)
         print(json.dumps(g, indent=1, ensure_ascii=False))
     if stage in ("all", "train"):
-        print(json.dumps(train.remote(seed, epochs), indent=1, ensure_ascii=False))
+        r = train.remote(seed, epochs, para_file, out)
+        print(json.dumps({k: v for k, v in r.items()}, indent=1, ensure_ascii=False)[:3000])
