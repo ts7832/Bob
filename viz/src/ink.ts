@@ -12,7 +12,7 @@ export type Cls = 'door' | 'window' | 'wc' | 'sink' | 'bathtub' | 'shower' | 'st
 export function normCls(raw?: string | null): Cls | null {
   if (!raw) return null
   const s = raw.toLowerCase().replace(/^ifc/, '')
-  if (/door/.test(s)) return 'door'
+  if (/door|^arc$/.test(s)) return 'door' // arcN: doors found from their swing arcs
   if (/^win|window/.test(s)) return 'window'
   if (/^wc$|toilet/.test(s)) return 'wc'
   if (/sink|basin|lavabo/.test(s)) return 'sink'
@@ -189,19 +189,58 @@ function fromRaster(d: Drawing, el: Element, grow: boolean, color: string): Ink 
   return glow(core, K, core.width / (K.x1 - K.x0), color)
 }
 
-// The strokes plus a soft halo in the same colour; the canvas grows by the halo so it is never clipped.
+// The whole object lights up: the area its strokes enclose (a WC's bowl and tank, a door's swing) filled in the answer
+// colour, the strokes on top, and a soft halo around it. The canvas grows by the halo so it is never clipped.
 function glow(core: HTMLCanvasElement, R: { x0: number; y0: number; x1: number; y1: number }, s: number, color: string): Ink {
-  const blur = Math.max(4, 0.035 * Math.max(core.width, core.height)), M = Math.ceil(blur * 2)
+  const blur = Math.max(5, 0.05 * Math.max(core.width, core.height)), M = Math.ceil(blur * 2)
   const c = document.createElement('canvas')
   c.width = core.width + 2 * M; c.height = core.height + 2 * M
   const g = c.getContext('2d')!
+  const body = fillOf(core, color) ?? core
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'
   g.shadowColor = color; g.shadowBlur = blur
-  g.globalAlpha = 0.9
-  g.drawImage(core, M, M); g.drawImage(core, M, M)
-  g.shadowBlur = 0; g.globalAlpha = 1
-  g.drawImage(core, M, M)
+  g.globalAlpha = 0.45
+  g.drawImage(body, M, M, core.width, core.height) // halo around the whole object
+  g.shadowBlur = 0
+  if (body !== core) { g.globalAlpha = 0.26; g.drawImage(body, M, M, core.width, core.height) } // the object's area
+  g.globalAlpha = 1
+  g.drawImage(core, M, M) // its strokes, crisp
   const e = M / s
   return { canvas: c, x0: R.x0 - e, y0: R.y0 - e, x1: R.x1 + e, y1: R.y1 + e }
+}
+
+// The object's whole footprint: the convex hull of its strokes (a door's swing quarter, a WC's tank and bowl), as a
+// canvas in the answer colour.
+function fillOf(core: HTMLCanvasElement, color: string): HTMLCanvasElement | null {
+  const f = Math.min(1, 200 / Math.max(core.width, core.height))
+  const w = Math.max(2, Math.round(core.width * f)), h = Math.max(2, Math.round(core.height * f))
+  const c = document.createElement('canvas')
+  c.width = w; c.height = h
+  const g = c.getContext('2d', { willReadFrequently: true })!
+  g.drawImage(core, 0, 0, w, h)
+  const a = g.getImageData(0, 0, w, h).data
+  const pts: Pt[] = [] // per row, the outermost stroke pixels are enough for the hull
+  for (let y = 0; y < h; y++) {
+    let l = -1, r = -1
+    for (let x = 0; x < w; x++) if (a[4 * (y * w + x) + 3] > 30) { if (l < 0) l = x; r = x }
+    if (l >= 0) pts.push([l, y], [r + 1, y], [l, y + 1], [r + 1, y + 1])
+  }
+  const hull = convexHull(pts)
+  if (hull.length < 3) return null
+  g.clearRect(0, 0, w, h)
+  g.beginPath(); hull.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath()
+  g.fillStyle = color; g.fill()
+  return c
+}
+
+function convexHull(p: Pt[]): Pt[] { // monotone chain
+  const q = [...p].sort((a, b) => a[0] - b[0] || a[1] - b[1])
+  if (q.length < 3) return q
+  const cross = (o: Pt, a: Pt, b: Pt) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+  const lo: Pt[] = [], hi: Pt[] = []
+  for (const v of q) { while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], v) <= 0) lo.pop(); lo.push(v) }
+  for (let i = q.length - 1; i >= 0; i--) { const v = q[i]; while (hi.length >= 2 && cross(hi[hi.length - 2], hi[hi.length - 1], v) <= 0) hi.pop(); hi.push(v) }
+  return [...lo.slice(0, -1), ...hi.slice(0, -1)]
 }
 
 function rgb(hex: string): [number, number, number] {

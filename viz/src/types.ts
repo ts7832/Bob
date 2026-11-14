@@ -15,6 +15,8 @@ export interface Drawing {
   fromPx: (p: Pt) => Pt // sheet pixels -> source coordinates, for showing positions
   units: 'px' | 'm' | 'svg' // units of the source coordinates
   mPerPx: number | null // real-world metres per sheet pixel, when the source has units
+  frameNote?: string | null // the backend's positions were turned to match a rotated PDF page (said in the answer card)
+  frameBad?: boolean // the backend's positions do not fit this page and could not be matched: highlight nothing
   note?: string
 }
 
@@ -54,6 +56,7 @@ export interface Answer {
   groups: { name: string; color: string; count: number; value?: string | null }[] // legend, in backend order
   cited: number // evidence items in the answer, including ones not on this sheet
   citedIds: string[] // ids of all cited evidence (to explain a selection that is not on this sheet)
+  outside?: number // cited items whose position lies off this page (not drawn)
   dupes?: string[] // count answers: evidence items with the same outline, as 'mark & mark' (possible double count)
 }
 
@@ -98,9 +101,10 @@ export interface PlanJSON {
 }
 
 export interface SheetJSON {
+  texts?: { text: string; bbox: number[]; bold?: boolean; id?: string }[]
   units?: string
   y_flip?: boolean
-  scale?: { m_per_px?: number | null }
+  scale?: { m_per_px?: number | null; source?: string | null; candidates?: { denominator?: number; text?: string; bbox?: number[] }[] }
   rooms?: { id: string; name?: string | null; number?: string | null; cls?: string | null; polygon?: Pt[]; bbox?: number[]; area_m2?: number | null; area_source?: string | null }[]
   openings?: { id: string; cls: string; polygon?: Pt[]; bbox?: number[] }[]
   fixtures?: { id: string; cls: string; bbox?: number[] }[]

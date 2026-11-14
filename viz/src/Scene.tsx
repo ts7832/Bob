@@ -3,7 +3,8 @@ import * as THREE from 'three'
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { CameraControls, Html, Line, PerformanceMonitor } from '@react-three/drei'
 import CameraControlsImpl from 'camera-controls'
-import { Building, Effects, Floors, Lighting, drawingUV, useBuilding, useLifted, type Lift } from './Model'
+import { Building, Effects, Fixtures, Floors, Lighting, drawingUV, useBuilding, useLifted, type Lift } from './Model'
+import { buildOne } from './fixtures3d'
 import { Photo } from './Photo'
 import type { Answer, Drawing, Element, Loaded, Pt, Tier } from './types'
 import { GLYPH, SYMBOL, inkOf, type Cls } from './ink'
@@ -133,6 +134,9 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
     return { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1, min: 0 }
   }, [loaded, want3d])
   const lifted = useLifted(lift)
+  // a selected symbol (WC, tub, door...) in 3D: walls drop to 45% so the object is never hidden behind its room's walls
+  const selEl = els.find((e) => e.id === selectedId)
+  const cut = mode === '3d' && selEl?.cls && SYMBOL.has(selEl.cls as Cls) ? Math.min(tools.cut, 0.45) : tools.cut
   const building = useBuilding(loaded, want3d)
 
   // double-click zooms in towards the spot; measure clicks snap to the drawing's own corners (rooms, evidence, walls)
@@ -176,7 +180,7 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
       {lifted && !photo && !low && <Effects wallH={wallH} />}
       {/* 3D only: if the frame rate stays low, drop AO, shadows and resolution (2D is cheap and never degrades) */}
       {lifted && !photo && <PerformanceMonitor flipflops={3} onDecline={() => onSlow(true)} onIncline={() => onSlow(false)} onFallback={() => onSlow(true)} />}
-      {lifted && photo && <Photo loaded={loaded} b={building} tex={tex} wallH={wallH * tools.cut} answer={answer} baseY={0.5 * L} status={photoStatus} />}
+      {lifted && photo && <Photo loaded={loaded} b={building} tex={tex} wallH={wallH * cut} answer={answer} baseY={0.5 * L} status={photoStatus} />}
 
       {/* the original drawing: always visible */}
       <mesh rotation-x={-Math.PI / 2} onClick={(e) => { e.stopPropagation(); if (e.delta > CLICK_PX) return; if (tools.measure) addPoint(e.point); else onSelect(null) }}
@@ -198,10 +202,11 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
       )}
 
       {want3d && <Floors loaded={loaded} wallH={wallH} lift={lift} y={1.5 * L} />}
-      <Building b={building} tex={tex} wallH={wallH * tools.cut} lift={lift} y={0.5 * L} />
+      <Building b={building} tex={tex} wallH={wallH * cut} lift={lift} y={0.5 * L} />
+      {want3d && <Fixtures loaded={loaded} wallH={wallH} lift={lift} y={0.5 * L} />}
 
       {shown.map((el) => (
-        <Highlight key={el.id} el={el} drawing={drawing} tex={tex} hatch={hatch} tier={tier} measure={answer?.measure ?? 'other'} crowded={shown.length > 12} glyphs={shown.length <= 24} L={L} wallH={wallH} lift={lift}
+        <Highlight key={el.id} el={el} loaded={want3d ? loaded : null} drawing={drawing} tex={tex} hatch={hatch} tier={tier} measure={answer?.measure ?? 'other'} crowded={shown.length > 12} glyphs={shown.length <= 24} L={L} wallH={wallH} lift={lift}
           selected={el.id === selectedId} hovered={el.id === hoverId} interactive={!tools.measure}
           onSelect={onSelect} onHover={onHover} onZoom={zoomAt} overlay={overlay} />
       ))}
@@ -289,8 +294,8 @@ function useInk(d: Drawing, el: Element, on: boolean, color: string) {
   return ink
 }
 
-function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, glyphs, L, wallH, lift, selected, hovered, interactive, onSelect, onHover, onZoom, overlay }: {
-  el: Element; drawing: Drawing; tex: THREE.Texture; hatch: THREE.Texture; tier: Tier | null; measure: Answer['measure']; crowded: boolean; glyphs: boolean
+function Highlight({ el, loaded, drawing, tex, hatch, tier, measure, crowded, glyphs, L, wallH, lift, selected, hovered, interactive, onSelect, onHover, onZoom, overlay }: {
+  el: Element; loaded: Loaded | null; drawing: Drawing; tex: THREE.Texture; hatch: THREE.Texture; tier: Tier | null; measure: Answer['measure']; crowded: boolean; glyphs: boolean
   L: number; wallH: number; lift: RefObject<Lift>
   selected: boolean; hovered: boolean; interactive: boolean; onSelect: (id: string) => void; onHover: (id: string | null) => void
   onZoom: (p: THREE.Vector3) => void; overlay: RefObject<HTMLDivElement | null>
@@ -302,7 +307,7 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, glyphs, L,
   const area = !open
   const shape = useMemo(() => (area ? shapeOf(drawing, pts) : null), [el, drawing])
   const geo = useMemo(() => (shape ? drawingUV(new THREE.ShapeGeometry(shape), drawing) : null), [shape])
-  const vol = useMemo(() => (shape && !linear ? new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false, curveSegments: 4 }) : null), [shape, linear])
+  const vol = useMemo(() => (shape && !linear && !(el.cls && SYMBOL.has(el.cls as Cls) && loaded) ? new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false, curveSegments: 4 }) : null), [shape, linear, loaded])
   const strip = useMemo(() => (linear && !pipe ? ribbon(drawing, pts, !open) : null), [el, drawing, linear, pipe])
   const pipeGeo = useMemo(() => (pipe ? tube(drawing, pts, el.diameterPx! / 2) : null), [el, drawing, pipe])
   useEffect(() => () => { geo?.dispose(); vol?.dispose(); strip?.dispose(); pipeGeo?.dispose() }, [geo, vol, strip, pipeGeo])
@@ -320,6 +325,16 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, glyphs, L,
   const glyph = el.cls ? GLYPH[el.cls as Cls] : undefined
   const ink = useInk(drawing, el, !open && !!el.cls && SYMBOL.has(el.cls as Cls), color)
   const sym = !!ink
+  // 3D: a symbol's own model (WC, basin, door leaf...) in the answer colour, a little larger so it covers the plain one
+  const model = useMemo(() => {
+    if (!loaded || open || !el.cls || !SYMBOL.has(el.cls as Cls)) return null
+    const g = buildOne(loaded, el.cls as Cls, el.polygon, wallH)
+    if (!g) return null
+    g.computeBoundingBox()
+    const c = new THREE.Vector3(); g.boundingBox!.getCenter(c)
+    return g.translate(-c.x, -c.y, 0).scale(1.035, 1.035, 1.03).translate(c.x, c.y, 0)
+  }, [loaded, el, wallH, open])
+  useEffect(() => () => model?.dispose(), [model])
   // label anchor; a glowing symbol's tag sits just off its box, on the side away from the drawn swing / linework
   let [ax, az] = open ? toWorld(drawing, pts[Math.floor(pts.length / 2)]) : toWorld(drawing, anchor(el))
   let side: 'up' | 'down' | null = null
@@ -342,11 +357,13 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, glyphs, L,
   // 3D: areas grow a translucent volume (slabs: their printed thickness), lengths a baseboard strip, pipes float at
   // mid height; the outline rides on top and the tag floats above on a pin
   const volRef = useRef<THREE.Mesh>(null), stripRef = useRef<THREE.Mesh>(null), pipeRef = useRef<THREE.Group>(null)
+  const modelRef = useRef<THREE.Group>(null)
   const topRef = useRef<THREE.Group>(null), tagRef = useRef<THREE.Group>(null), pinRef = useRef<THREE.Group>(null)
   useFrame(() => {
     const v = lift.current?.v ?? 0
-    const top = linear ? (pipe ? 0 : v * wallH * 0.12) : v * (el.thicknessPx ?? wallH * 0.45)
+    const top = model ? 0 : linear ? (pipe ? 0 : v * wallH * 0.12) : v * (el.thicknessPx ?? wallH * 0.45) // modelled symbols: outline stays on the floor
     if (volRef.current) { volRef.current.visible = v > 0.01; volRef.current.scale.z = Math.max(top, 0.001) }
+    if (modelRef.current) { modelRef.current.visible = v > 0.01; modelRef.current.scale.z = Math.max(v, 0.001) }
     if (stripRef.current) { stripRef.current.visible = v > 0.01; stripRef.current.scale.z = Math.max(top, 0.001) }
     if (pipeRef.current) pipeRef.current.position.y = 5 * L + v * wallH * 0.55
     if (topRef.current) topRef.current.position.y = 5 * L + (pipe ? v * wallH * 0.55 : top)
@@ -381,6 +398,13 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, glyphs, L,
             : <meshBasicMaterial color={color} transparent opacity={active ? 0.38 : 0.2} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />}
         </mesh>
       )}
+      {model && (
+        <group ref={modelRef} rotation-x={-Math.PI / 2} position-y={0.5 * L} visible={false}>
+          <mesh geometry={model} castShadow raycast={() => null}>
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={active ? 0.75 : 0.42} roughness={0.38} envMapIntensity={0.8} />
+          </mesh>
+        </group>
+      )}
       {strip && (
         <mesh ref={stripRef} geometry={strip} rotation-x={-Math.PI / 2} position-y={4 * L} visible={false} renderOrder={6} raycast={() => null}>
           <meshBasicMaterial color={color} transparent opacity={active ? 0.95 : 0.8} side={THREE.DoubleSide} toneMapped={false} />
@@ -394,7 +418,8 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, glyphs, L,
         </group>
       )}
       <group ref={topRef}>
-        <Line points={line} color={color} lineWidth={sym ? (active ? 3 : 1.5) : active ? (linear ? 6 : 4) : linear ? 4.5 : 2.5} dashed={detected} dashSize={dash} gapSize={dash * 0.6}
+        <Line points={line} color={color} lineWidth={sym ? (active ? 2.5 : 1) : active ? (linear ? 6 : 4) : linear ? 4.5 : 2.5} dashed={detected}
+          transparent opacity={sym && !active ? 0.5 : 1} dashSize={dash} gapSize={dash * 0.6}
           {...(open ? events : { raycast: () => null })} />
       </group>
       <group ref={pinRef} position={[ax, 5 * L, az]} visible={false}>

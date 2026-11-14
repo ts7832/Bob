@@ -11,6 +11,7 @@ import { N8AOPostPass } from 'n8ao'
 import type { Drawing, Loaded, Pt } from './types'
 import { obb, obbRect, shapeOf, shapesFromRings } from './geom'
 import { floorKind, floorTexture, TILE_M, type FloorKind } from './floors'
+import { buildFixtures, fixtureMaterials } from './fixtures3d'
 
 export type Lift = { v: number } // 0 = the flat sheet, 1 = full 3D
 
@@ -76,13 +77,7 @@ export function useBuilding(loaded: Loaded, enabled = true) {
         solid.push(drawingUV(extrude(rect, 1 - DOOR_HEAD, DOOR_HEAD), d))
       }
     }
-    for (const f of ctx.fixtures) {
-      if (f.polygon.length < 3) continue
-      const b = obb(f.polygon)
-      if (b.len < 1 || b.dep < 1) continue
-      const bevel = Math.min(b.len, b.dep) * 0.12
-      fixtures.push(extrude(shapeOf(d, obbRect(b, 1, bevel)), (FIXTURE_M[f.cls] ?? 0.6) / 2.6, 0, bevel))
-    }
+    // fixtures and door leaves are real models now (fixtures3d.ts, <Fixtures>); this list stays for photo mode's scene
     return {
       solid: mergeCapsSides(solid),
       glass: glass.length ? mergeGeometries(glass) : null,
@@ -115,6 +110,27 @@ export function Building({ b, tex, wallH, lift, y }: { b: BuildingGeo; tex: THRE
       </>}
       {b.fixtures && <mesh geometry={b.fixtures} material={mats.ceramic} castShadow receiveShadow raycast={() => null} />}
       {b.glass && <mesh geometry={b.glass} material={mats.glass} raycast={() => null} />}
+    </group>
+  )
+}
+
+// WCs, basins, tubs, showers, kitchen units, sauna benches and stoves, door leaves: modelled from each detected box
+// (fixtures3d.ts). Heights are built in sheet px, so the group's z scale is just the lift.
+export function Fixtures({ loaded, wallH, lift, y }: { loaded: Loaded; wallH: number; lift: RefObject<Lift>; y: number }) {
+  const geos = useMemo(() => buildFixtures(loaded, wallH), [loaded, wallH])
+  useEffect(() => () => geos.forEach((g) => g.dispose()), [geos])
+  const mats = useMemo(() => fixtureMaterials(), [])
+  useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats])
+  const group = useRef<THREE.Group>(null)
+  useFrame(() => {
+    const g = group.current, v = lift.current?.v ?? 0
+    if (!g) return
+    g.visible = v > 0.002
+    g.scale.z = Math.max(v, 0.001)
+  })
+  return (
+    <group ref={group} rotation-x={-Math.PI / 2} position-y={y} visible={false}>
+      {[...geos].map(([m, g]) => <mesh key={m} geometry={g} material={mats[m]} castShadow={m !== 'glass'} receiveShadow raycast={() => null} />)}
     </group>
   )
 }
