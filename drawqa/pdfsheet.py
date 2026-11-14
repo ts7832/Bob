@@ -41,16 +41,18 @@ IMPERIAL = re.compile(r"""(?:(\d+)\s+)?(\d+)\s*/\s*(\d+)\s*(?:"|in)\s*=\s*1\s*'\
 
 
 def scale_denominator(text):
-    """'Scala 1:100' -> 100 ; '1/8" = 1'-0"' -> 96 ; '1" = 20'' -> 240. None if the text is not a scale."""
-    m = SCALE_TXT.search(text)
-    if m:
-        return int(m.group(1))
+    """'Scala 1:100' -> 100 ; '1/8" = 1'-0"' -> 96 ; '1" = 20'' -> 240. None if the text is not a scale.
+    The imperial form is tried first: 'SCALE: 1/4" = 1'-0"' also matches the metric pattern, as 1:4 (found by the
+    scale and slab modules on Stoa's piping plan, 2026-11-14)."""
     m = IMPERIAL.search(text)
     if m:
         if m.group(2):  # fraction of an inch per foot
             inch = (int(m.group(1) or 0)) + int(m.group(2)) / int(m.group(3))
             return round(12 / inch, 2) if inch else None
         return round(int(m.group(5)) * 12 / int(m.group(4)), 2)
+    m = SCALE_TXT.search(text)
+    if m:
+        return int(m.group(1))
     return None
 
 

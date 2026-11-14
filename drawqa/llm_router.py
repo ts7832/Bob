@@ -45,6 +45,12 @@ INTENTS = {
     "opening_width": (("cls",), ["door", "window"]),
     "room_perimeter": ((), None),
     "wall_area": ((), None),
+    # read from the drawing's own text (PDF text layer, CAD text, or OCR of an image): drawqa/tags.py, drawqa/slabs.py
+    "count_tags": (("label",), None),
+    "find_text": (("label",), None),
+    "read_value": (("label",), None),
+    "pipe_size": (("label",), None),
+    "slab_areas": ((), None),
     "unknown": ((), None),
 }
 ROOM_PICK = ("labels", "classes", "number", "unit")  # which rooms; none of them = all indoor rooms
@@ -63,8 +69,11 @@ STEP = {
 }
 SCHEMA = {
     "type": "object",
-    "properties": {"steps": {"type": "array", "items": STEP}, "combine": {"type": "string", "enum": COMBINE}, "reading": {"type": "string"}},
-    "required": ["steps", "combine", "reading"],
+    "properties": {"steps": {"type": "array", "items": STEP}, "combine": {"type": "string", "enum": COMBINE}, "reading": {"type": "string"},
+                   "adjust": {"type": "object", "properties": {"op": {"type": "string", "enum": ["none", "plus", "minus", "times", "divide"]},
+                                                               "value": {"type": "number"}},
+                              "required": ["op", "value"], "additionalProperties": False}},
+    "required": ["steps", "combine", "reading", "adjust"],
     "additionalProperties": False,
 }
 
@@ -90,6 +99,10 @@ question compares or adds things one tool call cannot give, at most {MAX_STEPS}:
   largest floor area?") = ONE step with storey = "*" and combine = "each" (or "largest" / "smallest"); code repeats
   that step for every storey, so do not list the storeys yourself
 Steps that are combined must measure the same kind of thing (all areas, or all counts).
+`adjust` is arithmetic with a number the question itself gives, done by code on the final value: "total area minus
+10" = op "minus", value 10; "add 10% for waste" = op "times", value 1.1; "half of it" = op "divide", value 2.
+Otherwise op "none", value 0. Never put a measured value there. Units asked for (square feet, cm) are converted by
+code: do not use adjust for them.
 
 Tools (intent: what it does; arguments):
 - count_openings: number of doors or windows drawn. cls = door | window
@@ -123,6 +136,18 @@ Tools (intent: what it does; arguments):
 - room_perimeter (not for building models): total length around the chosen rooms (e.g. skirting boards). Choose the
   rooms like the area tools: labels (printed names), or classes (room types, when rooms_found_by_type), or number,
   or unit; leave all four empty for all indoor rooms
+- count_tags: number of items identified by a tag printed on the drawing (valves, pumps, pipe supports, equipment:
+  CV-1 ... CV-5 = 5). label = ONE prefix from `tag_prefixes`; choose it by the meaning the sheet gives it (listed with
+  the prefix) or by the question's own words ("check valves" = CV when CV means check valve). Several kinds asked for
+  together = one step per prefix, combine "sum" (or "each" for one count per kind)
+- find_text: the drawing's own text lines containing some words: a note, a callout, a specification, a title.
+  label = the words to look for, e.g. "NOTE 4" or "SLAB-ON-GRADE". The answer is the text as printed
+- read_value: a number printed next to a label in a list or table on the sheet (area lists, room counts:
+  "WEST WING DORMITORY = 6,095 SF"). label = the label as listed in `labelled_values`
+- pipe_size: the size printed with a named pipe ("16\" SUCTION HEADER"). label = the pipe's name, e.g.
+  "suction header"
+- slab_areas: floor-slab areas grouped by slab type (thickness and reinforcement), from the slab callouts and the
+  dimensions; only when `slab_callouts` is above 0
 - wall_area (not for building models): wall surface of the chosen rooms = their perimeter times the room height
   (e.g. wall tiles, paint). Rooms chosen as for room_perimeter. height = a room or ceiling height the question
   gives, as a number in metres ("2.7"), else "" (code then assumes a height and says so)
@@ -137,6 +162,10 @@ Rules:
   no storey ("how many doors are there?") is about that storey, so set storey to it. Use the whole model (storey "")
   only when the question says building, model or all floors.
 - Prefer a room-type count (count_rooms_class) when the drawing lists no room names, and a label-based tool when it does.
+  But a label stands for a room type only when the name clearly means that type (Schlafzimmer, Camera da letto,
+  MAKUUH = bedroom; Bagno = bathroom). A generic word for "room" (Stanza, Zimmer, Pièce, Huone, Room, Rum) does not
+  say which kind of room it is: for "how many bedrooms" on a plan whose rooms are only "Stanza", return no steps and
+  say in `reading` that the plan names its rooms only "Stanza" and does not say which are bedrooms.
 - A question about how much material to order for certain rooms: flooring or floor tiles = the floor area of those
   rooms (an area tool); paint or wall tiles = wall_area; skirting = room_perimeter. "Tiling" with no word about walls
   means floor tiling: choose the area tool, and say in `reading` that it is the floor area only and that the wall
@@ -148,15 +177,44 @@ Rules:
   of the rooms; wall tiles, waste allowance and anything not drawn on the plan are not included")."""
 
 
+def _text_context(sheet):
+    """What the drawing's own text offers the text tools: tag prefixes with the meaning the sheet gives them, labels of
+    printed values, slab callouts. Names only, no counts or values (the model chooses tools, code reads the numbers).
+    Empty when the modules are not there yet or the sheet has no text."""
+    texts = sheet.get("texts") or []
+    if not texts:
+        return {}
+    out = {}
+    try:
+        from . import tags
+        inv = tags.inventory(texts)
+        pre = sorted(inv.items(), key=lambda kv: -len(kv[1].get("numbers") or kv[1].get("tags") or []))[:25]
+        if pre:
+            meaning = lambda d: (d.get("text") if isinstance(d, dict) else d) or ""
+            out["tag_prefixes"] = {p: meaning(v.get("definition")) for p, v in pre}
+        kv = tags.key_values(texts)
+        if kv:
+            out["labelled_values"] = sorted({str(x.get("key") or x.get("label")) for x in kv if x.get("key") or x.get("label")})[:40]
+    except Exception:  # module not ready, or a sheet it cannot read: the other tools still work
+        pass
+    try:
+        from . import slabs
+        out["slab_callouts"] = len(slabs.callouts(texts))
+    except Exception:
+        pass
+    return out
+
+
 def _context(sheet):
     """What the model may know about the drawing: its type and the names that exist on it. No geometry, no counts."""
     rooms = sheet.get("rooms", [])
     ctx = dict(type=sheet.get("source_type"), kind=sheet.get("kind"),
-               room_names=sorted({r["name"] for r in rooms if r.get("name")})[:80],
+               room_names=sorted({r["name"] for r in rooms if r.get("name")} | {n["label"] for n in sheet.get("printed_names", [])})[:80],
                room_numbers=[r["number"] for r in rooms if r.get("number")][:120],
                apartments=sorted({u["label"] for u in sheet.get("units_list", []) if u.get("label")}),
                rooms_found_by_type=bool(sheet.get("room_classes_available")),
                room_types_found=sorted({r["cls"] for r in rooms if r.get("cls") and r["cls"] != "unlabelled"}))
+    ctx.update(_text_context(sheet))
     if sheet.get("source_type") == "ifc" and sheet.get("model"):
         from . import ifc
         ctx["storeys"] = [s.Name for s in ifc._model(sheet["model"]).by_type("IfcBuildingStorey")]
@@ -170,9 +228,12 @@ def _validate_step(d):
     it = d.get("intent")
     if it not in INTENTS or it == "unknown":
         return None
+    d = dict(d)
+    if it == "room_area" and not str(d.get("number") or "").strip() and (str(d.get("label") or "").strip() or d.get("labels")):
+        it = d["intent"] = "label_area"  # "area of the OLOH": a printed name given to the room-number tool
     need, classes = INTENTS[it]
     out = dict(intent=it)
-    d = dict(d)  # the open model sometimes puts a single value in the list field next to it, or the other way round
+    # the open model sometimes puts a single value in the list field next to it, or the other way round
     for one, many in (("cls", "classes"), ("label", "labels")):
         vals = [str(x).strip() for x in (d.get(many) or []) if str(x).strip()]
         if one in need and not str(d.get(one) or "").strip() and len(vals) == 1:
@@ -256,7 +317,15 @@ def _validate(d):
         how = "single"
     elif how in (None, "single") or (how == "difference" and len(out) != 2):
         return None
-    return dict(steps=out, combine=how)
+    plan = dict(steps=out, combine=how)
+    adj = d.get("adjust") if isinstance(d.get("adjust"), dict) else {}
+    try:
+        val = float(adj.get("value"))
+    except (TypeError, ValueError):
+        val = None
+    if adj.get("op") in ("plus", "minus", "times", "divide") and val is not None and not (adj["op"] == "divide" and val == 0):
+        plan["adjust"] = dict(op=adj["op"], value=val)
+    return plan
 
 
 def _has_key():
@@ -286,7 +355,8 @@ def _ask(question, context):
 JSON_ONLY = ("\n\nReply with one JSON object and nothing else, of this exact form: "
              '{"steps": [{"title": "...", "intent": "<one of: ' + ", ".join(k for k in INTENTS if k != "unknown") + '>", '
              + ", ".join(f'"{a}": ""' for a in ARGS) + ", " + ", ".join(f'"{a}": []' for a in LISTS)
-             + '}], "combine": "<' + " | ".join(COMBINE) + '>", "reading": "..."}. Every step carries all of those keys; '
+             + '}], "combine": "<' + " | ".join(COMBINE) + '>", "reading": "...", "adjust": {"op": "none", "value": 0}}. '
+             'Every step carries all of those keys; '
              'text arguments a tool does not need are "", lists it does not need are []. No tool fits: "steps": [].')
 
 
@@ -308,6 +378,52 @@ def _ask_open(user):
         return json.loads(t[i:j + 1]), str(r.get("model", "open model")).split("/")[-1]
     except ValueError:
         raise RuntimeError("the language model's reply was not valid JSON")
+
+
+GENERIC_ROOM_WORDS = {"stanza", "stanze", "zimmer", "raum", "piece", "pièce", "huone", "room", "rum", "rom", "ruum", "camera"}
+TYPE_WORDS = r"bed ?rooms?|kitchens?|bath ?rooms?|living ?rooms?|makuuh\w*|schlafzimmer|chambres?|camere da letto|soveværelse\w*|magamistuba\w*"
+
+
+def _generic_room_label(d, question):
+    """The question asks for a room type ("how many bedrooms") and the plan answers it with a generic word for "room"
+    (Stanza): refuse with the reason, instead of counting every room as a bedroom. A question that itself names the
+    word ("how many rooms are labelled Stanza") is not affected. ("camera" alone is generic in Italian; "camera da
+    letto" is a bedroom and is not one label word.)"""
+    import re
+    if not re.search(TYPE_WORDS, question, re.I):
+        return None
+    for st in d.get("steps") or []:
+        if not isinstance(st, dict) or st.get("intent") not in ("count_rooms_label", "label_area"):
+            continue
+        labels = [str(x) for x in (st.get("labels") or [])] + ([str(st["label"])] if st.get("label") else [])
+        generic = [l for l in labels if l.strip().lower() in GENERIC_ROOM_WORDS]
+        if generic and not any(re.search(rf"(?<!\w){re.escape(g)}(?!\w)", question, re.I) for g in generic):
+            return (f"the plan names these rooms only '{generic[0]}', a general word for 'room', so it does not say which of "
+                    f"them are of the kind asked for; ask about '{generic[0]}' itself to count or measure those rooms")
+    return None
+
+
+def _fill_room_names(d, question, sheet):
+    """A room tool sent back with no room ("area of the OLOH" -> room_area with every argument empty and the name only
+    in its title): take the room names that exist on this drawing and appear, as whole words, in the question or the
+    step's title. Only names listed for the drawing are used, so nothing is invented."""
+    import re
+    ctx = json.loads(_context(sheet))
+    names, numbers = ctx.get("room_names") or [], set(ctx.get("room_numbers") or [])
+    by_low = {n.lower(): n for n in names}
+    for st in d.get("steps") or []:
+        if not isinstance(st, dict) or st.get("intent") not in ("room_area", "label_area", "count_rooms_label"):
+            continue
+        num = str(st.get("number") or "").strip()
+        if st["intent"] == "room_area" and num and num not in numbers and num.lower() in by_low:
+            st.update(intent="label_area", number="", labels=[by_low[num.lower()]], label="")  # a name in the number field
+            continue
+        if any(str(st.get(k) or "").strip() for k in ("number", "label")) or st.get("labels"):
+            continue
+        text = f"{st.get('title') or ''} {question}"
+        found = [n for n in names if re.search(rf"(?<!\w){re.escape(n)}(?!\w)", text, re.I)]
+        if found:
+            st["labels"], st["label"] = found, found[0]
 
 
 def parse(question, sheet):
@@ -333,6 +449,10 @@ def parse(question, sheet):
         return None, str(e) or "the language model gave no usable reply", None
     if not isinstance(d, dict):
         return None, "the language model's reply was not a JSON object", model
+    _fill_room_names(d, question, sheet)
+    generic = _generic_room_label(d, question)
+    if generic:
+        return None, generic, model
     plan = _validate(d)
     reading = str(d.get("reading") or "").strip()
     if plan is None and d.get("steps"):  # it named tools, but with arguments they do not take or an unusable combination

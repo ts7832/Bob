@@ -4,6 +4,40 @@ Read this first, then `README.md` (rules, how it works, measurements) and `HANDO
 walls, areas and free-form questions). Written at 14:31, updated at 15:15 (section "Changes 14:31-15:15" and tasks
 1-4, 8). Re-check anything marked "check".
 
+## Changes 15:15-16:45 (session B and its subagents; branch `freeform-tools`)
+
+Stoa posted example question types and four example sheets (UK school plan 1:200, US dorm plan with an area list,
+US foundation/slab plan, US pumphouse piping plan; files in the user's Downloads, 9934-14000 px wide PNGs). Test
+files may be any format. Everything below works on the sheet's list of texts, whatever produced it.
+- **`drawqa/textlayer.py`**: big images (over 5000 px) are OCR'd in native-resolution 2000 px tiles. Piping plan: 24
+  -> 54 of ~56 equipment tags read, notes read cleanly; 23-68 s per sheet on the Mac, cached.
+- **`drawqa/scalebar.py`** (subagent): scale from the scale bar measured on the image, the printed scale + paper size,
+  and the dimension strings. On all four sheets the three agree within 0.1%. Wired in `convert.scale_from_text`
+  (before outlines; replaces a missing, estimated, or >2%-different scale; its boxes are kept as evidence).
+- **`drawqa/pdfsheet.py`**: `SCALE: 1/4" = 1'-0"` was read as 1:4 (12x wrong on every US vector PDF); now 1:48.
+- **`drawqa/tags.py`** (subagent): tag inventory by prefix with gaps and the sheet's own definitions, pipe sizes,
+  find-text, "label = value" lists. Piping plan: CV 5 (agrees with the sheet's "TYP. OF 5"), FSCV 7, FP 5, FSI 5,
+  FSR 2, PIT 1-6 (PIT 4 not read), PS 41 labels / 23 type numbers (PS-2 gap); suction header 16". Dorm: all 20
+  area/count pairs (West wing dormitory 6,095 SF, total second floor 26,562 SF).
+- **`drawqa/slabs.py`** (subagent): slab callouts (thickness, bars, spacing, face, top of slab) and area per type.
+  Foundation plan: 300/D16 217.8 m2, 150/D13 61.7 m2 (= 6200 x 9950), 300/D22 26.5 m2 (= 6200 x 4272, includes the
+  isolated genset pad inside it). Tier "estimated": which region a callout covers is judged (position / leader).
+- **New question tools** (`llm_router`, `query`): `count_tags`, `find_text` (numbered notes read whole: "note 4"),
+  `read_value`, `pipe_size`, `slab_areas`; answers from text are tier "read" (OCR: "a character can be misread").
+- **Room names on scans** (`convert.attach_printed_names`): names read by the vision model go to the room outline they
+  sit in; label questions work on scans; type counts and areas say when printed names disagree ("names show 3
+  bedrooms, the detector typed 1"); a fixed name dictionary (MH/MAKUUH = bedroom ...), never the model's guess.
+- **Units and arithmetic** (`solve._finalize`): "in square feet", "in cm" converted by code with the factor shown;
+  "minus 10", "+10% waste" passed by the model as `adjust` and applied by code. Router: cm/mm/sq ft are measurements;
+  arithmetic questions go to the model; "Stanza" (= room) is not taken as "bedroom".
+- Scoreboards after all of it: scans 85.0%, Swiss 98.6%, BIM 97.7% (unchanged).
+- **Gold set** (teammates' 86 judge-style questions, all answers still unverified drafts): run in progress at 16:45
+  (`scratchpad/goldrun/run.sh`, one drawing per process); 7 right / 12 wrong after 5 of 11 drawings, on code from
+  before the latest fixes. **Next:** finish it, sort misses by cause, and get some gold answers verified by a person.
+- **Not done:** the four example sheets end to end through `convert()` + `solve()` (only the text tools were run on
+  their saved OCR text), door/window counts on CAD-style images (our detector does not know the style; a
+  FloorPlanCAD-trained detector is the candidate), pipe lengths, SVG/DWG in `convert()`.
+
 ## Changes 14:31-15:15 (session B; on branch `freeform-tools`, not yet merged into `main`)
 
 - **Final wall model installed** (`models/segmenter.pt` = `seg1` after 30 epochs; interim kept in `models/old/`).

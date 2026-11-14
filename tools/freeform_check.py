@@ -25,6 +25,11 @@ SETS = {
         ("How many metres of skirting board do I need for apartment A?", 108.05),
         ("How many square metres of wall tiles for the bathrooms if the ceiling is 2.6 m high?", 59.57),
         ("How much wall area is there to paint in the kitchen?", 56.35),  # both kitchens, assumed 2.5 m: estimated
+        ("Total are in m squared of all rooms minus 10", 183.48),  # arithmetic from the question, done by code
+        ("Total area of all rooms in square ft", 2082.6),  # unit conversion
+        ("How wide is the widest window in cm?", 194.0),
+        ("How many square meters of tiling for the toilets, plus 10% for waste?", 11.34),
+        ("How many bedrooms are there?", "refuse"),  # rooms are only 'Stanza' (= room): not said which are bedrooms
     ]),
     "scan": (ROOT + "cubicasa5k/high_quality_architectural-16.png", [
         ("How many square meters of tiling should I order for the toilets?", 10.0),

@@ -57,6 +57,15 @@ def honesty(sheet, intent, res):
         return dict(inner, tier="estimated", deterministic=False, basis=f"{res['assumed']}; the rest: {inner['tier']}, {inner['basis']}")
     st, it = sheet["source_type"], intent["intent"]
     scale = sheet.get("scale") or {}
+    if res.get("read_text"):  # read from the drawing's own text (drawqa/tags.py, drawqa/slabs.py)
+        src = {"raster": "read by OCR from the image (a character can be misread; each item is boxed for checking)",
+               "vector-pdf": "the PDF's own text layer (exact characters)", "vector-dxf": "the CAD file's own text"}.get(st, "the drawing's own text")
+        if res.get("tier"):  # a module that also estimates (slab regions) says so itself
+            return dict(tier=res["tier"], deterministic=res["tier"] == "read", basis=f"{src}; {res.get('basis') or ''}".strip("; "))
+        return dict(tier="read", deterministic=st != "raster", basis=src)
+    if res.get("read_names"):  # a count of printed room names on an image
+        return dict(tier="read", deterministic=False,
+                    basis="room names printed on the drawing, read by a vision model (it can misread a letter); each counted name is boxed")
     if it == "opening_width" and st != "ifc":
         used = res.get("elements_used", [])
         est = bool(scale.get("estimated"))
@@ -336,6 +345,61 @@ def _step(sheet, st, question, read_by):
     return _finish(sheet, st, _run(sheet, st), read_by)
 
 
+# Units a question can ask for, most specific first (area before length), and how to get there from what tools give.
+ASKED_UNITS = [
+    (r"sq\.?\s*f(ee|oo)?t\b|square\s+f(ee|oo)?t\b|f(ee|oo)?t\s*(2|²)|f(ee|oo)?t\s+squared|\bsqft\b|neliöjal\w*|Quadratfu\w*", "sqft"),
+    (r"\bcm\s*(2|²)|square\s+cent\w*|cm\s+squared|cent\w*\s+squared|neliösent\w*", "cm2"),
+    (r"\bm\s*(2|²)|square\s+met\w*|met\w*\s+squared|\bm\s+squared|\bsq\.?\s*m\b|neliömet\w*|Quadratmet\w*|mètres?\s+carrés?|metri\s+quadri", "m2"),
+    (r"\bcm\b|centimet\w*|sentti\w*|Zentimet\w*", "cm"),
+    (r"\bmm\b|millimet\w*|milli\w*", "mm"),
+    (r"\binch(es)?\b|\btuuma\w*", "in"),
+    (r"\bf(ee|oo)t\b|\bft\b|\bjalka\w*", "ft"),
+]
+TO_UNIT = {("m2", "sqft"): 10.7639104, ("sqft", "m2"): 1 / 10.7639104, ("m2", "cm2"): 1e4, ("m", "cm"): 100, ("m", "mm"): 1000,
+           ("m", "ft"): 3.2808399, ("m", "in"): 39.3700787, ("sqft", "cm2"): 1e4 / 10.7639104}
+UNIT_TEXT = {"m2": "m²", "sqft": "sq ft", "cm2": "cm²", "cm": "cm", "mm": "mm", "in": "in", "ft": "ft", "m": "m", "count": ""}
+
+
+def _finalize(res, question, plan=None):
+    """The last arithmetic, done by code and shown: the unit the question asks for (193.48 m² -> 2,082.62 sq ft), then a
+    number the question gives ("minus 10"), which the language model passes as plan["adjust"]. A step that cannot be
+    applied is said, never skipped silently."""
+    ans, unit = res.get("answer"), res.get("unit")
+    notes = []
+    if isinstance(ans, (int, float)) and not isinstance(ans, bool) and unit in ("m2", "m", "sqft"):
+        want = next((u for rx, u in ASKED_UNITS if re.search(rx, question, re.I)), None)
+        if want and want != unit:
+            k = TO_UNIT.get((unit, want))
+            if k:
+                new = round(ans * k, 2)
+                notes.append(f"In the unit asked for: {ans:g} {UNIT_TEXT[unit]} × {k:.6g} = {new:,.2f} {UNIT_TEXT[want]}.")
+                res["answer_before_conversion"] = dict(answer=ans, unit=unit)
+                ans, unit = new, want
+            elif (unit in ("m2", "sqft")) != (want in ("m2", "sqft", "cm2")):
+                notes.append(f"The question asks for {UNIT_TEXT[want]}, but this is {'an area' if unit in ('m2', 'sqft') else 'a length'}, "
+                             f"so it is given in {UNIT_TEXT[unit]}.")
+    adj = (plan or {}).get("adjust")
+    if adj:
+        if isinstance(ans, (int, float)) and not isinstance(ans, bool):
+            sym = {"plus": "+", "minus": "−", "times": "×", "divide": "÷"}[adj["op"]]
+            new = {"plus": ans + adj["value"], "minus": ans - adj["value"], "times": ans * adj["value"],
+                   "divide": ans / adj["value"]}[adj["op"]]
+            new = round(new, 2)
+            notes.append(f"Then the arithmetic the question asks for: {ans:g} {sym} {adj['value']:g} = {new:g}"
+                         f"{' ' + UNIT_TEXT.get(unit, unit or '') if unit and unit != 'count' else ''} (the {adj['value']:g} is "
+                         f"from the question, not from the drawing).")
+            res["answer_before_arithmetic"] = ans
+            ans = new
+        else:
+            notes.append(f"The question also asks to {adj['op']} {adj['value']:g}, which cannot be applied to this answer.")
+    if notes:
+        res["answer"], res["unit"] = ans, unit
+        res["explanation"] = (res.get("explanation") or "") + " " + " ".join(notes)
+        if isinstance(res.get("intent"), dict) and adj:
+            res["intent"] = dict(res["intent"], adjust=adj)
+    return res
+
+
 def _model_plan(question, sheet):
     from . import llm_router
     return llm_router.parse(question, sheet)
@@ -359,7 +423,7 @@ def solve(path, question, generic=False, llm=False):
     if tabs and (about_table or intent["intent"] == "unknown"):  # before the sheet is converted: a table needs no detector run
         alt = table_answer(path, question, use_model=llm and about_table)
         if alt is not None:
-            return alt
+            return _finalize(alt, question)
         if about_table:  # a table question the table could not answer: do not fall back to counting drawn symbols
             why = (f"This question is about a table on the sheet ({len(tabs)} found: " + ", ".join(repr(t["title"][:40]) for t in tabs[:4]) + "), "
                    "but it could not be turned into a query on it" + ("." if llm else " without a language model."))
@@ -367,6 +431,9 @@ def solve(path, question, generic=False, llm=False):
                         confidence=None, explanation=why, question_read=dict(by="pattern", note="the question names a table on this sheet"),
                         honesty=dict(tier="cannot determine", deterministic=None, basis=why))
     sheet = load_sheet(path, generic)
+    if sheet.get("source_type") == "raster":  # room names read by the vision model since the sheet was loaded
+        from . import convert
+        convert.attach_printed_names(sheet)
     read_by = dict(by="pattern", note="matched a known question pattern")
     plan = None
     # on a building model, a question the patterns read as a plain drawing count ("doors on the second floor") may
@@ -383,7 +450,7 @@ def solve(path, question, generic=False, llm=False):
             read_by = dict(by="nobody", note=note)
     if plan is not None and len(plan["steps"]) > 1:
         parts = [(st["title"], _step(sheet, st, question, read_by)) for st in plan["steps"]]
-        return combine(parts, plan["combine"], read_by, sheet)
+        return _finalize(combine(parts, plan["combine"], read_by, sheet), question, plan)
     if intent["intent"] == "unknown":
         res = dict(answer=None, explanation="This question was not understood, so nothing was measured: " + read_by["note"]
                    if read_by["by"] == "nobody" else
@@ -401,13 +468,15 @@ def solve(path, question, generic=False, llm=False):
             if len(plan2["steps"]) > 1:
                 out = combine([(st["title"], _step(sheet, st, question, rb2)) for st in plan2["steps"]], plan2["combine"], rb2, sheet)
                 if out.get("answer") is not None:
-                    return out
+                    return _finalize(out, question, plan2)
             else:
                 res2 = _step(sheet, plan2["steps"][0], question, rb2)
                 if res2.get("answer") is not None:
-                    return res2
+                    return _finalize(res2, question, plan2)
+        elif note2:  # the model could not read it either: say why, next to what the pattern's tool said
+            res["explanation"] = (res.get("explanation") or "") + f" A language model also read the question and found no tool for it: {note2}"
     if res.get("answer") is None:  # nothing from the drawing itself: maybe a table on the sheet answers it
         alt = table_answer(path, question, use_model=llm)
         if alt is not None:
-            return alt
-    return _finish(sheet, intent, res, read_by)
+            return _finalize(alt, question)
+    return _finalize(_finish(sheet, intent, res, read_by), question, plan)

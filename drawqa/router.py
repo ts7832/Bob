@@ -54,13 +54,21 @@ ALSO_NAMED = {"count_fixtures": r"\btoilets?\b|lavator(y|ies)|water closets?|uri
               "count_rooms_class": r"\bbathrooms?\b|washrooms?|\btoilets\b|\bWC rooms\b"}
 
 
+ARITHMETIC = (r"\b(minus|plus|times|multipl\w*\s+by|divided\s+by|subtract\w*|deduct\w*|add(ing)?\s+\d+|miinus|vähennä\w*|"
+              r"weniger|abzüglich|moins|meno)\b|(?<![\w.\-/'\"’”])[-+×÷*]\s*\d|\d\s*%|\bper\s?cent\b|prosent\w*|Prozent")
+# (a minus right after a foot or inch mark is a US dimension, 3'-0", not arithmetic)
+
+
 def parse(question):
     q = question.strip()
+    if re.search(ARITHMETIC, q, re.I):  # "total area minus 10": the pattern tools cannot do the arithmetic; the model passes it on
+        return dict(intent="unknown")
     quoted = quoted_strings(q)
     # "how many metres of skirting", "wie viele Quadratmeter": a measurement, not a count of things
     is_count = re.search(COUNT_WORDS, q, re.I) is not None and not re.search(
         rf"(?:{COUNT_WORDS})\s+(?:\w+\s+)?(?:square\s+|sq\.?\s+|running\s+|linear\s+|cubic\s+)?"
-        r"(?:met(?:er|re)s?|m2|m²|m3|feet|foot|ft|yards?|litres?|liters?|kilo\w*|kg|tons?|tonnes?|neliö\w*|metri\w*|"
+        r"(?:met(?:er|re)s?|m2|m²|m3|cm2?|cm²|mm2?|mm²|centimet\w*|millimet\w*|squared?\b|sq\b|"
+        r"feet|foot|ft|yards?|litres?|liters?|kilo\w*|kg|tons?|tonnes?|neliö\w*|metri\w*|"
         r"quadratmeter\w*|kubikmeter\w*|meter\b|mètres?|mètres?\s+carrés?|metri\b|metri\s+quadri|ruutmeet\w*|meet\w*|kvadratmeter\w*)", q, re.I)
     is_area = re.search(AREA_WORDS, q, re.I) is not None
 

@@ -187,9 +187,39 @@ def convert(path, page=0, use_detector=True):
         from . import ocr
         if ocr.available() and not sheet.get("texts"):  # an image has no text layer: read what is printed on it
             sheet["texts"] = [dict(id=f"t{i}", found_by="ocr", **t) for i, t in enumerate(raw_texts(path, page, img))]
+        scale_from_text(sheet, img)  # before outlines: their areas use the scale
         add_outlines(sheet, raw_outlines(path, page, img))
+    elif img is not None and kind == "pdf" and sheet.get("texts"):  # vector PDF: check the printed scale it read
+        scale_from_text(sheet, img, dpi=pdfsheet.DPI)
     sheet["format"] = "drawqa-sheet/1"
     return sheet
+
+
+def scale_from_text(sheet, img, dpi=None):
+    """Scale from the sheet's own text and linework (drawqa/scalebar.py): the scale bar measured on the image, the
+    printed scale with the paper size, and the dimension strings, each checked against the others (on Stoa's four
+    example sheets they agree within 0.1%). Replaces the sheet's scale when it has none, when it was only estimated
+    (door widths), or when it disagrees by over 2% with a scale-bar / dimension result (e.g. SCALE: 1/4" = 1'-0" read as
+    1:4). The boxes it was read from are kept as evidence for every measured answer."""
+    try:
+        from . import scalebar
+        r = scalebar.scale(sheet["texts"], sheet.get("width_px") or img.shape[1], sheet.get("height_px") or img.shape[0], img=img, dpi=dpi)
+    except Exception as e:  # never let the scale reader break a conversion
+        sheet.setdefault("notes", []).append(f"scale reader failed: {type(e).__name__}: {e}")
+        return
+    if not r or not r.get("m_per_px"):
+        return
+    cur = sheet.get("scale") or {}
+    if cur.get("m_per_px") and not cur.get("estimated") and abs(cur["m_per_px"] / r["m_per_px"] - 1) <= 0.02:
+        cur["cross_check"] = "; ".join(x for x in (cur.get("cross_check"), f"scale bar / dimensions agree: {r.get('source')}") if x)
+        return
+    if cur.get("m_per_px") and not cur.get("estimated") and r.get("estimated"):
+        return  # a printed scale beats a bar whose unit had to be assumed
+    ev = [dict(id=f"scale{i}", shape="box", bbox=c["bbox"], label="scale bar" if c["kind"] == "bar" else c.get("text") or c["kind"])
+          for i, c in enumerate(r.get("candidates") or []) if c.get("bbox") and c.get("kind") in ("bar", "note")][:4]
+    sheet["scale"] = dict(m_per_px=r["m_per_px"], denominator=r.get("denominator"), estimated=bool(r.get("estimated")),
+                          source=r.get("source"), cross_check=r.get("check"), length_error=r.get("check") if r.get("estimated") else None,
+                          replaced=cur.get("source"), evidence=ev)
 
 
 def raw_outlines(path, page, img):
@@ -209,9 +239,12 @@ def raw_outlines(path, page, img):
 
 
 def raw_texts(path, page, img):
-    """OCR output for an image, cached on disk per file."""
+    """OCR output for an image, cached on disk per file. A large sheet (longer side over textlayer.BIG px, e.g. a
+    10200 x 6600 piping plan) is read in native-resolution tiles: whole-image OCR shrinks it and loses most text."""
     import hashlib
-    from . import ocr
+    from . import ocr, textlayer
+    if max(img.shape[:2]) > textlayer.BIG and page == 0:
+        return [{k: v for k, v in t.items() if k != "raw"} for t in textlayer.read(path, img)]
     st = os.stat(path)
     key = hashlib.sha1(f"ocr|{os.path.abspath(path)}|{st.st_mtime_ns}|{st.st_size}|{page}".encode()).hexdigest()
     cache = os.path.join(os.path.dirname(__file__), "..", "data", "cache")
@@ -299,6 +332,79 @@ def add_rooms_without_outline(sheet, areas):
             continue
         sheet["rooms"].append(dict(id=f"printed{i}", cls="unlabelled", bbox=a["bbox"], area_m2=a["area_m2"], printed_text=a["text"],
                                    area_source=src, outdoor=any(w in a["text"].lower() for w in OUTDOOR_WORDS)))
+
+
+# What common printed room names mean, for a CHECK on the detector's room types (never to count by themselves). Keys are
+# normalised: upper case, letters and digits only, Finnish ä/ö folded to A/O. Finnish first (the preview scans).
+NAME_MEANING = {}
+for _cls, _names in {
+    "bedroom": "MH MAKUUH MAKUUHUONE MHUONE BR BEDROOM SCHLAFZIMMER SCHLAFEN CHAMBRE CAMERA SOVEROM SOVRUM",
+    "kitchen": "K KK KEITTIO KEITIO KTIO KITCHEN KUCHE KUECHE CUISINE CUCINA KOKKEN",
+    "bathroom": "KH KPH PH PESUH PESUHUONE SH BATH BATHROOM BAD BAGNO SDB",
+    "wc_room": "WC TOILET TOILETTE",
+    "sauna": "SAUNA",
+    "living_room": "OH OLOH OLOHUONE LIVING WOHNZIMMER SOGGIORNO SEJOUR STUE",
+    "dining": "RUOKAILU RT DINING ESSZIMMER",
+    "entry": "ET ETEINEN TK TUULIK TUULIKAAPPI HALL ENTRY FLUR INGRESSO ENTREE",
+    "storage": "VH VAR VARASTO KOMERO STORAGE ABSTELLRAUM RIPOSTIGLIO",
+    "utility": "KHH KODINHOITOH TEKN LAUNDRY UTILITY",
+    "dressing_room": "PUKUH PUKUHUONE",
+    "balcony": "PARVEKE PARV BALCONY BALKON BALCONE",
+    "terrace": "TERASSI TERRACE",
+}.items():
+    for _n in _names.split():
+        NAME_MEANING[_n] = _cls
+
+
+def name_key(label):
+    import unicodedata
+    s = unicodedata.normalize("NFKD", str(label).upper())
+    return "".join(ch for ch in s if ch.isascii() and ch.isalnum())
+
+
+def attach_printed_names(sheet):
+    """Room names printed on an image, as read by the vision model (drawqa/reader.py; only when someone ran it, then
+    cached) -> each name goes to the room outline it is printed in (the smallest one), or to the detector's room box when
+    the room has no outline. A room can carry several names (a corrected label). Names in no room are kept in
+    sheet["printed_names"] with room=None. Cheap and repeatable: it reads one cached file, and it re-attaches only when
+    that file changed. A name is a reading, not a measurement: answers built on it are tier "read"."""
+    from . import segment
+    if sheet.get("source_type") != "raster" or not sheet.get("source") or not os.path.exists(sheet["source"]):
+        return
+    try:
+        from . import reader
+        f = reader._key(sheet["source"])
+        names = reader.rooms(sheet["source"])
+        key = (f, os.path.getmtime(f)) if names is not None else None
+    except Exception:
+        names, key = None, None
+    if not names or sheet.get("_printed_names_key") == key:
+        return
+    for r in sheet.get("rooms", []):  # a new reading replaces the previous one
+        if r.pop("names_from_reader", False):
+            r.pop("names", None), r.pop("name", None)
+    centre = lambda b: ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)
+    size = lambda r: (r.get("area_px") or ((r["bbox"][2] - r["bbox"][0]) * (r["bbox"][3] - r["bbox"][1]) if r.get("bbox") else 1e18))
+    printed = []
+    for n in names:
+        label = str(n.get("label") or "").strip()
+        if not label or not n.get("bbox"):
+            continue
+        cx, cy = centre(n["bbox"])
+        hold = [r for r in sheet.get("rooms", []) if r.get("polygon") and segment._inside(cx, cy, [list(p) for p in r["polygon"]])]
+        if not hold:
+            hold = [r for r in sheet.get("rooms", []) if not r.get("polygon") and r.get("bbox")
+                    and r["bbox"][0] <= cx <= r["bbox"][2] and r["bbox"][1] <= cy <= r["bbox"][3]]
+        room = min(hold, key=size) if hold else None
+        if room is not None:
+            room.setdefault("names", []).append(label)
+            room.setdefault("name", label)
+            room["names_from_reader"] = True
+        printed.append(dict(label=label, bbox=n["bbox"], area=n.get("area"), room=room["id"] if room else None,
+                            room_cls=room.get("cls") if room else None, meaning=NAME_MEANING.get(name_key(label))))
+    sheet["printed_names"] = printed
+    sheet["printed_names_model"] = "a vision model"
+    sheet["_printed_names_key"] = key
 
 
 def calibrate_scale_from_areas(sheet):
