@@ -61,7 +61,7 @@ html.on-windows .plansvg g.IfcWindow *{stroke:var(--win);stroke-width:.7}
 .slab{height:12px;margin:0 0 5px 6px;width:70%;border:1px solid var(--ink);background:var(--paper);transform:skewX(-30deg);position:relative}
 .slab.on{background:var(--ink)}
 .slab em{position:absolute;right:-30px;top:-3px;font:15px var(--pix);font-style:normal;transform:skewX(30deg)}
-.right{display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto;padding:0 4px 6px 0}
+.right{display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto;padding:10px 14px 10px 10px;margin:-10px -14px -10px -10px}
 .ask{display:flex;gap:6px}
 .ask input{flex:1;font:15px var(--mono);border:1px solid var(--ink);padding:8px 9px;background:var(--paper);outline:0;min-width:0}
 .ask button{font:20px var(--pix);background:var(--ink);color:var(--paper);border:0;padding:0 14px;cursor:pointer}
@@ -92,16 +92,14 @@ tr.tot td{border-bottom:0;font-weight:600}
 .pick button.on{background:var(--paper);color:var(--ink)}
 .clock{position:absolute;right:18px;top:-30px;font:17px var(--pix)}
 
-/* ask field: on focus a snake of red pixel squares runs round it, in steps like an old game; it stops on blur */
+/* ask window: while it is in use a snake of red pixel squares runs round the whole window, in steps like an old game; it stops on blur */
 .field{position:relative;flex:1;display:flex;min-width:0}
 .field input{flex:1}
-.snake{position:absolute;left:-6px;top:-6px;width:calc(100% + 12px);height:calc(100% + 12px);pointer-events:none;overflow:visible;opacity:0;transition:opacity .15s}
-.snake rect{fill:none;stroke:var(--snake,#e10600);stroke-width:5;stroke-linecap:butt;stroke-linejoin:miter}
-.snake .trail{stroke:var(--ink);stroke-width:1;stroke-dasharray:1 3;opacity:.45}
-.field.on .snake{opacity:1}
-.field.on .snake .head{animation:snake var(--lap,3.2s) steps(var(--steps,64)) infinite}
-.field.on input{outline:0;border-color:var(--ink)}
-@keyframes snake{to{stroke-dashoffset:calc(-1 * var(--per,800px))}}
+.snake{position:absolute;left:-8px;top:-8px;width:calc(100% + 16px);height:calc(100% + 16px);z-index:2;pointer-events:none;overflow:visible;opacity:0;transition:opacity .15s}
+.snake .trail{fill:none;stroke:var(--ink);stroke-width:1;stroke-dasharray:1 3;opacity:.45}
+.snake .body rect{fill:var(--snake,#e10600)}
+.askwin.on .snake{opacity:1}
+.askwin.on input{outline:0;border-color:var(--ink)}
 
 /* ===== 1  LISA OS: bone desktop with a dot screen, every panel a window, bitmap type, pink accent ===== */
 [data-concept="1"]{--desk:#dedede;--acc:var(--pink)}
@@ -1209,8 +1207,8 @@ tr.tot td{border-bottom:0;font-weight:600}
     </div>
   </div>
   <div class="right">
-    <div class="win"><div class="tb"><span>Ask</span><i>⌘K</i></div><div class="body">
-      <div class="ask"><span class="field"><input value="How many toilet rooms are on this floor?"><svg class="snake"><rect class="trail" x="2.5" y="2.5"/><rect class="head" x="2.5" y="2.5"/></svg></span><button>ASK</button></div>
+    <div class="win askwin"><svg class="snake"><rect class="trail" x="2.5" y="2.5"/><g class="body"></g></svg><div class="tb"><span>Ask</span><i>⌘K</i></div><div class="body">
+      <div class="ask"><span class="field"><input value="How many toilet rooms are on this floor?"></span><button>ASK</button></div>
       <div class="scope"><span class="on">This blueprint</span><span>Whole project · 5</span></div></div></div>
     <div class="win"><div class="tb"><span>Answer</span><i>0.00 s</i></div><div class="body">
       <div class="big"><b>18</b><span>toilet rooms</span></div>
@@ -1247,21 +1245,43 @@ const pick = document.getElementById("pick");
 const set = (n) => { H.dataset.concept = n; [...pick.children].forEach((b, i) => b.classList.toggle("on", i + 1 == n)); history.replaceState(0, "", "?c=" + n); };
 names.forEach((t, i) => { const b = document.createElement("button"); b.textContent = (i + 1) + " " + t; b.onclick = () => set(i + 1); pick.appendChild(b); });
 set(new URLSearchParams(location.search).get("c") || 5);
-// snake: 8 squares of 5 px with 3 px gaps, then empty track for the rest of the way round
-const field = document.querySelector(".field"), svg = field.querySelector(".snake");
-const sizeSnake = () => {
-  const b = svg.getBoundingClientRect(), w = Math.round(b.width) - 5, h = Math.round(b.height) - 5, per = 2 * (w + h);
-  svg.querySelectorAll("rect").forEach((r) => { r.setAttribute("width", w); r.setAttribute("height", h); });
-  const head = svg.querySelector(".head"), body = Array(8).fill("5 3").join(" ");
-  head.setAttribute("stroke-dasharray", `${body} ${per - 64}`);
-  svg.style.setProperty("--per", per + "px"); svg.style.setProperty("--steps", Math.round(per / 7));
-  svg.style.setProperty("--lap", (per / 260).toFixed(2) + "s");
+const askwin = document.querySelector(".askwin"), svg = askwin.querySelector(".snake"), body = svg.querySelector(".body");
+const N = 10, SQ = 6, STEP = 9, TICK = 45;      // 10 squares of 6 px, one square further every 45 ms, like an old phone game
+let SW = 0, SH = 0, per = 0, head = 0, timer = 0;
+const at = (d) => {                              // point d px along the outline, clockwise from the top-left corner
+  d = ((d % per) + per) % per;
+  if (d < SW) return [d, 0]; d -= SW;
+  if (d < SH) return [SW, d]; d -= SH;
+  if (d < SW) return [SW - d, SH]; d -= SW;
+  return [0, SH - d];
 };
-const inp = field.querySelector("input");
-inp.addEventListener("focus", () => { sizeSnake(); field.classList.add("on"); });
-inp.addEventListener("blur", () => field.classList.remove("on"));
-addEventListener("resize", sizeSnake);
-if (QS.get("focus")) setTimeout(() => { sizeSnake(); field.classList.add("on"); }, 300);   // for screenshots
+const sizeSnake = () => {
+  const r = svg.getBoundingClientRect();
+  SW = Math.round(r.width) - 6; SH = Math.round(r.height) - 6; per = 2 * (SW + SH);
+  const t = svg.querySelector(".trail");
+  t.setAttribute("x", 3); t.setAttribute("y", 3); t.setAttribute("width", SW); t.setAttribute("height", SH);
+  if (!body.children.length) for (let i = 0; i < N; i++) {
+    const q = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    q.setAttribute("width", SQ); q.setAttribute("height", SQ); body.appendChild(q);
+  }
+};
+const draw = () => {
+  [...body.children].forEach((q, i) => {
+    const [x, y] = at(head - i * STEP);
+    q.setAttribute("x", x + 3 - SQ / 2); q.setAttribute("y", y + 3 - SQ / 2);
+  });
+  head = (head + STEP) % per;
+};
+// on while anything in the Ask window is clicked or focused (typing, the scope buttons, ASK); off when you click elsewhere
+const snakeOn = (on) => {
+  askwin.classList.toggle("on", on);
+  clearInterval(timer); timer = 0;
+  if (on) { sizeSnake(); draw(); timer = setInterval(draw, TICK); }
+};
+document.addEventListener("pointerdown", (e) => snakeOn(askwin.contains(e.target)));
+askwin.addEventListener("focusin", () => { if (!timer) snakeOn(true); });
+addEventListener("resize", () => { if (timer) sizeSnake(); });
+if (QS.get("focus")) setTimeout(() => snakeOn(true), 300);   // for screenshots
 document.addEventListener("keydown", (e) => { if (e.key >= "1" && e.key <= "5" && document.activeElement.tagName !== "INPUT") set(+e.key); });
 </script>
 </body>
