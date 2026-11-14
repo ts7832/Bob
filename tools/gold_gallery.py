@@ -23,15 +23,16 @@ ORDER = ["wrong_confident", "missed_refusal", "wrong_flagged", "false_refusal", 
 GREEN, RED, BLUE = (60, 160, 40), (40, 40, 220), (220, 120, 20)  # BGR
 
 
-def page_image(path):
-    """(BGR image, pymupdf page or None). PDFs are rendered exactly as drawqa renders them for evidence."""
+def page_image(path, page_no=1):
+    """(BGR image, pymupdf page or None). PDFs are rendered exactly as drawqa renders them for evidence.
+    page_no is 1-based (the gold line's `page`, default the first page)."""
     import cv2
     import numpy as np
     ext = os.path.splitext(path)[1].lower()
     if ext == ".pdf":
         import pymupdf
         from drawqa import pdfsheet
-        page = pymupdf.open(path)[0]
+        page = pymupdf.open(path)[page_no - 1]
         return pdfsheet.render(page), page
     if ext in (".png", ".jpg", ".jpeg"):
         img = cv2.imdecode(np.fromfile(path, np.uint8), cv2.IMREAD_COLOR)  # imread fails on non-ASCII Windows paths
@@ -124,15 +125,19 @@ def main():
     for r in results:
         q = gold.get(r["id"], {})
         path = os.path.join(ROOT, r["path"])
-        if path not in cache:
+        page_no = int(q.get("page") or 1)
+        key = (path, page_no)
+        if key not in cache:
             try:
-                cache = {path: page_image(path)}  # one sheet at a time: full-size renders are large
+                cache = {key: page_image(path, page_no)}  # one sheet at a time: full-size renders are large
             except Exception as e:
-                print(f"{r['id']}: cannot render {r['path']}: {type(e).__name__}: {e}")
-                cache = {path: (None, None)}
-        img, page = cache[path]
+                print(f"{r['id']}: cannot render {r['path']} page {page_no}: {type(e).__name__}: {e}")
+                cache = {key: (None, None)}
+        img, page = cache[key]
         crop_file = thumb_file = None
-        sys_boxes = [e["bbox"] for e in r.get("evidence", [])] if r.get("source_type") in DRAWN_SOURCE_TYPES else []
+        # drawqa reads the first page of a PDF, so its evidence boxes only belong on page 1
+        on_sheet = r.get("source_type") in DRAWN_SOURCE_TYPES and page_no == 1
+        sys_boxes = [e["bbox"] for e in r.get("evidence", [])] if on_sheet else []
         exp_boxes = expected_marks(page, q.get("evidence_note"))
         if img is not None:
             canvas = img.copy()

@@ -13,7 +13,9 @@ Runs drawqa.solve.solve() on every scored line of gold/gold.jsonl and grades two
              error              solve() raised; the exception is in the report
            plus whether the claimed tier equals the expected tier when one is given.
 
-Only `verified` lines are scored unless --drafts, which also scores `proposed` values and marks them as drafts.
+Only `verified` lines (checked by a person) and `exact` lines (computed from a CAD source by tools/gold_swiss.py) are
+scored unless --drafts, which also scores `proposed` values and marks them as drafts. A line with `"generic": true` is
+solved as an unknown file (solve(..., generic=True): no DXF sibling, no stored predictions), the way a judge's file is.
 Writes gold/reports/<timestamp>.json and .md.
 """
 import argparse, collections, datetime, json, os, re, sys, time, traceback
@@ -147,7 +149,7 @@ def main():
             continue
         if a.origin and q.get("origin") != a.origin:
             continue
-        if q["status"] == "verified":
+        if q["status"] in ("verified", "exact"):
             picked.append((q, False))
         elif a.drafts and q["status"] == "proposed":
             picked.append((q, True))
@@ -165,7 +167,7 @@ def main():
             raise SystemExit(f"{q['id']}: file not found: {path}")
         t0 = time.time()
         try:
-            r = solve(path, q["question"], llm=a.llm)
+            r = solve(path, q["question"], generic=bool(q.get("generic")), llm=a.llm)
         except Exception as e:  # the system failed on this question: an outcome, reported with its traceback
             r = e
         if not isinstance(r, Exception):  # grading errors are bugs in this script and stop the run
