@@ -17,9 +17,17 @@ The drawing view (`viz/`): what exists, and what changed when. Newest first. Usa
 | Symbol-accurate highlights (the drawn door / WC / window glows), class glyphs, double-count note | yes | automatic for symbol classes; README "How evidence is drawn" |
 | 3D fixture models (WC, basin, tub, shower, kitchen, sauna, door leaves); counted ones light up | yes | 3D button |
 | Rotated PDF pages: backend positions turned to match the page image | yes | automatic (`frameFix` in adapter.ts) |
+| Several drawings on one sheet: which one an answer comes from, a picker to frame each | yes | automatic; Drawings picker in the toolbar |
 | Clean view: plan redrawn from detections, swipe compare with the original | yes | Clean view button / C, `view.setClean(on, swipe)` |
 | Evidence that isn't on this sheet (BIM model-wide answers) | yes | says "N of M on this sheet"; selecting one says "Not on this drawing" |
 | Light theme matching the demo page | yes | default |
+
+## 2026-11-15 00:55: sheets with several drawings (task D)
+- **Finds the drawings on a sheet** from the page itself: clusters of ink, with the border, grid lines and title block left out. Each one is titled from the sheet's own texts and printed scales. On scans, the detector's floors are the drawings.
+  - Example: A477 gives "2ND & 3RD FLOOR - 1BD D - ADA TYPE B · 3/8" = 1'-0"" and the TYPE A plan.
+- **Answer card:** "From the drawing <title>" when all the evidence is in one drawing. Otherwise it gives the split, e.g. "2 drawings: TYPE B (5), TYPE A (7)", with a reminder to check they don't show the same floor twice.
+- **Drawings picker** in the toolbar: frames one drawing with a dashed outline and its title and scale.
+- **Door highlights on dense CAD sheets** no longer spread along dimension lines. A door box that already holds the swing is used as it is.
 
 ## 2026-11-15 00:10: real 3D fixtures, whole-object highlights, rotated PDF pages fixed
 - **Rotated PDF pages: highlights were in the wrong place, now fixed in the view.**

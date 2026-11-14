@@ -62,7 +62,9 @@ const SPRITE = 320 // the glow sprite is upscaled to at least this long side, so
 
 export async function inkOf(d: Drawing, el: Element, cls: Cls, color: string): Promise<Ink | null> {
   if (el.geometry === 'polyline' || el.polygon.length < 3) return null
-  const r = el.markup ? await fromMarkup(d, el, color) : fromRaster(d, el, cls === 'door', color)
+  // doors: follow the leaf and swing only from a thin opening box (a box that already holds the swing is the whole door)
+  const b = bbox(el.polygon), thin = Math.max(b.w, b.h) > 1.8 * Math.max(Math.min(b.w, b.h), 1e-6)
+  const r = el.markup ? await fromMarkup(d, el, color) : fromRaster(d, el, cls === 'door' && thin, color)
   if (import.meta.env.DEV && r) ((window as any).__dvInk ??= {})[el.id] = r.canvas // tests: inspect the sprites
   return r
 }
@@ -160,6 +162,17 @@ function fromRaster(d: Drawing, el: Element, grow: boolean, color: string): Ink 
         seen[j] = 1; stack.push(j)
         if (thin[j] && !sat[j]) keep[j] = 1 // coloured lines crossing the swing (unit outlines) are walked over, not drawn
       }
+    }
+  }
+  // grown far beyond the evidence box: it followed other linework (dimension lines, walls), keep only what is in the box
+  if (grow) {
+    let gx0 = w, gy0 = h, gx1 = -1, gy1 = -1
+    for (let i = 0; i < n; i++) if (keep[i]) { const x = i % w, y = (i / w) | 0; if (x < gx0) gx0 = x; if (x > gx1) gx1 = x; if (y < gy0) gy0 = y; if (y > gy1) gy1 = y }
+    const L2 = Math.max(pb.x1 - pb.x0, pb.y1 - pb.y0)
+    if ((gx1 - gx0) * (gy1 - gy0) > 2.2 * L2 * L2) {
+      keep.fill(0)
+      for (let y = Math.max(0, Math.floor(pb.y0 - tol)); y < Math.min(h, Math.ceil(pb.y1 + tol)); y++)
+        for (let x = Math.max(0, Math.floor(pb.x0 - tol)); x < Math.min(w, Math.ceil(pb.x1 + tol)); x++) if (thin[y * w + x] && sat[y * w + x] !== 2) keep[y * w + x] = 1
     }
   }
   // core: the kept strokes in the answer colour, as thick as drawn (the halo makes thin ones readable when zoomed out),

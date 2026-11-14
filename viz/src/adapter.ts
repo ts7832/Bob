@@ -6,6 +6,7 @@ import type { AskJSON, Answer, Context, Drawing, Element, Loaded, PlanJSON, Pt, 
 import { wallsFromImage } from './walls'
 import { thickness } from './geom'
 import { normCls } from './ink'
+import { findViews, viewOf } from './views'
 
 const MAX_PX = 4096 // long side of rasterised vector/svg sheets; safe texture size on any laptop GPU
 
@@ -112,7 +113,9 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
     get walls() { return lazyWalls ? (cached ??= lazyWalls()) : walls },
     wallsDisjoint: !!lazyWalls, rooms, openings, fixtures,
   }
-  return { drawing, plan: planEls, context, guids, classes }
+  let views: Loaded['views'] = []
+  try { views = findViews(drawing, sheet, planEls) } catch { views = [] }
+  return { drawing, plan: planEls, context, guids, classes, views }
 }
 
 // The backend reads PDF text and linework in the unrotated page frame; the page image is rendered with the page's /Rotate.
@@ -234,6 +237,15 @@ export function toAnswer(ask: AskJSON, loaded: Loaded, question?: string | null)
       if (a.every((v, k) => Math.abs(v - b[k]) <= tol)) dupes.push(`${elements[i].label ?? i + 1} & ${elements[j].label ?? j + 1}`)
     }
   }
+  // multi-drawing sheets: which drawings the evidence comes from
+  const inViews = new Map<string, { id: string; title: string; n: number }>()
+  for (const e of elements) {
+    const v = viewOf(loaded.views, e.polygon)
+    if (!v) continue
+    const t = v.title ?? `Drawing ${v.id.replace('view', '')}`
+    const cur = inViews.get(v.id) ?? { id: v.id, title: t + (v.scale ? ` (${v.scale})` : ''), n: 0 }
+    cur.n++; inViews.set(v.id, cur)
+  }
   const unit = ask.unit ? UNITS[ask.unit] ?? ask.unit : ''
   return {
     question: question ?? null,
@@ -243,7 +255,7 @@ export function toAnswer(ask: AskJSON, loaded: Loaded, question?: string | null)
     deterministic: ask.honesty?.deterministic ?? null, basis: ask.honesty?.basis ?? null,
     explanation: ask.error ?? ask.explanation ?? null, method: ask.method ?? null,
     styleWarning: !!ask.honesty?.style_warning,
-    elements: cannot ? [] : elements, dupes: cannot ? [] : dupes, outside: cannot ? 0 : outside, cited: ev.length, citedIds: ev.map((e, i) => e.id ?? `ev${i}`),
+    elements: cannot ? [] : elements, dupes: cannot ? [] : dupes, views: cannot ? [] : [...inViews.values()], outside: cannot ? 0 : outside, cited: ev.length, citedIds: ev.map((e, i) => e.id ?? `ev${i}`),
   }
 }
 
