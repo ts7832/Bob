@@ -36,6 +36,12 @@ Owner: the evaluation / demo pair (not Session A or B). Files here and `tools/go
  "note": ""}
 ```
 
+Optional fields: `"generic": true` (solve the file as an unknown file, no DXF sibling or stored predictions, the way a
+judge's file arrives), `"page": 7` (1-based page of a multi-page PDF the question is about), `"topic"` (e.g. `piping`).
+
+Status `exact`: the answer was computed from a CAD source by `tools/gold_swiss.py` (Swiss DXF: room areas, baseboard
+lengths, door and window counts), cross-checked against printed areas and dataset labels. Scored like `verified`.
+
 Rules:
 
 1. **Only `verified` lines are scored by default.** A `proposed` value is a draft: it may come from an agent reading
@@ -54,6 +60,7 @@ Rules:
 
 ```bash
 .venv/bin/python tools/gold_pick.py                 # -> gold/candidates.csv
+.venv/bin/python tools/gold_swiss.py [--write]      # exact Swiss questions from the DXF (areas, baseboards, doors, windows)
 .venv/bin/python tools/gold_eval.py                 # verified lines only
 .venv/bin/python tools/gold_eval.py --drafts        # also score proposed values (marked as drafts in the report)
 .venv/bin/python tools/gold_eval.py --llm           # let solve() use the language model for free wording
