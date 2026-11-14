@@ -13,6 +13,7 @@ when a language model is configured).
 import os, re, threading
 
 MIN_PROB = float(os.environ.get("JEV_MIN_PROB", "0.5"))
+OVERRIDE_PROB = float(os.environ.get("JEV_OVERRIDE_PROB", "0.9"))   # the router's reading wins a disagreement at this probability (measured best, 2026-11-15)
 _state = threading.local()
 _model = {}
 
@@ -107,8 +108,29 @@ def to_intent(label, q, ifc=None):
     return None
 
 
+def meaning_of(intent):
+    """The meaning label (the router's vocabulary) of an intent read by the pattern router; None when it has none."""
+    i, c, qn = intent.get("intent"), intent.get("cls"), intent.get("quantity")
+    if i in ("room_area", "ifc_room_area"): return "area:one_room"
+    if i in ("floor_area", "ifc_storey_area"): return "area:whole_floor"
+    if i == "unit_area": return "area:apartment"
+    if i in ("label_area", "class_area"): return "area:rooms_of_a_type"
+    if i in ("count_rooms_label", "count_rooms_class"): return "count:rooms_of_a_type"
+    if i == "ifc_count" and c == "space": return "count:all_rooms"
+    if i in ("count_openings", "ifc_count") and c in ("door", "window"): return "count:" + c
+    if i == "count_fixtures" or (i == "ifc_count" and c == "sanitary"):
+        return "count:fixtures:" + ("any" if c == "sanitary" else str(c).replace("shower+bathtub", "shower_or_bathtub"))
+    if i == "ifc_count" and c in ("wall", "stair", "column", "beam"): return "count:" + c
+    if i == "ifc_quantity": return {"length": "length", "net volume": "volume", "net side area": "area"}.get(qn, "quantity") + ":" + str(c)
+    if i == "count_units": return "count:apartments"
+    if i == "count_floors": return "count:floors"
+    return None
+
+
 def install(path=None):
-    """Patch drawqa.router.parse: patterns first, the Jev-style router when they find nothing."""
+    """Patch drawqa.router.parse. Both routers read every question. The pattern router's reading is used when it has
+    one; the Jev-style router's when it has none. last() says whether they agreed, and gives the router's reading as
+    `alt` so a caller can answer it too. force("alt") makes the next parse return the router's reading instead."""
     from drawqa import router
     if getattr(router.parse, "_cascade", False):
         return
@@ -118,17 +140,35 @@ def install(path=None):
 
     def parse(question, *a, **kw):
         r = orig(question, *a, **kw)
-        if r.get("intent") != "unknown":
-            _state.last = dict(by="pattern router", intent=r)
-            return r
         label, p, top = predict(question)
-        it = to_intent(label, question) if p >= MIN_PROB else None
-        _state.last = dict(by="jev router" if it else "nobody", label=label, probability=round(p, 4),
-                           top=[(l, round(v, 4)) for l, v in top], intent=it or {"intent": "unknown"},
-                           note=None if it else ("below the confidence threshold" if p < MIN_PROB else f"'{label}': no usable specifics in the wording"))
-        return it or r
+        jev_it = to_intent(label, question) if p >= MIN_PROB else None
+        pm = meaning_of(r) if r.get("intent") != "unknown" else None
+        info = dict(label=label, probability=round(p, 4), top=[(l, round(v, 4)) for l, v in top], pattern_meaning=pm)
+        if r.get("intent") != "unknown":
+            agree = pm == label
+            info.update(by="pattern router", intent=r, agree=agree, alt=None if agree else jev_it)
+            if jev_it and not agree and p >= OVERRIDE_PROB and getattr(_state, "force", None) != "pattern":
+                info.update(by="jev router (override)", intent=jev_it, alt=r)
+                _state.force = None
+                _state.last = info
+                return jev_it
+            if getattr(_state, "force", None) == "alt" and jev_it:
+                _state.force = None
+                info.update(by="jev router (override)", intent=jev_it)
+                _state.last = info
+                return jev_it
+        else:
+            info.update(by="jev router" if jev_it else "nobody", intent=jev_it or {"intent": "unknown"}, agree=None, alt=None,
+                        note=None if jev_it else ("below the confidence threshold" if p < MIN_PROB else f"'{label}': no usable specifics in the wording"))
+        _state.force = None
+        _state.last = info
+        return info["intent"] if info["by"] == "jev router" else r
     parse._cascade = True
     router.parse = parse
+
+
+def force(which):
+    _state.force = which
 
 
 def last():

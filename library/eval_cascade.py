@@ -53,8 +53,18 @@ def run_chunk(items: list):
         except Exception as e:
             ans, conf, tier, err = None, None, "error", f"{type(e).__name__}: {e}"[:160]
         how = jev_cascade.last() or {}
+        alt_ans = alt_conf = None
+        if how.get("agree") is False and how.get("alt"):          # the routers disagree: answer the router's reading too
+            try:
+                jev_cascade.force("alt")
+                ra = solve("/ds/" + q["path"], q["question"])
+                alt_ans, alt_conf = ra.get("answer"), ra.get("confidence")
+            except Exception:
+                pass
         out.append(dict(id=q["id"], set=q["set"], source=q["path"].split("/")[1], kind=q["kind"], type=q["type"], answer=ans, key=q["answer"],
                         ok=correct(ans, q), read_by=how.get("by"), jev_label=how.get("label"), jev_p=how.get("probability"),
+                        pattern_meaning=how.get("pattern_meaning"), agree=how.get("agree"),
+                        alt_answer=alt_ans, alt_ok=correct(alt_ans, q) if how.get("agree") is False else None, alt_conf=alt_conf,
                         conf=conf, tier=tier, err=err, seconds=round(time.time() - t0, 3)))
     return out
 
