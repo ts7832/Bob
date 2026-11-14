@@ -4,7 +4,7 @@
 //   svg    : BIM plan in viewBox units; evidence is guids, outlines come from the svg paths
 import type { AskJSON, Answer, Context, Drawing, Element, Loaded, PlanJSON, Pt, RenderJSON, SheetJSON, VectorItem } from './types'
 import { wallsFromImage } from './walls'
-import { thickness } from './geom'
+import { obb, thickness } from './geom'
 import { normCls } from './ink'
 import { findViews, viewOf } from './views'
 
@@ -382,6 +382,7 @@ async function rasterSvg(text: string) {
       id, type, name: n.getAttribute('data-name'),
       geometry: usePoly ? 'polygon' : 'box', polygon: (usePoly ? best : bboxRing(pts)).map(toPx), how: 'guid',
       markup: symbol ? ser.serializeToString(n) : null, ext: symbol ? bboxRing(pts).map(toPx) : null,
+      leaf: /Door/.test(type) ? leafOf(rings)?.map(toPx) ?? null : null,
     }
     const prev = guids.get(id) // one guid can appear in several groups (body + annotation): keep the biggest outline
     if (prev && symbol) { // ...but draw every group's paths, over the extent of all of them
@@ -453,6 +454,17 @@ export function area(p: Pt[]) {
   let a = 0
   for (let i = 0; i < p.length; i++) { const [x1, y1] = p[i], [x2, y2] = p[(i + 1) % p.length]; a += x1 * y2 - x2 * y1 }
   return a / 2
+}
+
+// A door's leaf in plan: its thinnest long closed rectangle (drawn open, at 90° to the wall)
+function leafOf(rings: Pt[][]): Pt[] | null {
+  let best: Pt[] | null = null, bestA = 0
+  for (const r of rings) {
+    if (r.length < 4 || r.length > 6) continue
+    const o = obb(r), a = o.len / Math.max(o.dep, 1e-9)
+    if (a >= 5 && a > bestA) { best = r; bestA = a }
+  }
+  return best
 }
 
 const bboxOf = (pts: Pt[]) => {

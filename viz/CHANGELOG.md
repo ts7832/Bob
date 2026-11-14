@@ -22,14 +22,34 @@ The drawing view (`viz/`): what exists, and what changed when. Newest first. Usa
 | Evidence that isn't on this sheet (BIM model-wide answers) | yes | says "N of M on this sheet"; selecting one says "Not on this drawing" |
 | Light theme matching the demo page | yes | default |
 
-## 2026-11-15 00:55: sheets with several drawings (task D)
+## 2026-11-14 22:20: clean view keeps highlighted areas clean
+- **Fix:** in clean view, a highlighted area (a room, a corridor) showed the original drawing inside it, even on the clean side. It now shows the clean drawing on the clean side and the original on the other, split exactly at the divider. The crop panel still shows the untouched original, for checking.
+
+## 2026-11-14 22:05: Photo mode gets the real fixtures; BIM door leaves as drawn; TEAM.md
+- **Photo mode** (path tracing) now renders the same fixture models as 3D: toilets, basins, tubs, showers, kitchens and door leaves. The counted object is a glowing model that lights its room. The old blocks are gone; clearcoat and alpha glass, which path-traced black, are replaced.
+- **BIM door leaves:** each IfcDoor's own leaf rectangle from the model's plan is extruded to door height, open as drawn. A counted BIM door lights up as that exact leaf.
+- **`TEAM.md`:** a one-page guide for teammates. It covers what the view does, which files are whose, the JSON fields the view reads, the open backend asks, and how to test a change against the view.
+
+## 2026-11-14 21:50: rehearsal script and backup video; "can't answer" keeps the real reason
+- **"Can't answer" cards keep the backend's real reason.** If the backend explains why and only then adds a note that the language model is offline, the card now shows the reason.
+  - Example: "rooms are found as boxes by a detector, not as measurable outlines, and no scale is printed."
+  - Before, the whole message was replaced by the generic "needs the language model" line.
+- **`tests/demo.py`:** a scripted rehearsal in `ui/` with captions, checking each answer. It covers four offline-safe questions:
+  - scan doors (12, detected);
+  - Swiss WCs (3, measured) with 3D and the clean view;
+  - total floor area on the scan (honest "can't answer": no scale);
+  - A477 doors (12, two drawings, rotated page).
+  - `--video` records the run (WebM, on the GPU). That's the backup video.
+- **Backend regression:** offline, "What is the ceiling height?" no longer gets its deterministic "cannot determine" answer. It now says "language model on Modal not available", so don't use it in the offline demo.
+
+## 2026-11-14 21:33: sheets with several drawings (task D)
 - **Finds the drawings on a sheet** from the page itself: clusters of ink, with the border, grid lines and title block left out. Each one is titled from the sheet's own texts and printed scales. On scans, the detector's floors are the drawings.
   - Example: A477 gives "2ND & 3RD FLOOR - 1BD D - ADA TYPE B · 3/8" = 1'-0"" and the TYPE A plan.
 - **Answer card:** "From the drawing <title>" when all the evidence is in one drawing. Otherwise it gives the split, e.g. "2 drawings: TYPE B (5), TYPE A (7)", with a reminder to check they don't show the same floor twice.
 - **Drawings picker** in the toolbar: frames one drawing with a dashed outline and its title and scale.
 - **Door highlights on dense CAD sheets** no longer spread along dimension lines. A door box that already holds the swing is used as it is.
 
-## 2026-11-15 00:10: real 3D fixtures, whole-object highlights, rotated PDF pages fixed
+## 2026-11-14 21:18: real 3D fixtures, whole-object highlights, rotated PDF pages fixed
 - **Rotated PDF pages: highlights were in the wrong place, now fixed in the view.**
   - On PDFs whose page has /Rotate (A477, Springhaven P100/P101, 1810 S Park St: 3 of the 5 real-project gold sheets), the page image is turned, but every backend position was in the unturned page frame: texts, rooms, door arcs and `/api/ask` evidence. Example: A477 "12 doors" cited boxes at y = 5253 on a 4500 px tall page.
   - The view now detects this, tests both quarter turns against the ink in the page image, and turns all positions to match. The card says so.
@@ -43,7 +63,7 @@ The drawing view (`viz/`): what exists, and what changed when. Newest first. Usa
 - **3D evidence:** the counted object's own model lights up in the answer colour; the translucent cubes are gone. Selecting a symbol in 3D lowers the walls so it is never hidden.
 - **Harness:** `?path=<server path>&ask=<question>` opens any drawing the server knows and asks live.
 
-## 2026-11-14 22:30: clean view, the plan redrawn from what was detected (task C)
+## 2026-11-14 20:57: clean view, the plan redrawn from what was detected (task C)
 - **Clean view** button (or **C**) in 2D: the plan redrawn from the system's own data, left of a swipe divider. The original drawing stays untouched on the right. Drag the divider to compare any spot.
 - **What is redrawn:**
   - walls: exact on Swiss and BIM sheets, found in the image on scans;
@@ -53,7 +73,7 @@ The drawing view (`viz/`): what exists, and what changed when. Newest first. Usa
 - **Where it is hidden:** in 3D, and on sheets with nothing detected (the judges' PDF sheets), so it never shows an empty redraw.
 - **API:** `view.setClean(on, swipe?)` (swipe = divider position 0..1). Harness: `?clean=0.5`. Test: `tests/clean.py`.
 
-## 2026-11-14 21:15: the drawn symbol lights up, not just its box (task B)
+## 2026-11-14 20:38: the drawn symbol lights up, not just its box (task B)
 - **Counts of doors, windows, WCs, sinks, showers, bathtubs, stairs, columns:** the symbol as drawn on the sheet glows in the answer colour.
   - A door shows its leaf and swing, even though the detector box or opening polygon only covers the gap in the wall.
   - A WC shows its bowl. A window shows its glazing lines.

@@ -200,9 +200,12 @@ const viewLabel = (v: SheetView, i: number) => {
 // Known technical backend messages in plain words; the original stays in the tooltip (and in the chat).
 function friendly(t?: string | null) {
   if (!t) return 'The drawing does not contain what this question needs.'
-  if (/language model (is )?(not available|switched off)|ModuleNotFoundError|DRAWQA_LLM|no ANTHROPIC_API_KEY/i.test(t))
-    return 'This question needs the language model, which is not running in this demo. Try asking with the wording of a listed question.'
-  return t
+  if (!/language model (is )?(not available|switched off)|language model on Modal|ModuleNotFoundError|DRAWQA_LLM|no ANTHROPIC_API_KEY/i.test(t)) return t
+  // keep the real reason the backend gave before its technical note (e.g. "...and no scale is printed.")
+  const cut = t.search(/A language model|language model (on Modal|not available|is not available)|This question was not understood/i)
+  const head = (cut > 0 ? t.slice(0, cut) : '').trim()
+  if (head.length >= 30) return head
+  return 'This question needs the language model, which is not running in this demo. Try asking with the wording of a listed question.'
 }
 
 function AnswerBadge({ answer, boxRef, selectedId, hidden, onStep, onToggle, frameNote, frameBad }: {
