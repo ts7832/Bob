@@ -291,12 +291,37 @@ def _sums(model, loader, tta=True):
     with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
         for x, _, _, idx in loader:
             x = x.cuda(non_blocking=True).to(memory_format=torch.channels_last)
-            p = model(x).float().clamp(min=0)
+            p = model(x).float()          # no clamp: training sums the raw map, so counting must too
             if tta:
-                p = (p + model(x.flip(3)).float().clamp(min=0).flip(3)) / 2
+                p = (p + model(x.flip(3)).float().flip(3)) / 2
             s = p.sum((2, 3)) / 100
             for i, v in zip(idx.tolist(), s.cpu().tolist()):
                 out[i] = v
+    return out
+
+
+def _peaks(model, loader, tta=True, floor=0.8):
+    """Per plan and kind: the sum of the map, and its local peaks as (value, x, y) in map cells, strongest first."""
+    import torch, torch.nn.functional as F
+    out = {}
+    model.eval()
+    with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
+        for x, _, _, idx in loader:
+            x = x.cuda(non_blocking=True).to(memory_format=torch.channels_last)
+            p = model(x).float()
+            if tta:
+                p = (p + model(x.flip(3)).float().flip(3)) / 2
+            sums = (p.sum((2, 3)) / 100).cpu().tolist()
+            sm = F.avg_pool2d(p, 3, stride=1, padding=1)                 # a little smoothing before looking for peaks
+            top = (F.max_pool2d(sm, 7, stride=1, padding=3) == sm) & (sm > floor)
+            for b, i in enumerate(idx.tolist()):
+                per = []
+                for c in range(p.shape[1]):
+                    ys, xs = torch.nonzero(top[b, c], as_tuple=True)
+                    v = sm[b, c, ys, xs]
+                    order = torch.argsort(v, descending=True)[:200]
+                    per.append([(round(v[j].item(), 2), int(xs[j]), int(ys[j])) for j in order])
+                out[i] = dict(sums=sums[b], peaks=per)
     return out
 
 
@@ -383,7 +408,8 @@ def _dist(s, a, b):
 
 @APP.function(image=image, volumes={D: VOL}, gpu=GPU, timeout=3600, cpu=8, memory=16384)
 def predict(run: str, weights: str = "best"):
-    """Counts with probabilities for the test plans. The spread is fitted on the validation plans only."""
+    """Counts for the test plans, two ways from the same maps: the sum of the map, and the number of peaks above a
+    threshold. Which way and which threshold is chosen per kind on the validation plans only."""
     import torch
     VOL.reload()
     labels = json.load(open(f"{D}/rival/labels.json"))
@@ -393,23 +419,36 @@ def predict(run: str, weights: str = "best"):
     for split in ("val", "test"):
         names = sorted(n for n, l in labels.items() if l["split"] == split)
         dl = torch.utils.data.DataLoader(_dataset(labels, names, False), batch_size=8, num_workers=7)
-        sums = _sums(model, dl)
-        res[split] = {n: sums[i] for i, n in enumerate(names)}
-    spread = {}
+        r = _peaks(model, dl)
+        res[split] = {n: r[i] for i, n in enumerate(names)}
+    THR = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
+    count = lambda r, c, t: sum(1 for v, _, _ in r["peaks"][c] if v >= t)
+    rule, out = {}, {}
     for c, kd in enumerate(KINDS):
-        rows = [(res["val"][n][c], labels[n]["answers"][kd]) for n in res["val"] if kd in labels[n]["answers"]]
-        spread[kd] = _fit_spread(rows)
-    out = {}
-    for n, s in res["test"].items():
+        val = [(r, labels[n]["answers"][kd]) for n, r in res["val"].items() if kd in labels[n]["answers"]]
+        acc = {("sum", 0): sum(round(r["sums"][c]) == a for r, a in val) / max(1, len(val))}
+        for t in THR:
+            acc[("peaks", t)] = sum(count(r, c, t) == a for r, a in val) / max(1, len(val))
+        how, t = max(acc, key=acc.get)
+        # how often the chosen way is exactly right on validation plans, by size of the count: the first confidence
+        hit = {}
+        for r, a in val:
+            k = round(r["sums"][c]) if how == "sum" else count(r, c, t)
+            b = min(k, 12) // 3
+            hit.setdefault(b, []).append(k == a)
+        rule[kd] = dict(how=how, threshold=t, val_accuracy=round(acc[(how, t)], 4), val_sum=round(acc[("sum", 0)], 4),
+                        by_size={b: round((sum(v) + 1) / (len(v) + 2), 3) for b, v in hit.items()})
+    for n, r in res["test"].items():
         out[n] = {}
         for c, kd in enumerate(KINDS):
-            d = _dist(s[c], *spread[kd])
-            k = max(d, key=d.get)
-            out[n][kd] = dict(answer=k, confidence=round(d[k], 4), sum=round(s[c], 3),
-                              distribution={str(a): round(v, 4) for a, v in d.items() if v >= 0.005})
-    json.dump(dict(spread=spread, test=out), open(f"{D}/rival/runs/{run}/predictions.json", "w"))
+            ru = rule[kd]
+            k = round(r["sums"][c]) if ru["how"] == "sum" else count(r, c, ru["threshold"])
+            k = max(0, k)
+            pts = [[x * STRIDE, y * STRIDE, v] for v, x, y in r["peaks"][c] if v >= (ru["threshold"] or 2.0)]
+            out[n][kd] = dict(answer=k, confidence=ru["by_size"].get(min(k, 12) // 3, ru["val_accuracy"]), sum=round(r["sums"][c], 2), points=pts)
+    json.dump(dict(rule=rule, test=out), open(f"{D}/rival/runs/{run}/predictions.json", "w"))
     VOL.commit()
-    return dict(spread=spread, test=out)
+    return dict(rule=rule, test=out)
 
 
 @APP.local_entrypoint()
@@ -432,6 +471,7 @@ def main(stage: str = "download", run: str = "r1", epochs: int = 30, batch: int 
                 a = r["test"].get(os.path.basename(q["path"])[:-4], {}).get(q["kind"])
                 if a:
                     f.write(json.dumps(dict(id=q["id"], answer=a["answer"], confidence=a["confidence"], tier="detected",
-                                            method=f"rival:{run} density count", distribution=a["distribution"], cost_usd=0.0)) + "\n")
-        print("spread", r["spread"])
+                                            method=f"rival:{run} density map", evidence=a["points"], cost_usd=0.0)) + "\n")
+        for kd, ru in r["rule"].items():
+            print(kd, ru)
         print("wrote", path)
