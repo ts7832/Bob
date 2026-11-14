@@ -9,12 +9,13 @@ process, no proxy hop). Added routes:
   /viz/drawview.js   oliraff's drawing view bundle (viz/dist/drawview.js once PR #5 is merged, or --viz / DRAWQA_VIZ)
   /api/gold          the checked gold questions (gold/gold.jsonl, status verified or exact), grouped by drawing,
                      for the page's rehearsed questions and its "checked answer" comparison
+  POST /api/feedback a correction from the page ("Wrong answer?"), appended to gold/feedback.jsonl for the team to check
   /api/cost?path=    what one drawing has cost so far (tools/ui_cost.py meters every /api/* request: model calls,
                      tokens, GPU time, dollars); /api/ask answers also carry their own `cost`, with the drawing's total
 
 The demo's own "/" moves to /classic; nothing else changes.
 """
-import argparse, collections, importlib.util, io, json, os, sys, threading
+import argparse, collections, importlib.util, io, json, os, sys, threading, time
 from http.server import ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -22,6 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 UI = os.path.join(REPO, "ui", "index.html")
 GOLD = os.path.join(REPO, "gold", "gold.jsonl")
+FEEDBACK = os.path.join(REPO, "gold", "feedback.jsonl")  # corrections from the page's "Wrong answer?" form
 
 
 def load_demo():
@@ -111,6 +113,21 @@ def main():
 
         def do_POST(self):
             u = urlparse(self.path)
+            if u.path == "/api/feedback":  # "Wrong answer?" on the page: kept for the team to check and add to the gold set
+                try:
+                    body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)))
+                    entry = {k: body.get(k) for k in ("path", "file", "question", "answer", "unit", "tier", "correction", "note")}
+                    if not entry["question"] or not entry["correction"]:
+                        return self._send(400, {"error": "a question and the right answer are needed"})
+                    entry["time"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+                    with lock:
+                        with open(FEEDBACK, "a", encoding="utf-8") as f:
+                            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                        with open(FEEDBACK, encoding="utf-8") as f:
+                            saved = sum(1 for line in f if line.strip())
+                    return self._send(200, {"ok": True, "saved": saved, "file": os.path.relpath(FEEDBACK, REPO)})
+                except Exception as e:
+                    return self._send(500, {"error": f"{type(e).__name__}: {e}"})
             if not u.path.startswith("/api/"):
                 return super().do_POST()
             n = int(self.headers.get("Content-Length") or 0)
