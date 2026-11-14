@@ -9,12 +9,14 @@ process, no proxy hop). Added routes:
   /viz/drawview.js   oliraff's drawing view bundle (viz/dist/drawview.js once PR #5 is merged, or --viz / DRAWQA_VIZ)
   /api/gold          the checked gold questions (gold/gold.jsonl, status verified or exact), grouped by drawing,
                      for the page's rehearsed questions and its "checked answer" comparison
+  /api/cost?path=    what one drawing has cost so far (tools/ui_cost.py meters every /api/* request: model calls,
+                     tokens, GPU time, dollars); /api/ask answers also carry their own `cost`, with the drawing's total
 
 The demo's own "/" moves to /classic; nothing else changes.
 """
-import argparse, collections, importlib.util, json, os, sys
+import argparse, collections, importlib.util, io, json, os, sys, threading
 from http.server import ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -62,11 +64,74 @@ def main():
     viz_ok = os.path.isfile(a.viz)
     if not viz_ok:  # the page still runs and says why the drawing view is missing
         print(f"warning: drawing view bundle not found at {a.viz}; merge PR #5 (viz/) or pass --viz <path to drawview.js>")
+    sys.path.insert(0, HERE)
+    import ui_cost
+    for line in ui_cost.instrument():  # before any model client exists; patches classes, so import order does not matter
+        print(f"cost meter: {line}")
     demo = load_demo()
 
+    per_drawing = collections.defaultdict(lambda: dict(usd=0.0, unpriced_calls=0, model_calls=0, requests=0))
+    lock = threading.Lock()
+
     class H(demo.H):
+        # Every /api/* request is metered; its model calls are added to the drawing it is about. /api/ask answers
+        # also carry their own cost and the drawing's running total, so the page can say what reading this drawing
+        # and answering its questions has cost so far (ingestion included: the first render/plan converts the file).
+        def _meter(self, drawing, inner):
+            self._cost_path, self._cost_ask = drawing, urlparse(self.path).path == "/api/ask"
+            ui_cost.start()
+            try:
+                return inner()
+            finally:
+                if ui_cost.active():  # the demo answered without our _send (an exception path): close the meter
+                    self._account(ui_cost.summary(), None)
+
+        def _account(self, s, response_body):
+            key = self._cost_path or (response_body.get("path") if isinstance(response_body, dict) else None)
+            if not key:
+                return None
+            with lock:
+                t = per_drawing[key]
+                t["requests"] += 1
+                t["model_calls"] += s["model_calls"]
+                t["usd"] += s["usd_known"]
+                t["unpriced_calls"] += len(s["incomplete"])
+                return dict(t)
+
         def do_GET(self):
             u = urlparse(self.path)
+            if u.path == "/api/cost":  # running cost of one drawing
+                key = (parse_qs(u.query).get("path") or [""])[0]
+                with lock:
+                    return self._send(200, dict(per_drawing.get(key) or dict(usd=0.0, unpriced_calls=0, model_calls=0, requests=0)))
+            if u.path.startswith("/api/"):
+                return self._meter((parse_qs(u.query).get("path") or [None])[0], lambda: self._get(u))
+            return self._get(u)
+
+        def do_POST(self):
+            u = urlparse(self.path)
+            if not u.path.startswith("/api/"):
+                return super().do_POST()
+            n = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(n) if n else b""
+            self.rfile = io.BytesIO(raw)  # the demo handler reads the body again
+            drawing = None
+            if u.path in ("/api/ask", "/api/read"):
+                try:
+                    drawing = json.loads(raw).get("path")
+                except ValueError:
+                    pass
+            return self._meter(drawing, super().do_POST)
+
+        def _send(self, code, body, ctype="application/json"):
+            if ui_cost.active() and isinstance(body, (dict, list)):
+                s = ui_cost.summary()
+                total = self._account(s, body)
+                if getattr(self, "_cost_ask", False) and isinstance(body, dict):
+                    body = dict(body, cost=dict(s, drawing=total))
+            return super()._send(code, body, ctype)
+
+        def _get(self, u):
             try:
                 if u.path in ("/", "/index.html"):
                     return self._send(200, open(UI, "rb").read(), "text/html; charset=utf-8")
