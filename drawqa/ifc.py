@@ -118,4 +118,25 @@ def execute(sheet, intent):
         unit = {"net volume": "m3", "length": "m", "net side area": "m2"}[intent["quantity"]]
         return dict(answer=round(tot, 3), unit=unit, evidence=ev(els),
                     explanation=f"Sum of {intent['quantity']} over {len(els)} {intent['cls']}s on '{intent['storey']}' = {tot:.3f} {unit}.")
+    if it == "opening_width" and intent.get("cls") in ("door", "window"):
+        els = _elements(m, intent["cls"], intent.get("storey"))
+        k = UU.calculate_unit_scale(m)  # model length unit -> metres
+        ws = [(e, round(float(e.OverallWidth) * k, 2)) for e in els if getattr(e, "OverallWidth", None)]
+        if not ws:
+            return dict(answer=None, explanation=f"None of the {len(els)} {CLS[intent['cls']]} elements carries an OverallWidth.")
+        vals = sorted(w for _, w in ws)
+        groups = {}
+        for w in vals:
+            groups[w] = groups.get(w, 0) + 1
+        listing = ", ".join(f"{g:.2f} m × {n}" for g, n in sorted(groups.items()))
+        where = f"storey '{intent['storey']}'" if intent.get("storey") else "the whole model"
+        base = (f"OverallWidth of {len(ws)} {CLS[intent['cls']]} elements in {where}: {listing}."
+                + (f" {len(els) - len(ws)} more carry no width." if len(ws) < len(els) else ""))
+        pick = (intent.get("quantity") or "").lower()
+        if pick in ("largest", "smallest"):
+            w = vals[-1] if pick == "largest" else vals[0]
+            chosen = [e for e, x in ws if x == w]
+            return dict(answer=w, unit="m", evidence=ev(chosen, lambda e: f"{w:.2f} m"),
+                        explanation=f"The {'widest' if pick == 'largest' else 'narrowest'} {intent['cls']} is {w:.2f} m. " + base)
+        return dict(answer=listing, unit=None, evidence=ev([e for e, _ in ws], None), explanation=base)
     return dict(answer=None, explanation=f"Not supported for BIM yet ({it}).")

@@ -1,4 +1,5 @@
 """Deterministic queries over a sheet graph. The LLM never counts or adds; this module does."""
+import math, re
 
 ROOM_WORDS = {"room": "general room", "living_room": "living room", "dining": "dining area", "entry": "entrance / hall",
               "storage": "storage / closet", "utility": "utility / technical room", "dressing_room": "dressing room",
@@ -87,9 +88,147 @@ def _sum_areas(sheet, rooms, what):
                 explanation=f"{what}: {terms} = {total:.2f} m².{left_out}")
 
 
+ASSUMED_HEIGHT = 2.5  # m; a common room height. Used only when the question gives none, and always said in the answer
+
+
+def _select_rooms(sheet, intent):
+    """Rooms a free-form step names: printed names (labels), room types (classes), a room number, an apartment letter,
+    or nothing = all indoor rooms. -> (rooms, description)"""
+    rooms = sheet.get("rooms", [])
+    labels = intent.get("labels") or ([intent["label"]] if intent.get("label") else [])
+    classes = [("sauna_room" if c == "sauna" else c) for c in (intent.get("classes") or [])]
+    if labels:
+        want = {l.strip().lower() for l in labels}
+        return [r for r in rooms if (r.get("name") or "").strip().lower() in want], "rooms labelled " + ", ".join(f"'{l}'" for l in labels)
+    if classes:
+        return [r for r in rooms if r.get("cls") in classes], " + ".join(ROOM_WORDS.get(c, c) for c in classes) + " rooms"
+    if intent.get("number"):
+        return [r for r in rooms if r.get("number") == intent["number"]], f"room {intent['number']}"
+    if intent.get("unit"):
+        return [r for r in rooms if r.get("unit") == intent["unit"] and not r.get("outdoor")], f"apartment {intent['unit']} (indoor rooms)"
+    return [r for r in rooms if not r.get("outdoor")], "all indoor rooms"
+
+
+def _outline_source(sheet):
+    return {"raster": "outlines drawn by the segmentation model", "vector-pdf": "room outlines from the PDF's linework",
+            "vector-dxf": "exact CAD geometry"}.get(sheet.get("source_type"), "room outlines")
+
+
+def _perimeters(sheet, intent):
+    """-> (result dict for a failure, None) or (None, (total m, [(room, m)], rooms without outline, description))."""
+    rooms, what = _select_rooms(sheet, intent)
+    mpp = (sheet.get("scale") or {}).get("m_per_px")
+    if not rooms:
+        return dict(answer=None, explanation=f"No {what} found on this drawing."), None
+    if not mpp:
+        return dict(answer=None, explanation=f"Perimeter of {what} cannot be measured: this drawing has no scale to turn its outlines into metres."), None
+    raster = sheet.get("source_type") == "raster"
+    done, missing = [], []
+    for r in rooms:
+        pts = r.get("polygon")
+        if not pts or len(pts) < 3 or (raster and r.get("outline_conf") is None):  # a detector box is not an outline
+            missing.append(r)
+            continue
+        done.append((r, round(sum(math.dist(pts[i], pts[(i + 1) % len(pts)]) for i in range(len(pts))) * mpp, 2)))
+    if not done:
+        return dict(answer=None, explanation=f"Perimeter of {what} cannot be measured: none of the {len(rooms)} room(s) has an outline."), None
+    return None, (round(sum(p for _, p in done), 2), done, missing, what)
+
+
+def _room_tag(r):
+    return " ".join(str(x) for x in (r.get("number"), r.get("name") or ROOM_WORDS.get(r.get("cls"), r.get("cls"))) if x)
+
+
+def _room_perimeter(sheet, intent):
+    fail, ok = _perimeters(sheet, intent)
+    if fail:
+        return fail
+    total, done, missing, what = ok
+    left = (f" {len(missing)} of {len(done) + len(missing)} matching room(s) have no outline and are NOT in this sum: the true value is larger."
+            if missing else "")
+    return dict(answer=total, unit="m", evidence=[_shape(sheet, r, f"{p:.2f} m") for r, p in done], elements_used=[r for r, _ in done],
+                area_sources=[_outline_source(sheet)],
+                explanation=f"Perimeter of {what}: " + " + ".join(f"{p:.2f} ({_room_tag(r)})" for r, p in done) + f" = {total:.2f} m, "
+                            f"measured along each room's outline (wall faces; door openings are not subtracted).{left}")
+
+
+def _height(intent):
+    """A ceiling height the question gave ("2.7", "2.7 m", "270 cm") -> metres, or None."""
+    s = str(intent.get("height") or "").replace(",", ".")
+    m = re.search(r"\d+(\.\d+)?", s)
+    if not m:
+        return None
+    h = float(m.group())
+    return h / 100 if ("cm" in s or h > 20) else h / 1000 if "mm" in s else h
+
+
+def _wall_area(sheet, intent):
+    fail, ok = _perimeters(sheet, intent)
+    if fail:
+        return fail
+    total, done, missing, what = ok
+    h = _height(intent)
+    assumed = h is None
+    h = ASSUMED_HEIGHT if assumed else h
+    area = round(total * h, 2)
+    left = f" {len(missing)} matching room(s) have no outline and are NOT included: the true value is larger." if missing else ""
+    hnote = (f"the room height is ASSUMED to be {h:g} m (a common room height; a floor plan does not show it): "
+             f"give the real height for a better answer" if assumed else f"room height {h:g} m as given in the question")
+    res = dict(answer=area, unit="m2", evidence=[_shape(sheet, r, f"{p:.2f} m") for r, p in done], elements_used=[r for r, _ in done],
+               area_sources=[_outline_source(sheet)],
+               explanation=f"Wall area of {what} = perimeter {total:.2f} m"
+                           + (f" = {' + '.join(f'{p:.2f} m ({_room_tag(r)})' for r, p in done)}" if len(done) > 1 else "")
+                           + f" × height {h:g} m = {area:.2f} m²; {hnote}. Door and window "
+                           f"openings are not subtracted, and no waste allowance is added.{left}")
+    if assumed:
+        res["assumed"] = f"room height assumed to be {h:g} m"
+    return res
+
+
+def _opening_widths(sheet, intent):
+    cls = intent["cls"]
+    mpp = (sheet.get("scale") or {}).get("m_per_px")
+    els = [o for o in sheet.get("openings", []) if o["cls"] == cls]
+    if not els:
+        return dict(answer=None, explanation=f"No {cls} was found on this drawing, so there is no width to give.")
+    widths = []
+    for o in els:
+        w = o.get("width_m")
+        if w is None and mpp and o.get("bbox"):  # long side of the symbol's box (the leaf for a door, the pane run for a window)
+            x0, y0, x1, y1 = o["bbox"]
+            w = round(max(abs(x1 - x0), abs(y1 - y0)) * mpp, 2)
+        if w is not None:
+            widths.append((o, w))
+    if not widths:
+        return dict(answer=None, explanation=f"Widths of the {cls}s cannot be measured: this drawing has no scale.")
+    how = ("measured along the wall it sits in" if any(o.get("width_m") is not None for o, _ in widths) else "taken as the long side of its symbol")
+    ws = sorted(w for _, w in widths)
+    groups = {}
+    for w in ws:  # grouped to 5 cm: symbol boxes scatter by a few centimetres
+        g = round(w * 20) / 20
+        groups[g] = groups.get(g, 0) + 1
+    listing = ", ".join(f"{g:.2f} m × {n}" for g, n in sorted(groups.items()))
+    pick = (intent.get("quantity") or "").lower()
+    skipped = f" {len(els) - len(widths)} {cls}(s) could not be measured." if len(widths) < len(els) else ""
+    base = (f"Widths of {len(widths)} {cls}s, each {how}, grouped to 5 cm: {listing}. "
+            f"Narrowest {ws[0]:.2f} m, widest {ws[-1]:.2f} m, median {ws[len(ws) // 2]:.2f} m.{skipped}")
+    ev = [_shape(sheet, o, f"{w:.2f} m") for o, w in widths]
+    used = [o for o, _ in widths]
+    if pick in ("largest", "smallest"):
+        w = ws[-1] if pick == "largest" else ws[0]
+        return dict(answer=w, unit="m", evidence=ev, elements_used=used, explanation=f"The {'widest' if pick == 'largest' else 'narrowest'} {cls} is {w:.2f} m. " + base)
+    return dict(answer=listing, unit=None, evidence=ev, elements_used=used, explanation=base)
+
+
 def execute(sheet, intent):
     it = intent["intent"]
     rooms = sheet.get("rooms", [])
+    if it == "opening_width":
+        return _opening_widths(sheet, intent)
+    if it == "room_perimeter":
+        return _room_perimeter(sheet, intent)
+    if it == "wall_area":
+        return _wall_area(sheet, intent)
     if it == "count_openings":
         return _count_openings(sheet, [o for o in sheet.get("openings", []) if o["cls"] == intent["cls"]], intent["cls"])
     if it == "scale":

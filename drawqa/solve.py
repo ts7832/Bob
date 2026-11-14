@@ -52,8 +52,23 @@ def honesty(sheet, intent, res):
     """
     if res.get("answer") is None:
         return dict(tier="cannot determine", deterministic=None, basis=res.get("explanation", "not supported for this drawing"))
+    if res.get("assumed"):  # a number the drawing does not give (a room height): never better than estimated
+        inner = honesty(sheet, intent, {k: v for k, v in res.items() if k != "assumed"})
+        return dict(inner, tier="estimated", deterministic=False, basis=f"{res['assumed']}; the rest: {inner['tier']}, {inner['basis']}")
     st, it = sheet["source_type"], intent["intent"]
     scale = sheet.get("scale") or {}
+    if it == "opening_width" and st != "ifc":
+        used = res.get("elements_used", [])
+        est = bool(scale.get("estimated"))
+        sc = f"scale {scale.get('source')}" + (f" ({scale.get('length_error')})" if est and scale.get("length_error") else "")
+        if st == "vector-dxf":
+            return dict(tier="measured", deterministic=True, basis="symbol sizes in the CAD file's own units")
+        if st == "vector-pdf" and used and all(e.get("exact") for e in used) and not est:
+            return dict(tier="measured", deterministic=True,
+                        basis=f"each {intent['cls']} matched to a rectangle in the PDF's own linework, measured at the {sc}")
+        confs = [e.get("conf") for e in used if e.get("conf") is not None]
+        return dict(tier="estimated" if est else "detected", deterministic=False, weakest=min(confs) if confs else None,
+                    basis=f"{len(used)} {intent['cls']}(s) found by the trained detector, each width taken from its box; {sc}")
     if it == "scale":
         est = bool(res.get("scale_estimated"))
         return dict(tier="estimated" if est else "read", deterministic=not est, basis=scale.get("source") or "")
@@ -176,7 +191,7 @@ def table_answer(path, question, use_model=False):
     return res
 
 
-def names_a_table(question, tabs):
+def names_a_table(question, tabs, values=True):
     """True when the question is about a table on this sheet: it uses a table's title (at least two of its words and
     most of them), or it says schedule / scheduled / listed and the sheet has tables. Such a question is answered
     from the table, not by counting symbols: "how many doors are in the door schedule" is not a count of drawn doors."""
@@ -187,6 +202,31 @@ def names_a_table(question, tabs):
     for t in tabs:
         words = {w for w in re.findall(r"[a-z]+", t["title"].lower()) if len(w) > 2}
         if len(words) >= 2 and len(q & words) >= 2 and len(q & words) >= 0.6 * len(words):
+            return True
+    return values and mentions_table_values(question, tabs)
+
+
+GENERIC = {"room", "rooms", "door", "doors", "what", "which", "many", "total", "with", "from", "that", "this", "have", "there",
+           "sheet", "drawing", "drawings", "plan", "plans", "number", "type", "types", "column", "notes", "note", "same", "each",
+           "their", "they", "them", "these", "those", "into", "over", "under", "between", "level", "floor", "wall", "walls"}
+
+
+def mentions_table_values(question, tabs):
+    """True when the question uses the table's own contents without naming the table: a code that is a cell value
+    ("door 115.A", "type B2", "finish F4", "ESDH3066 units"), or a column's header word together with a word that occurs
+    in that table's cells ("area" + "locker" for "the combined area of the locker rooms")."""
+    import re
+    from . import schedule
+    toks = set(schedule._tok(question))
+    code = lambda w: bool(re.search(r"[a-z]", w) and re.search(r"\d", w))
+    qwords = {w for w in re.findall(r"[a-z]+", question.lower()) if len(w) >= 4} - GENERIC
+    for t in tabs:
+        cells = [str(c) for r in t["rows"] for c in r if c]
+        if {w for c in cells for w in schedule._tok(c) if code(w)} & {w for w in toks if code(w)}:
+            return True
+        head = {w for c in t.get("columns", []) for w in re.findall(r"[a-z]+", str(c).lower()) if len(w) >= 4} - {"column"}
+        body = {w for c in cells for w in re.findall(r"[a-z]+", c.lower()) if len(w) >= 4} - head
+        if qwords & head and qwords & body:
             return True
     return False
 
@@ -246,7 +286,11 @@ def combine(parts, how, read_by, sheet):
     if how == "sum":
         ans, text = round(sum(vals), 2), f"{listing}. Sum = {round(sum(vals), 2):g}{UNIT_WORDS.get(unit, '')}."
     elif how == "difference":
-        ans, text = round(vals[0] - vals[1], 2), f"{listing}. Difference (first minus second) = {round(vals[0] - vals[1], 2):g}{UNIT_WORDS.get(unit, '')}."
+        d = round(vals[0] - vals[1], 2)
+        ans, text = d, f"{listing}. Difference (first minus second) = {d:g}{UNIT_WORDS.get(unit, '')}."
+        if d < 0:  # "how much bigger is A than B" when A is the smaller one: say so in words, not only by the sign
+            less = {"m2": "smaller", "sqft": "smaller", "count": "fewer"}.get(unit, "less")
+            text += f" The answer is negative: {parts[0][0]} is {-d:g}{UNIT_WORDS.get(unit, '')} {less} than {parts[1][0]}, not more."
     elif how in ("largest", "smallest"):
         pick = (max if how == "largest" else min)(range(len(vals)), key=lambda i: vals[i])
         tie = sum(1 for v in vals if v == vals[pick]) > 1
@@ -262,13 +306,26 @@ def combine(parts, how, read_by, sheet):
                              basis="; ".join(f"{t}: {r['honesty']['tier']}, {r['honesty']['basis']}" for t, r in parts)))
 
 
+def _model_plan(question, sheet):
+    from . import llm_router
+    return llm_router.parse(question, sheet)
+
+
+def _model_read_by(plan, note, model):
+    return dict(by="language model", model=model,
+                note=f"read by a language model ({model}) as: {note} The model chose the tool"
+                     + (" only" if len(plan["steps"]) == 1 else "s and how to combine them") + "; the values are computed by code.")
+
+
 def solve(path, question, generic=False, llm=False):
     """llm=True: a question no pattern matches is read by a language model, which only chooses the tool calls and how
     to combine them (drawqa/llm_router.py), and a table question may get its query written by one (table_answer).
     The scoreboard leaves it off."""
     intent = router.parse(question)
     tabs = _tables(path)
-    about_table = bool(tabs) and names_a_table(question, tabs)
+    # a question the patterns read as a query on a building model is answered by the model, even when the plan PDF
+    # has a room table with the same codes; only the table's title or the word "schedule" sends it to the table then
+    about_table = bool(tabs) and names_a_table(question, tabs, values=not intent["intent"].startswith("ifc_"))
     if tabs and (about_table or intent["intent"] == "unknown"):  # before the sheet is converted: a table needs no detector run
         alt = table_answer(path, question, use_model=llm and about_table)
         if alt is not None:
@@ -282,15 +339,17 @@ def solve(path, question, generic=False, llm=False):
     sheet = load_sheet(path, generic)
     read_by = dict(by="pattern", note="matched a known question pattern")
     plan = None
-    if intent["intent"] == "unknown" and llm and sheet.get("source_type") != "unknown":
-        from . import llm_router
-        plan, note, model = llm_router.parse(question, sheet)
+    # on a building model, a question the patterns read as a plain drawing count ("doors on the second floor") may
+    # name a storey those patterns ignore: let the model read it, and keep the pattern's reading if it cannot
+    loose_on_ifc = sheet.get("source_type") == "ifc" and intent["intent"] not in ("unknown", "scale") and not intent["intent"].startswith("ifc_")
+    asked_model = False
+    if (intent["intent"] == "unknown" or loose_on_ifc) and llm and sheet.get("source_type") != "unknown":
+        plan, note, model = _model_plan(question, sheet)
+        asked_model = True
         if plan is not None:
-            read_by = dict(by="language model", model=model,
-                           note=f"read by a language model ({model}) as: {note} The model chose the tool"
-                                + (" only" if len(plan["steps"]) == 1 else "s and how to combine them") + "; the values are computed by code.")
+            read_by = _model_read_by(plan, note, model)
             intent = plan["steps"][0]
-        else:
+        elif not loose_on_ifc:
             read_by = dict(by="nobody", note=note)
     if plan is not None and len(plan["steps"]) > 1:
         parts = [(st["title"], _finish(sheet, st, _run(sheet, st), read_by)) for st in plan["steps"]]
@@ -301,6 +360,21 @@ def solve(path, question, generic=False, llm=False):
                    "This question does not match a known pattern, and free wording was not sent to a language model.")
     else:
         res = _run(sheet, intent)
+    if res.get("answer") is None and llm and not asked_model and sheet.get("source_type") != "unknown":
+        # a known pattern matched, but its tool found nothing: the pattern may have misread free wording ("wall area
+        # ... kitchen" read as the kitchen's floor area), so the model reads the question once; its plan is kept only
+        # if it gives an answer
+        plan2, note2, model2 = _model_plan(question, sheet)
+        if plan2 is not None:
+            rb2 = _model_read_by(plan2, note2, model2)
+            if len(plan2["steps"]) > 1:
+                out = combine([(st["title"], _finish(sheet, st, _run(sheet, st), rb2)) for st in plan2["steps"]], plan2["combine"], rb2, sheet)
+                if out.get("answer") is not None:
+                    return out
+            else:
+                res2 = _run(sheet, plan2["steps"][0])
+                if res2.get("answer") is not None:
+                    return _finish(sheet, plan2["steps"][0], res2, rb2)
     if res.get("answer") is None:  # nothing from the drawing itself: maybe a table on the sheet answers it
         alt = table_answer(path, question, use_model=llm)
         if alt is not None:

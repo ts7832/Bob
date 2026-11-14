@@ -21,7 +21,7 @@ ROOM_CLASSES = ["bedroom", "kitchen", "bathroom", "wc_room", "balcony", "sauna",
                 "storage", "utility", "dressing_room", "terrace", "garage"]
 IFC_CLASSES = ["door", "window", "wall", "column", "beam", "stair", "space", "slab", "sanitary"]
 QUANTITIES = ["net volume", "net side area", "length"]
-ARGS = ("cls", "label", "number", "unit", "storey", "quantity", "name")
+ARGS = ("cls", "label", "number", "unit", "storey", "quantity", "name", "height")
 LISTS = ("labels", "classes")  # several printed names / several room types in one question ("the toilets")
 # intent -> (arguments it needs, allowed values of cls or None)
 INTENTS = {
@@ -38,14 +38,21 @@ INTENTS = {
     "class_area": (("classes",), None),
     "wall_length": ((), None),
     "scale": ((), None),
-    "ifc_count": (("cls",), IFC_CLASSES),
+    "ifc_count": (("cls", "storey"), IFC_CLASSES),  # storey may be empty: the whole model
     "ifc_room_area": (("name", "number", "storey"), None),
     "ifc_storey_area": (("storey",), None),
     "ifc_quantity": (("quantity", "cls", "storey"), ["wall", "slab"]),
+    "opening_width": (("cls",), ["door", "window"]),
+    "room_perimeter": ((), None),
+    "wall_area": ((), None),
     "unknown": ((), None),
 }
+ROOM_PICK = ("labels", "classes", "number", "unit")  # which rooms; none of them = all indoor rooms
+OPTIONAL = {"opening_width": ("quantity", "storey"), "room_perimeter": ROOM_PICK, "wall_area": ROOM_PICK + ("height",)}
 COMBINE = ["single", "sum", "difference", "largest", "smallest", "each"]
-MAX_STEPS = 6
+MAX_STEPS = 8
+EVERY_STOREY = ("ifc_count", "ifc_storey_area", "ifc_quantity")  # tools a storey = "*" step may be repeated with
+MAX_STOREYS = 60
 STEP = {
     "type": "object",
     "properties": {"title": {"type": "string"}, "intent": {"type": "string", "enum": list(INTENTS)},
@@ -79,6 +86,9 @@ question compares or adds things one tool call cannot give, at most {MAX_STEPS}:
 - "how much bigger is A than B?" = the same two steps in that order, combine = "difference" (first minus second)
 - "how many doors and windows are there together?" = two count steps, combine = "sum"
 - "what are the areas of apartments A, B and C?" = three steps, combine = "each"
+- a question about every storey of a building model ("how many rooms are on each storey?", "which storey has the
+  largest floor area?") = ONE step with storey = "*" and combine = "each" (or "largest" / "smallest"); code repeats
+  that step for every storey, so do not list the storeys yourself
 Steps that are combined must measure the same kind of thing (all areas, or all counts).
 
 Tools (intent: what it does; arguments):
@@ -107,17 +117,27 @@ Tools (intent: what it does; arguments):
 - ifc_room_area (building models only): net floor area of one room. name, number, storey
 - ifc_storey_area (building models only): total net floor area of all rooms on a storey. storey
 - ifc_quantity (building models only): quantity = {" | ".join(QUANTITIES)}; cls = wall | slab; storey
+- opening_width: widths of the doors or windows, in metres (all drawing types, building models too). cls = door |
+  window; quantity = "largest" for the widest one, "smallest" for the narrowest, "" for all of them grouped by width;
+  storey = a storey name on building models, else ""
+- room_perimeter (not for building models): total length around the chosen rooms (e.g. skirting boards). Choose the
+  rooms like the area tools: labels (printed names), or classes (room types, when rooms_found_by_type), or number,
+  or unit; leave all four empty for all indoor rooms
+- wall_area (not for building models): wall surface of the chosen rooms = their perimeter times the room height
+  (e.g. wall tiles, paint). Rooms chosen as for room_perimeter. height = a room or ceiling height the question
+  gives, as a number in metres ("2.7"), else "" (code then assumes a height and says so)
 
 Rules:
 - The user message describes the drawing: its type and the room names, room numbers, apartment letters or storey
   names that exist on it. When a tool needs a label, a number or a storey, use one of those values exactly as
   listed, matching the question's wording to it across languages (a question about "the kitchen" on a German plan
   means the room named "Küche"). If nothing listed matches, return no steps.
-- When the drawing type is "ifc", use the ifc_* tools; otherwise never use them.
+- When the drawing type is "ifc", use the ifc_* tools (and opening_width); otherwise never use the ifc_* tools.
 - Prefer a room-type count (count_rooms_class) when the drawing lists no room names, and a label-based tool when it does.
-- A question about how much material to order for certain rooms (tiles, flooring, paint) is answered by the floor
-  area of those rooms: choose the area tool, and say in `reading` that it gives floor area only (wall tiling would
-  need wall heights, which a floor plan does not show).
+- A question about how much material to order for certain rooms: flooring or floor tiles = the floor area of those
+  rooms (an area tool); paint or wall tiles = wall_area; skirting = room_perimeter. "Tiling" with no word about walls
+  means floor tiling: choose the area tool, and say in `reading` that it is the floor area only and that the wall
+  area can be asked for separately.
 - Fill every text argument the chosen tool does not need with an empty string, and every list it does not need
   with an empty list.
 - `reading`: one or two plain sentences, shown to the user: how you read the question, or why no tool fits. When the
@@ -147,6 +167,13 @@ def _validate_step(d):
         return None
     need, classes = INTENTS[it]
     out = dict(intent=it)
+    d = dict(d)  # the open model sometimes puts a single value in the list field next to it, or the other way round
+    for one, many in (("cls", "classes"), ("label", "labels")):
+        vals = [str(x).strip() for x in (d.get(many) or []) if str(x).strip()]
+        if one in need and not str(d.get(one) or "").strip() and len(vals) == 1:
+            d[one] = vals[0]
+        if many in need and not vals and str(d.get(one) or "").strip():
+            d[many] = [str(d[one]).strip()]
     for a in need:
         if a in LISTS:
             v = [str(x).strip() for x in (d.get(a) or []) if str(x).strip()]
@@ -160,13 +187,45 @@ def _validate_step(d):
         out[a] = v or None
     if classes is not None and out.get("cls") not in classes:
         return None
+    for a in OPTIONAL.get(it, ()):  # arguments a tool takes when given; checked like the required ones
+        if a in LISTS:
+            v = [str(x).strip() for x in (d.get(a) or []) if str(x).strip()]
+            if a == "classes" and any(x not in ROOM_CLASSES + ["sauna_room"] for x in v):
+                return None
+        else:
+            v = str(d.get(a) or "").strip()
+            if a == "quantity" and v.lower() not in ("largest", "smallest"):
+                v = ""
+        if v:
+            out[a] = v
     return out
 
 
 def _validate(d):
     """Model output -> dict(steps=[intent dicts, each with a title], combine) or None when it is not a runnable plan."""
     steps = d.get("steps")
-    if not isinstance(steps, list) or not steps or len(steps) > MAX_STEPS:
+    if not isinstance(steps, list) or not steps:
+        return None
+    # the open model sometimes puts several values in one step's list for a tool that takes one ("count_rooms_class"
+    # with classes = [bedroom, bathroom]): split it into one step per value, added up when it was the only step
+    split = []
+    for st in steps:
+        if isinstance(st, dict) and st.get("intent") in INTENTS:
+            need = INTENTS[st["intent"]][0]
+            for one, many in (("cls", "classes"), ("label", "labels")):
+                vals = [str(x).strip() for x in (st.get(many) or []) if str(x).strip()]
+                if one in need and many not in need and not str(st.get(one) or "").strip() and len(vals) > 1:
+                    split.extend(dict(st, **{one: v, many: [], "title": v}) for v in vals)
+                    break
+            else:
+                split.append(st)
+        else:
+            split.append(st)
+    if len(split) > len(steps):
+        if len(steps) == 1 and d.get("combine") in (None, "single", ""):
+            d = dict(d, combine="sum")
+        steps = split
+    if len(steps) > MAX_STEPS:
         return None
     out = []
     for st in steps:
@@ -177,8 +236,18 @@ def _validate(d):
             return None
         v["title"] = str(st.get("title") or "").strip() or v["intent"]
         out.append(v)
+    titles = [v["title"] for v in out]
+    for v in out:  # two steps with the same title would print as "X: 1; X: 2": name them by what they measure
+        if titles.count(v["title"]) > 1:
+            arg = next((v[a] for a in ("cls", "label", "unit", "number", "name", "storey", "classes", "labels") if v.get(a)), None)
+            if arg:
+                v["title"] = ", ".join(arg) if isinstance(arg, list) else str(arg)
     how = d.get("combine") if d.get("combine") in COMBINE else None
-    if len(out) == 1:
+    every = len(out) == 1 and out[0].get("storey") == "*"  # one step repeated for every storey (expanded in parse)
+    if every:
+        if out[0]["intent"] not in EVERY_STOREY or how not in ("each", "largest", "smallest", "sum"):
+            return None
+    elif len(out) == 1:
         how = "single"
     elif how in (None, "single") or (how == "difference" and len(out) != 2):
         return None
@@ -266,4 +335,12 @@ def parse(question, sheet):
         return None, f"the language model's plan ({named}; combine {d.get('combine')}) did not fit the tools, so it was not run", model
     if plan is None:
         return None, reading or "the language model found no tool that answers this question", model
+    if plan["steps"][0].get("storey") == "*":  # repeat the one step for every storey the model has, in its order
+        storeys = [s for s in json.loads(_context(sheet)).get("storeys") or [] if s]
+        if not storeys or len(storeys) > MAX_STOREYS:
+            return None, ("the language model asked for every storey, but this drawing has no storeys" if not storeys
+                          else f"the language model asked for every storey, and this model has {len(storeys)}, too many to list"), model
+        st = plan["steps"][0]
+        plan = dict(plan, steps=[dict(st, storey=s, title=s) for s in storeys])
+        reading = (reading + " " if reading else "") + f"Repeated for each of the {len(storeys)} storeys by code."
     return plan, reading, model

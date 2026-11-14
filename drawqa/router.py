@@ -47,12 +47,21 @@ COUNT_RULES = [
 ]
 COUNT_WORDS = r"How many|Kuinka monta|Wie viele|Combien|Quant[ie]|Mitu|Hvor mange"
 AREA_WORDS = r"area|Fläche|surface|superficie|pind|areal"
+EXCLUDE_WORDS = r"not counting|excluding|except|without|ohne|außer|sauf|sans|escluso|tranne|senza"
+EXCLUDE_AFTER = r"[^,;]*\b(lukuun ottamatta|ei lukien)"  # Finnish puts the exclusion after what it excludes
+# words that name another thing of the same kind but are too loose to count on their own ("toilets" may be rooms)
+ALSO_NAMED = {"count_fixtures": r"\btoilets?\b|lavator(y|ies)|water closets?|urinals?|bidets?",
+              "count_rooms_class": r"\bbathrooms?\b|washrooms?|\btoilets\b|\bWC rooms\b"}
 
 
 def parse(question):
     q = question.strip()
     quoted = quoted_strings(q)
-    is_count = re.search(COUNT_WORDS, q, re.I) is not None
+    # "how many metres of skirting", "wie viele Quadratmeter": a measurement, not a count of things
+    is_count = re.search(COUNT_WORDS, q, re.I) is not None and not re.search(
+        rf"(?:{COUNT_WORDS})\s+(?:\w+\s+)?(?:square\s+|sq\.?\s+|running\s+|linear\s+|cubic\s+)?"
+        r"(?:met(?:er|re)s?|m2|m²|m3|feet|foot|ft|yards?|litres?|liters?|kilo\w*|kg|tons?|tonnes?|neliö\w*|metri\w*|"
+        r"quadratmeter\w*|kubikmeter\w*|meter\b|mètres?|mètres?\s+carrés?|metri\b|metri\s+quadri|ruutmeet\w*|meet\w*|kvadratmeter\w*)", q, re.I)
     is_area = re.search(AREA_WORDS, q, re.I) is not None
 
     # IFC-style questions name storeys/models in quotes
@@ -93,10 +102,23 @@ def parse(question):
         return dict(intent="count_rooms_label", label=quoted[0])
     if is_count:
         for intent, cls, rx in COUNT_RULES:
-            if re.search(rx, q, re.I):
+            if m := re.search(rx, q, re.I):
+                # a second thing of the same kind named too ("doors and windows together", "toilets and sinks"): one
+                # count cannot answer it, so leave it to the language model, which can plan two counts and add them.
+                # Bracketed qualifiers and exclusions ("not counting separate WC rooms") are not a second thing, and
+                # neither is a word of another kind ("entry doors", "doors in the apartments").
+                rest = re.sub(r"\(.*?\)", " ", q[:m.start()] + " " + q[m.end():])
+                rest = re.split(EXCLUDE_WORDS, re.sub(EXCLUDE_AFTER, " ", rest, flags=re.I), flags=re.I)[0]
+                if (any(i2 == intent and c2 != cls and re.search(rx2, rest, re.I) for i2, c2, rx2 in COUNT_RULES)
+                        or (intent in ALSO_NAMED and re.search(ALSO_NAMED[intent], rest, re.I))):
+                    return dict(intent="unknown")
                 return dict(intent=intent, cls=cls)
     if is_area:
+        if re.search(r"\bwalls?\b|\bWand|Wände|seinä|\bmurs?\b|pareti|parete|\bvægge|\bseina", q, re.I):
+            return dict(intent="unknown")  # wall surface, not floor area: left to the language model (wall_area)
         if re.search(r"apartment|appartamento|Wohnung|appartement", q, re.I) and (m := re.search(r"\b([A-Z])\b(?! m)", q.split("m²")[0].replace("WC", ""))):
+            if len(set(re.findall(r"\b([A-Z])\b(?! m)", q.split("m²")[0].replace("WC", "")))) > 1:
+                return dict(intent="unknown")  # "apartments A and B": several apartments, left to the language model
             return dict(intent="unit_area", unit=m.group(1))
         if (m := ROOM_NUMBER.search(q)) and re.search(r"room|locale|Raum|pièce", q, re.I):
             return dict(intent="room_area", number=m.group(1))
