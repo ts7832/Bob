@@ -25,7 +25,7 @@ def logit(c):
 
 
 def candidates(boxes, peaks, truth, w, h):
-    """-> [(features, is_real)] for one plan and one kind. All coordinates in original pixels."""
+    """-> [(features, is_real, box)] for one plan and one kind. All coordinates in original pixels."""
     k = SIZE / max(w, h)
     ox, oy = (SIZE - round(w * k)) // 2, (SIZE - round(h * k)) // 2
     P = [((x - ox) / k, (y - oy) / k, v) for x, y, v in peaks]
@@ -42,7 +42,7 @@ def candidates(boxes, peaks, truth, w, h):
             used_t.add(hit)
         long_side, short_side = max(x1 - x0, y1 - y0) * k, min(x1 - x0, y1 - y0) * k
         out.append(([1.0, logit(b["conf"]), min(peak, 8) / 8, 1.0 if peak == 0 else 0.0, min(long_side, 200) / 200, min(short_side, 60) / 60,
-                     1.0 if len(inside) > 1 else 0.0, 0.0, 0.0], 1.0 if hit is not None else 0.0))
+                     1.0 if len(inside) > 1 else 0.0, 0.0, 0.0], 1.0 if hit is not None else 0.0, [x0, y0, x1, y1]))
     for i, (px, py, v) in enumerate(P):
         if i in used_p or v < 1.5:
             continue
@@ -50,7 +50,7 @@ def candidates(boxes, peaks, truth, w, h):
         hit = next((j for j, (tx, ty) in enumerate(T) if j not in used_t and abs(tx - px) <= r and abs(ty - py) <= r), None)
         if hit is not None:
             used_t.add(hit)
-        out.append(([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, min(v, 8) / 8], 1.0 if hit is not None else 0.0))
+        out.append(([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, min(v, 8) / 8], 1.0 if hit is not None else 0.0, [px - 8 / k, py - 8 / k, px + 8 / k, py + 8 / k]))
     return out
 
 
@@ -72,12 +72,12 @@ def main():
     count = {}
     for kd in KIND:
         for f in range(5):
-            X = [x for (n, k), c in data.items() if k == kd and fold(n) != f for x, _ in c]
-            y = [t for (n, k), c in data.items() if k == kd and fold(n) != f for _, t in c]
+            X = [x for (n, k), c in data.items() if k == kd and fold(n) != f for x, _, _ in c]
+            y = [t for (n, k), c in data.items() if k == kd and fold(n) != f for _, t, _ in c]
             w = fit(X, y, steps=300)
             for (n, k), c in data.items():
                 if k == kd and fold(n) == f:
-                    ps = [predict(w, x) for x, _ in c]
+                    ps = [predict(w, x) for x, _, _ in c]
                     doubt = sum(1 for p in ps if 0.2 < p < 0.8)
                     count[(n, kd)] = (sum(1 for p in ps if p >= 0.5), doubt, ps)
     B = {r["id"]: r for r in (json.loads(l) for l in open(base))} if base else {}
