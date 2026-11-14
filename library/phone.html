@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Bob: scan a drawing</title>
+<title>Bob: scan a blueprint</title>
 <style>
   :root { --ink: #14181f; --soft: #5b6472; --line: #dfe3ea; --bg: #f5f6f8; --card: #fff; --go: #1456d9; --ok: #0a7d45; --warn: #b45309; --bad: #b42318; }
   * { box-sizing: border-box; }
@@ -33,7 +33,7 @@
 </style>
 </head>
 <body>
-<header><b>Bob</b><span id="who">scan a drawing</span></header>
+<header><b>Bob</b><span id="who">scan a blueprint</span></header>
 <main>
   <div class="card" id="login">
     <h2>Workspace password</h2>
@@ -44,7 +44,7 @@
 
   <div id="app" hidden>
     <div class="card">
-      <label class="btn primary" for="cam">Scan a paper drawing</label>
+      <label class="btn primary" for="cam">Scan a blueprint</label>
       <input type="file" id="cam" accept="image/*" capture="environment" hidden>
       <p class="note" id="status">Point the camera at the sheet so most of it is in the picture.</p>
     </div>
@@ -111,7 +111,7 @@ $("cam").onchange = async (ev) => {
     const small = await shrink(f);
     scan = await api("/api/scan", { method: "POST", body: small, headers: { "content-type": "image/jpeg" } });
   } catch (e) { $("status").textContent = "Could not send the photo: " + e.message; return; }
-  $("status").textContent = "Scan another drawing any time.";
+  $("status").textContent = "Scan another blueprint any time.";
   if (!scan.matched && scan.look_alikes.length) {
     $("nomatch").hidden = false;
     $("nomatch").querySelector("h2").textContent = "Which one is it?";
