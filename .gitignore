@@ -1,0 +1,13 @@
+junction-dataset-preview/
+*.zip
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+ext/
+weights/
+*.pkl
+*.pt
+runs/
+data/cache/
+models/

@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DrawQA</title>
+<style>
+  :root { --bg:#f4f5f7; --panel:#fff; --ink:#1d2330; --muted:#6b7280; --line:#e3e6eb; --accent:#ff7a00;
+          --ok:#14804a; --okbg:#e5f6ec; --bad:#b42318; --badbg:#fdecea; --chip:#eef1f5; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif; color:var(--ink); background:var(--bg);
+         display:grid; grid-template-columns:260px 1fr 380px; grid-template-rows:52px 1fr; height:100vh; }
+  header { grid-column:1/-1; display:flex; align-items:center; gap:12px; padding:0 18px; background:var(--ink); color:#fff; }
+  header b { font-size:16px; letter-spacing:.3px; } header span { color:#aab; font-size:13px; }
+  aside, section.side { background:var(--panel); overflow:auto; }
+  aside { border-right:1px solid var(--line); padding:12px; }
+  aside h3, .side h3 { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:14px 4px 6px; }
+  .sample { padding:9px 10px; border-radius:8px; cursor:pointer; margin-bottom:4px; }
+  .sample:hover { background:var(--chip); } .sample.on { background:#fff3e6; outline:1px solid #ffd2a6; }
+  .sample small { display:block; color:var(--muted); font-size:11.5px; word-break:break-all; }
+  main { position:relative; overflow:hidden; background:#fff; }
+  #viewer { width:100%; height:100%; cursor:grab; display:block; } #viewer:active { cursor:grabbing; }
+  #viewer svg { width:100%; height:100%; }
+  .toolbar { position:absolute; left:12px; bottom:12px; display:flex; gap:6px; }
+  .toolbar button, .note { background:#fff; border:1px solid var(--line); border-radius:7px; padding:5px 10px; font:inherit; font-size:12.5px; }
+  .note:empty { display:none; } .note { position:absolute; right:12px; bottom:12px; color:var(--muted); max-width:60%; }
+  .side { border-left:1px solid var(--line); padding:14px 16px; }
+  textarea { width:100%; min-height:68px; resize:vertical; border:1px solid var(--line); border-radius:9px; padding:9px; font:inherit; }
+  .ask { margin-top:8px; width:100%; padding:9px; border:0; border-radius:9px; background:var(--accent); color:#fff; font-weight:600; font-size:14px; cursor:pointer; }
+  .chips { display:flex; flex-direction:column; gap:5px; }
+  .chip { text-align:left; background:var(--chip); border:0; border-radius:8px; padding:7px 9px; font:inherit; font-size:12.5px; cursor:pointer; color:var(--ink); }
+  .chip:hover { background:#e2e7ee; }
+  .card { border:1px solid var(--line); border-radius:12px; padding:14px; margin-top:14px; }
+  .big { font-size:34px; font-weight:700; letter-spacing:-.5px; } .big small { font-size:16px; color:var(--muted); font-weight:500; }
+  .badge { display:inline-block; font-size:12px; font-weight:600; border-radius:999px; padding:2px 9px; margin:6px 0; }
+  .badge.ok { background:var(--okbg); color:var(--ok); } .badge.bad { background:var(--badbg); color:var(--bad); }
+  .badge.none { background:var(--chip); color:var(--muted); }
+  .expl { margin:8px 0; } .meta { color:var(--muted); font-size:12.5px; }
+  details { margin-top:8px; font-size:12px; color:var(--muted); } pre { white-space:pre-wrap; margin:4px 0; }
+  .hl, .hl * { fill:rgba(255,122,0,.45) !important; stroke:#ff7a00 !important; stroke-width:.6 !important; }
+</style>
+</head>
+<body>
+<header><b>DrawQA</b><span>answers about construction drawings, highlighted on the drawing so you can check them</span></header>
+<aside><h3>Drawings</h3><div style="margin:0 0 10px"><input id="openfile" placeholder="Open any file: paste its full path, press Enter" style="width:100%;box-sizing:border-box;padding:7px 8px;border:1px solid #cfd6df;border-radius:8px;font-size:12px"></div>
+<div id="samples"></div></aside>
+<main>
+  <div id="viewer"></div>
+  <div class="toolbar"><button onclick="resetView()">Reset view</button><button onclick="clearHl()">Clear highlights</button></div>
+  <div class="note" id="note"></div>
+</main>
+<section class="side">
+  <h3>Ask a question (any language)</h3>
+  <textarea id="q" placeholder="e.g. How many doors are drawn on this floor plan?"></textarea>
+  <button class="ask" onclick="ask()">Ask</button>
+  <div id="answer"></div>
+  <h3>Questions from the dataset</h3>
+  <div class="chips" id="chips"></div>
+</section>
+<script>
+const NS = "http://www.w3.org/2000/svg";
+let current = null, svgEl = null, baseVB = null, hlLayer = null;
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+const STYLE = { WALL_FILL:{fill:"#3d4048",stroke:"none"}, WALL:{fill:"#3d4048",stroke:"#2b2e35",w:.01},
+  ROOM_OUTLINE:{fill:"none",stroke:"#b9c3cf",w:.015}, UNIT_OUTLINE:{fill:"none",stroke:"#d64545",w:.03,dash:".25 .12"},
+  DOOR:{fill:"none",stroke:"#374151",w:.015}, WINDOW:{fill:"none",stroke:"#1f8a5b",w:.02},
+  FIXTURE:{fill:"none",stroke:"#6b7280",w:.012}, ANNOTATION:{fill:"none",stroke:"#999",w:.01} };
+
+async function init() {
+  const s = await (await fetch("/api/samples")).json();
+  const box = document.getElementById("samples");
+  s.forEach((d, i) => {
+    const div = document.createElement("div"); div.className = "sample";
+    div.innerHTML = `<b>${d.title}</b><small>${d.path.replace("data/","")}</small>`;
+    div.onclick = () => { document.querySelectorAll(".sample").forEach(x => x.classList.remove("on")); div.classList.add("on"); history.replaceState(null, "", "?s=" + i); open(d); };
+    box.appendChild(div);
+  });
+  const P = new URLSearchParams(location.search), idx = +(P.get("s") || 0);
+  document.querySelectorAll(".sample")[idx]?.classList.add("on");
+  await open(s[idx]);
+  if (P.get("q")) { document.getElementById("q").value = P.get("q"); ask(); }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const inp = document.getElementById("openfile");
+  inp.addEventListener("keydown", async e => {
+    if (e.key !== "Enter" || !inp.value.trim()) return;
+    document.getElementById("note").textContent = "Reading the file…";
+    const d = await (await fetch("/api/open?file=" + encodeURIComponent(inp.value.trim()))).json();
+    if (d.error) { document.getElementById("note").textContent = "Could not open: " + d.error; return; }
+    document.querySelectorAll(".sample").forEach(x => x.classList.remove("on"));
+    await open(d);
+  });
+});
+
+async function open(d) {
+  current = d;
+  document.getElementById("answer").innerHTML = "";
+  const chips = document.getElementById("chips"); chips.innerHTML = "";
+  d.questions.forEach(q => { const b = document.createElement("button"); b.className = "chip"; b.textContent = q.question;
+    b.onclick = () => { document.getElementById("q").value = q.question; ask(); }; chips.appendChild(b); });
+  const r = await (await fetch("/api/render?path=" + encodeURIComponent(d.path))).json();
+  const v = document.getElementById("viewer"); v.innerHTML = "";
+  document.getElementById("note").textContent = r.note || "";
+  if (r.type === "vector") drawVector(v, r);
+  else if (r.type === "svg") { v.innerHTML = r.svg; svgEl = v.querySelector("svg"); svgEl.removeAttribute("width"); svgEl.removeAttribute("height"); }
+  else if (r.type === "image") { svgEl = el("svg", {viewBox:`0 0 ${r.width} ${r.height}`}, v); el("image", {href:r.url, x:0, y:0, width:r.width, height:r.height}, svgEl); }
+  else { v.innerHTML = "<p style='padding:20px;color:#888'>No drawing to show for this file.</p>"; svgEl = null; return; }
+  baseVB = svgEl.getAttribute("viewBox").split(/[ ,]+/).map(Number);
+  hlLayer = el("g", {id:"hl"}, svgEl);
+  enableZoom(svgEl);
+}
+
+function drawVector(v, r) {
+  const [x0, y0, x1, y1] = r.bounds, pad = (x1 - x0) * .04;
+  svgEl = el("svg", {viewBox:`${x0-pad} ${y0-pad} ${x1-x0+2*pad} ${y1-y0+2*pad}`}, v);
+  const g = el("g", {}, svgEl);
+  for (const it of r.items) {
+    const st = STYLE[it.layer] || {fill:"none", stroke:"#bbb", w:.01};
+    const common = {fill:st.fill, stroke:st.stroke, "stroke-width":st.w || 0, "stroke-dasharray":st.dash || "none"};
+    if (it.k === "poly") el(it.closed || it.layer === "WALL_FILL" ? "polygon" : "polyline", {points:it.pts.map(p => p.join(",")).join(" "), ...common}, g);
+    else if (it.k === "circle") el("circle", {cx:it.c[0], cy:it.c[1], r:it.r, ...common}, g);
+    else if (it.k === "arc") {
+      const rad = a => a * Math.PI / 180, [cx, cy] = it.c;
+      const p0 = [cx + it.r * Math.cos(rad(it.a0)), cy - it.r * Math.sin(rad(it.a0))], p1 = [cx + it.r * Math.cos(rad(it.a1)), cy - it.r * Math.sin(rad(it.a1))];
+      const large = ((it.a1 - it.a0 + 360) % 360) > 180 ? 1 : 0;
+      el("path", {d:`M${p0} A${it.r},${it.r} 0 ${large} 0 ${p1}`, ...common}, g);
+    } else if (it.k === "text") {
+      const t = el("text", {x:it.p[0], y:it.p[1], "font-size":it.h * 1.1, "text-anchor":"middle", fill:"#374151", "font-family":"system-ui"}, g); t.textContent = it.t;
+    }
+  }
+}
+
+function marker(x, y, label, size) {
+  const g = el("g", {}, hlLayer);
+  el("circle", {cx:x, cy:y, r:size, fill:"#ff7a00", stroke:"#fff", "stroke-width":size * .18}, g);
+  const t = el("text", {x, y:y + size * .38, "font-size":size * 1.05, "text-anchor":"middle", fill:"#fff", "font-weight":"700", "font-family":"system-ui"}, g);
+  t.textContent = label;
+}
+
+function clearHl() { if (!svgEl) return; hlLayer.innerHTML = ""; svgEl.querySelectorAll(".hl").forEach(e => e.classList.remove("hl")); }
+
+function showEvidence(ev) {
+  clearHl(); if (!svgEl || !ev.length) return;
+  const size = baseVB[2] / 75, numbered = ev.length <= 150;
+  ev.forEach((e, i) => {
+    const lab = numbered ? (e.label && e.label.length < 4 ? e.label : String(i + 1)) : "";
+    if (e.shape === "polygon") {
+      el("polygon", {points:e.pts.map(p => p.join(",")).join(" "), fill:"rgba(255,122,0,.28)", stroke:"#ff7a00", "stroke-width":size * .15}, hlLayer);
+      const cx = e.pts.reduce((a, p) => a + p[0], 0) / e.pts.length, cy = e.pts.reduce((a, p) => a + p[1], 0) / e.pts.length;
+      if (lab) marker(cx, cy, lab, size);
+    } else if (e.shape === "box") {
+      const [x0, y0, x1, y1] = e.bbox, m = size * .25;
+      el("rect", {x:x0 - m, y:y0 - m, width:x1 - x0 + 2 * m, height:y1 - y0 + 2 * m, rx:m, fill:"rgba(255,122,0,.25)", stroke:"#ff7a00", "stroke-width":size * .18}, hlLayer);
+      if (lab) marker((x0 + x1) / 2, Math.min(y0, y1) - size * 1.1, lab, size * .8);
+    } else if (e.shape === "guid") {
+      svgEl.querySelectorAll(`[data-guid="${e.id}"]`).forEach(n => {
+        n.classList.add("hl");
+        if (lab && n.getBBox) { const b = n.getBBox(); marker(b.x + b.width / 2, b.y + b.height / 2, lab, size * .7); }
+      });
+    }
+  });
+}
+
+async function ask() {
+  const question = document.getElementById("q").value.trim(); if (!question || !current) return;
+  const out = document.getElementById("answer"); out.innerHTML = `<div class="card meta">Thinking…</div>`;
+  const r = await (await fetch("/api/ask", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({path:current.path, question})})).json();
+  if (r.error) { out.innerHTML = `<div class="card"><span class="badge bad">error</span><div class="expl">${r.error}</div></div>`; return; }
+  const unit = {m2:"m²", m3:"m³", m:"m", count:""}[r.unit] ?? (r.unit || "");
+  const val = r.answer === null || r.answer === undefined ? "—" : r.answer;
+  let badge = `<span class="badge none">no dataset answer to compare</span>`;
+  if ("dataset_answer" in r) {
+    const ok = r.answer !== null && (typeof r.answer === "number" ? Math.abs(r.answer - r.dataset_answer) <= Math.max(0, .02 * Math.abs(r.dataset_answer)) && (r.unit !== "count" || r.answer === r.dataset_answer) : r.answer == r.dataset_answer);
+    badge = ok ? `<span class="badge ok">✓ matches dataset answer (${r.dataset_answer})</span>` : `<span class="badge bad">✗ dataset answer is ${r.dataset_answer}</span>`;
+  }
+  const conf = r.confidence == null ? "—" : Math.round(r.confidence * 100) + "%";
+  const h = r.honesty || {};
+  out.innerHTML = `<div class="card"><div class="big">${val} <small>${unit}</small></div>${badge}
+    <div class="expl">${r.explanation || ""}</div>
+    <div class="meta"><b>${h.tier ? h.tier.toUpperCase() : "—"}</b>${h.deterministic === true ? " · deterministic" : h.deterministic === false ? " · not deterministic" : ""} · ${h.basis || ""}</div>
+    <div class="meta">Method: ${r.method} · confidence ${conf} · ${r.evidence.length} highlighted</div>
+    <details><summary>parsed question</summary><pre>${JSON.stringify(r.intent, null, 1)}</pre></details></div>`;
+  showEvidence(r.evidence || []);
+}
+
+function enableZoom(svg) {
+  let vb = baseVB.slice(), drag = null;
+  const apply = () => svg.setAttribute("viewBox", vb.join(" "));
+  svg.addEventListener("wheel", ev => { ev.preventDefault();
+    const r = svg.getBoundingClientRect(), k = ev.deltaY > 0 ? 1.15 : 1 / 1.15;
+    const mx = vb[0] + (ev.clientX - r.left) / r.width * vb[2], my = vb[1] + (ev.clientY - r.top) / r.height * vb[3];
+    vb = [mx - (mx - vb[0]) * k, my - (my - vb[1]) * k, vb[2] * k, vb[3] * k]; apply(); }, {passive:false});
+  svg.addEventListener("mousedown", ev => drag = [ev.clientX, ev.clientY, vb[0], vb[1]]);
+  window.addEventListener("mouseup", () => drag = null);
+  svg.addEventListener("mousemove", ev => { if (!drag) return; const r = svg.getBoundingClientRect();
+    vb[0] = drag[2] - (ev.clientX - drag[0]) / r.width * vb[2]; vb[1] = drag[3] - (ev.clientY - drag[1]) / r.height * vb[3]; apply(); });
+  window.resetView = () => { vb = baseVB.slice(); apply(); };
+}
+document.getElementById("q").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); } });
+init();
+</script>
+</body>
+</html>

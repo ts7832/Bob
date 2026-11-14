@@ -1,0 +1,82 @@
+{
+ "run": "b11m",
+ "tta": true,
+ "data": "all",
+ "plans": 479,
+ "thresholds": {
+  "door": 0.35,
+  "window": 0.4,
+  "wc": 0.35,
+  "sink": 0.3,
+  "bathtub": 0.425,
+  "shower": 0.25,
+  "sauna_stove": 0.4,
+  "sauna_bench": 0.35,
+  "bedroom": 0.6,
+  "kitchen": 0.4,
+  "bathroom": 0.475,
+  "wc_room": 0.45,
+  "balcony": 0.4,
+  "sauna_room": 0.225,
+  "floor": 0.5
+ },
+ "rules": {
+  "window": {
+   "gap": null
+  },
+  "sink": {
+   "gap": null
+  }
+ },
+ "class_exact": {
+  "door": 0.5491,
+  "window": 0.62,
+  "wc": 0.9457,
+  "sink": 0.9061,
+  "bathtub": 0.9436,
+  "shower": 0.858,
+  "sauna_stove": 0.9624,
+  "sauna_bench": 0.8831,
+  "bedroom": 0.8998,
+  "kitchen": 0.8914,
+  "bathroom": 0.9102,
+  "wc_room": 0.9353,
+  "balcony": 0.9311,
+  "sauna_room": 0.9958,
+  "floor": 0.9415
+ },
+ "key_exact": {
+  "windows": 0.62,
+  "doors": 0.5491,
+  "wc": 0.9457,
+  "sinks": 0.9061,
+  "shower_bath": 0.8246,
+  "floors": 0.9269,
+  "bedrooms": 0.8747,
+  "kitchens": 0.8642,
+  "bathrooms": 0.8877,
+  "wc_rooms": 0.9191,
+  "balconies": 0.9138,
+  "saunas": 0.9739
+ },
+ "source_key_exact": {
+  "c5k:balconies": "350/383",
+  "c5k:bathrooms": "340/383",
+  "c5k:bedrooms": "335/383",
+  "c5k:doors": "259/383",
+  "c5k:floors": "355/383",
+  "c5k:kitchens": "331/383",
+  "c5k:saunas": "373/383",
+  "c5k:shower_bath": "306/383",
+  "c5k:sinks": "343/383",
+  "c5k:wc": "361/383",
+  "c5k:wc_rooms": "352/383",
+  "c5k:windows": "229/383",
+  "swiss:doors": "4/96",
+  "swiss:shower_bath": "89/96",
+  "swiss:sinks": "91/96",
+  "swiss:wc": "92/96",
+  "swiss:windows": "68/96"
+ },
+ "overall_exact": 0.8428
+}
