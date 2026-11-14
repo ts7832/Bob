@@ -132,7 +132,7 @@ def draw_model(img, m, span, off=(0, 0)):
 
 
 def summary(m):
-    cnt = lambda key, field: {t: sum(1 for e in m.get(key, []) if e.get(field) == t) for t in sorted({e.get(field) for e in m.get(key, [])})}
+    cnt = lambda key, field: {t: sum(1 for e in m.get(key, []) if e.get(field) == t) for t in sorted({e.get(field) for e in m.get(key, [])}, key=str)}
     k = m.get("m_per_px")
     return dict(floors=len(m.get("floors", [])) if isinstance(m.get("floors"), list) else m.get("floors"),
                 doors=len(m.get("doors", [])), windows=len(m.get("windows", [])), fixtures=cnt("fixtures", "type"), rooms=cnt("rooms", "type"),
@@ -167,8 +167,69 @@ def check(path, model_path, outdir, args):
     print(json.dumps(summary(m)))
 
 
+def _inside(x, y, poly):
+    c = False
+    for i in range(len(poly)):
+        (x1, y1), (x2, y2) = poly[i], poly[i - 1]
+        if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / (y2 - y1) + x1:
+            c = not c
+    return c
+
+
+def lint(model_path, args):
+    """Problems a reader should resolve: overlapping rooms, rooms holding several printed words (maybe two rooms),
+    printed words inside no room (maybe a missing room), rooms without a name. Printed words come from OCR (--ocr file):
+    upside-down labels can come out reversed ("HW" = MH, "HO" = OH) and some are misread; treat them as hints."""
+    import re
+    m = json.load(open(model_path))
+    rooms = [r for r in m.get("rooms", []) if len(r.get("polygon") or []) >= 3]
+    out = []
+    try:
+        from shapely.geometry import Polygon
+        P = {r.get("id"): Polygon(r["polygon"]).buffer(0) for r in rooms}
+        ids = list(P)
+        for i in range(len(ids)):
+            for j in range(i + 1, len(ids)):
+                a, b = P[ids[i]], P[ids[j]]
+                inter = a.intersection(b).area
+                if inter > 0.03 * min(a.area, b.area):
+                    out.append(f"OVERLAP {ids[i]} and {ids[j]}: {inter / min(a.area, b.area):.0%} of the smaller one")
+    except Exception as e:
+        out.append(f"(overlap check unavailable: {e})")
+    if "--ocr" in args:
+        words = [t for t in json.load(open(args[args.index("--ocr") + 1])) if re.search(r"[A-Za-zÄÖÅäöå]", t["text"]) and len(t["text"]) <= 25]
+        fl = [f["bbox"] for f in m.get("floors", [])] if isinstance(m.get("floors"), list) else []
+        held = {r.get("id"): [] for r in rooms}
+        for t in words:
+            cx, cy = (t["bbox"][0] + t["bbox"][2]) / 2, (t["bbox"][1] + t["bbox"][3]) / 2
+            hits = [r.get("id") for r in rooms if _inside(cx, cy, r["polygon"])]
+            for h in hits:
+                held[h].append(t["text"])
+            if not hits and (not fl or any(f[0] <= cx <= f[2] and f[1] <= cy <= f[3] for f in fl)):
+                out.append(f"WORD IN NO ROOM '{t['text']}' at ({cx:.0f}, {cy:.0f}): a missing room, or not a room name")
+        for r in rooms:
+            ws = sorted(set(held[r.get("id")]))
+            if len(ws) >= 2:
+                out.append(f"SEVERAL WORDS in {r.get('id')} ({r.get('name')}): {ws}: two rooms in one outline? (or a name plus an area or note)")
+    doors = [d["bbox"] for d in m.get("doors", []) if len(d.get("bbox") or []) == 4]
+    for r in rooms:
+        if not r.get("name"):
+            xs, ys = [p[0] for p in r["polygon"]], [p[1] for p in r["polygon"]]
+            pad = 0.05 * max(max(xs) - min(xs), max(ys) - min(ys), 40)
+            touches = any(b[0] <= max(xs) + pad and b[2] >= min(xs) - pad and b[1] <= max(ys) + pad and b[3] >= min(ys) - pad for b in doors)
+            if touches:
+                out.append(f"NO NAME on {r.get('id')} ({r.get('type')}): fine for an unnamed hall or passage, otherwise read its label")
+            else:
+                out.append(f"NO NAME, NO DOOR on {r.get('id')} ({r.get('type')}): part of a neighbouring room (merge), outside the dwelling "
+                           f"(delete), or a real room reached through an open passage (keep): look")
+    print("\n".join(out) if out else "no problems found")
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1]
+    if cmd == "lint":
+        lint(sys.argv[2], sys.argv[3:])
+        sys.exit(0)
     if cmd == "grid":
         grid(sys.argv[2], sys.argv[3], sys.argv[4:])
     elif cmd == "render":

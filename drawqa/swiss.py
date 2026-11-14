@@ -18,6 +18,9 @@ ROOM_NO = re.compile(r"^[A-Z]?\d*\.?\d+$")
 AREA_TXT = re.compile(r"^([\d.]+)\s*m²$")
 
 
+SHOWER_MAX_SIDE, SHOWER_MAX_RATIO = 1.25, 1.5  # an empty rectangle up to this size is a shower tray (was 1.05 m, 1.2)
+
+
 def _classify_fixtures(fx):
     rects = [e for e in fx if e["type"] == "LWPOLYLINE" and len(e["xs"]) == 4]
     rects.sort(key=lambda e: -(bbox(e)[2] - bbox(e)[0]) * (bbox(e)[3] - bbox(e)[1]))
@@ -43,7 +46,7 @@ def _classify_fixtures(fx):
         elif n_ell and n_line: kind = "wc"
         elif n_ell: kind = "washbasin"
         elif big_c: kind = "washing_machine"
-        elif n_ell == n_round == n_line == hobs == diag == 0 and 0.65 <= S and L <= 1.05 and L / S < 1.2: kind = "shower"
+        elif n_ell == n_round == n_line == hobs == diag == 0 and 0.65 <= S and L <= SHOWER_MAX_SIDE and L / S < SHOWER_MAX_RATIO: kind = "shower"
         elif diag >= 2: kind = "shaft"
         elif n_line >= 4: kind = "stairs"
         else: kind = "other"
@@ -52,6 +55,9 @@ def _classify_fixtures(fx):
                 used.add(e["idx"])
         out.append(dict(id=f"fx{R['idx']}", cls=kind, bbox=[x0, y0, x1, y1]))
     return out
+
+
+KITCHEN_ROOM = re.compile(r"k(ü|ue)che|kochen|cuisine|cucina|kitchen", re.I)
 
 
 def load(path):
@@ -116,7 +122,28 @@ def load(path):
             bb = [min(v[0] for v in b), min(v[1] for v in b), max(v[2] for v in b), max(v[3] for v in b)]
             openings.append(dict(id=f"win{wins[i]['idx']}", cls="window", bbox=bb, grouped=False))
 
+    # The same door or window is often stored twice, exactly on top of itself (on the 65 preview plans: 273 of the 276
+    # repeated door openings are one leaf drawn twice). On the drawing that is one element, so count it once and keep
+    # how many copies were left out, for the answer to say.
+    seen, uniq, duplicates, copies = set(), [], {}, []
+    for o in openings:
+        k = (o["cls"],) + tuple(round(v, 3) for v in o["bbox"])
+        if k in seen:
+            duplicates[o["cls"]] = duplicates.get(o["cls"], 0) + 1
+            copies.append(o)
+            continue
+        seen.add(k)
+        uniq.append(o)
+    openings = uniq
+
     fixtures = _classify_fixtures(lay["FIXTURE"])
+    # an empty box in a room the plan names as a kitchen is an appliance or cabinet, not a shower tray
+    for f in fixtures:
+        if f["cls"] == "shower":
+            cx, cy = (f["bbox"][0] + f["bbox"][2]) / 2, (f["bbox"][1] + f["bbox"][3]) / 2
+            room = next((r for r in rooms if r.get("polygon") and point_in_polygon(cx, cy, r["polygon"])), None)
+            if room and KITCHEN_ROOM.search(str(room.get("name") or "")):
+                f["cls"] = "other"
 
     # --- render payload (y flipped so the browser can draw it directly) --------
     items = []
@@ -146,5 +173,5 @@ def load(path):
                          f"{', '.join(repr(l) for l, _ in layers.most_common(5))}. The exact DXF reader only knows drawings with DOOR, WINDOW, FIXTURE and "
                          f"ROOM_OUTLINE layers, and block contents are not expanded, so nothing can be counted or measured here yet.")
     return dict(source=path, source_type="vector-dxf", units="m", y_flip=True,
-                rooms=rooms, units_list=units, openings=openings, fixtures=fixtures,
+                rooms=rooms, units_list=units, openings=openings, fixtures=fixtures, duplicates_dropped=duplicates, duplicate_copies=copies,
                 render=dict(type="vector", items=items, bounds=[min(xs), min(ys), max(xs), max(ys)]))

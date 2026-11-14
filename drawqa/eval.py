@@ -24,6 +24,14 @@ def main():
     ap.add_argument("--show-wrong", type=int, default=3)
     a = ap.parse_args()
     Q = [json.loads(l) for l in open(os.path.join(ROOT, "questions.jsonl"))]
+    # answers that count what is not visible on the drawing (tools/make_answer_corrections.py says which and why)
+    cf = os.path.join(os.path.dirname(__file__), "..", "data", "answer_corrections.jsonl")
+    fix = {(c["path"], c["question"]): c["answer"] for c in map(json.loads, open(cf))} if os.path.exists(cf) else {}
+    n_fixed = 0
+    for q in Q:
+        if (q["path"], q["question"]) in fix:
+            q["dataset_answer"], q["answer"] = q["answer"], fix[(q["path"], q["question"])]
+            n_fixed += 1
     Q = [q for q in Q if q["type"] != "text" and (not a.source or source_of(q["path"]) == a.source)]
     Q = [q for q in Q if source_of(q["path"]) != "cubicasa5k" or os.path.basename(q["path"]) in scan.predictions()]
     if a.limit:
@@ -55,6 +63,8 @@ def main():
     for src, (ok, n) in by_src.items():
         print(f"  {src:16s} {ok}/{n} = {100 * ok / n:.1f}%")
     print(f"({time.time() - t0:.0f}s; cubicasa only on plans with detector predictions)")
+    if n_fixed:
+        print(f"{n_fixed} dataset answers replaced by what the drawing shows (data/answer_corrections.jsonl)")
 
 
 if __name__ == "__main__":

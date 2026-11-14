@@ -130,6 +130,11 @@ def detect(img, imgsz=1280, raw=False, tta=None):
     """raw=True returns everything above conf 0.05; otherwise the per-class thresholds are applied.
     tta=True runs the four 90-degree orientations and fuses them (default: DRAWQA_TTA=1, or whatever the
     thresholds file says the thresholds were tuned with)."""
+    from . import remote
+    if remote.enabled():  # on the Modal GPU (drawqa/remote.py); None = not reachable, run here
+        r = remote.try_call("detect", img, imgsz=imgsz, raw=raw, tta=tta)
+        if r is not None:
+            return r
     import numpy as np
     m = _load()
     h, w = img.shape[:2]

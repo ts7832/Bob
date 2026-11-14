@@ -4,6 +4,41 @@ Read this first, then `README.md` (rules, how it works, measurements) and `HANDO
 walls, areas and free-form questions). Written at 14:31, updated at 15:15 (section "Changes 14:31-15:15" and tasks
 1-4, 8). Re-check anything marked "check".
 
+## Next (user, 15 Nov night)
+
+- **Done: our trained models run on Modal.** App `drawqa-infer` (`tools/modal_infer.py`, L4 GPU + 8 CPUs, same code,
+  weights and library versions; deploy with `.venv/bin/modal deploy tools/modal_infer.py`). Client `drawqa/remote.py`;
+  `DRAWQA_INFER=modal` is the default, `local` runs here; falls back to local if Modal is unreachable. Same detections
+  as local (60/60 boxes on plan 41, confidences within 0.001). UK school sheet: 81 s (detector 19.5, outlines 9.3,
+  OCR 51.6) instead of 269 s on the Mac. OCR is now the slowest step (tiles in sequence on CPU): parallelise next.
+  Redeploy after changing drawqa code or weights. The demo server warms it at start (and Kimi).
+- New demo flow: `.venv/bin/python -u demo/server.py` -> http://localhost:8000/app (upload -> reading -> ask Kimi).
+- Picture-first answering is in `drawqa/layer.py` (reading, once per file) + `drawqa/ask.py` (answers from the reading
+  only; counts from the checked reading; other questions by an answer agent, Kimi on Modal now, Claude later via
+  `drawqa/llm.py`). Qwen3-VL-32B was tried as the answer model: about 8-20x slower than Kimi and gave confidently
+  wrong answers (61 m2 printed area answered as 77.56 "measured").
+
+## Changes late evening (session A, junction-d0; user approved; not committed)
+
+- **Counts are what people see on the drawing.** The dataset's own Swiss door/window answers count elements the DXF
+  stores twice, exactly on top of each other (61 of 65 plans; 1,777 doors in the answers vs 1,501 drawn; site1000:
+  36 vs 29). `drawqa/swiss.py` now counts such copies once (`sheet["duplicates_dropped"]` keeps how many); answers
+  do not mention the hidden copies. This reverses the earlier choice in HANDOFF.md ("Swiss doors: the answer key
+  counts CAD rectangles"): `snap_to_linework` in `drawqa/convert.py` now also counts a path drawn twice once, so the
+  PDF route gives the visible count too (site1000: DXF, PDF and PNG all 29 doors / 26 windows).
+- **Eval corrections:** `data/answer_corrections.jsonl` (150 rows, built by `tools/make_answer_corrections.py`)
+  replaces those answers with the visible count; `drawqa/eval.py` applies it, keeps the original as
+  `q["dataset_answer"]` and prints how many it replaced. Swiss DXF eval stays 2326/2358 = 98.6% (doors and windows
+  130/130). This check is circular on the DXF route (same rule); the picture route (`DRAWQA_SWISS=pdf`) is the
+  independent test: re-run it.
+- **Legend symbols are not counted:** `drawqa/convert.py` `legend_boxes()` / `drop_legend_symbols()` find a
+  Legend/Legende/Legenda heading in the sheet's text, take the ruled panel around it (or a small area by the heading)
+  and drop detector symbols inside it; `drawqa/solve.py` adds "Not counted: N door symbol(s) drawn in the legend".
+  Swiss site1000 picture: 29 doors (was 30). CubiCasa plan 1000 unchanged.
+- **Detector on held-out plans, doors and windows:** CubiCasa 5 plans 104/104 (+1 extra); Swiss 6 plans 239/239
+  (+1 = the legend sample, now dropped), scored with `tools/swiss_labels.py` boxes. Opus alone is worse (misses some,
+  boxes doors on the swing), so Opus labels are not worth training the detector on for doors/windows.
+
 ## Changes 17:40-20:30 (session B; branch `freeform-tools`)
 
 - **Doors from swing arcs in vector PDFs** (`drawqa/doorarcs.py`, `convert.add_door_arcs`): quarter-circle arcs of
@@ -27,8 +62,13 @@ walls, areas and free-form questions). Written at 14:31, updated at 15:15 (secti
   cached OCR. `tools/freeform_check.py piping|dorm|slab` uses it.
 - Checks: question set 33 / 33 checkable answers right (Swiss 16, BIM 8, Stoa sheets 12); scoreboards unchanged
   (85.0 / 98.6 / 97.7).
-- Detector fine-tune `f26l` (e26l + FloorPlanCAD, other session) was training at 19:40; FloorPlanCAD data:
-  `/data/yolo_fpc`, `tools/modal_fpc.py` (3,765 train images, CC BY-NC 4.0).
+- Detector fine-tune `f26l` (e26l + FloorPlanCAD) finished 19:35; **not used**. Held-out 0.8532 (e26l 0.8597);
+  on Stoa's UK school it boxes almost no rooms (10 vs 54) and misses mirrored doors. Weights in `models/f26l.pt`.
+- 21:15 (user approved): **detector switched to `e26l`**. `models/detector.pt` + thresholds are copies of e26l,
+  `data/predictions/active.txt` = `yolo_e26l_tta.jsonl` (c26l kept as `models/c26l.pt`). UK school hand-checked
+  wing: 23/23 doors found (c26l 16/23), 5 false on furniture. Scoreboards: scans 86.1% (was 85.0%), Swiss 98.6%,
+  BIM 97.7%. Local only: the weights are not in git; the routing fixes went to `freeform-tools` as e993360.
+  FloorPlanCAD data (for f26l): `/data/yolo_fpc`, `tools/modal_fpc.py` (3,765 train images, CC BY-NC 4.0).
 
 ## Changes 16:45-17:40 (session B; branch `freeform-tools`)
 

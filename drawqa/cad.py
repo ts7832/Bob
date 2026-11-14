@@ -81,6 +81,33 @@ def _texts(msp):
     return out
 
 
+def _robust_extents(msp, bbox):
+    """The drawing's extents without far-away strays (an image or a point kilometres off would shrink the real plan to
+    a dot): entity centres outside the 1st-99th percentile band, widened by half its size, are left out."""
+    full = bbox.extents(msp, fast=True)
+    boxes = []
+    for e in msp:
+        try:
+            b = bbox.extents([e], fast=True)
+        except Exception:
+            continue
+        if b.has_data:
+            boxes.append((e, b))
+    if len(boxes) < 20:
+        return full, set()
+    xs = sorted(b.center.x for _, b in boxes); ys = sorted(b.center.y for _, b in boxes)
+    q = lambda v, p: v[min(len(v) - 1, max(0, int(p * len(v))))]
+    x0, x1, y0, y1 = q(xs, 0.01), q(xs, 0.99), q(ys, 0.01), q(ys, 0.99)
+    mx, my = 0.5 * (x1 - x0), 0.5 * (y1 - y0)
+    out, dropped = bbox.BoundingBox(), set()
+    for e, b in boxes:
+        if x0 - mx <= b.center.x <= x1 + mx and y0 - my <= b.center.y <= y1 + my:
+            out.extend([b.extmin, b.extmax])
+        else:
+            dropped.add(e.dxf.handle)
+    return (out, dropped) if out.has_data else (full, set())
+
+
 def to_pdf(path):
     import ezdxf  # noqa: F401
     import pymupdf
@@ -99,14 +126,14 @@ def to_pdf(path):
     except Exception as e:
         raise CadError(f"the CAD file could not be read ({type(e).__name__}: {str(e)[:120]})")
     msp = doc.modelspace()
-    ext = bbox.extents(msp, fast=True)
+    ext, strays = _robust_extents(msp, bbox)
     if not ext.has_data or max(ext.size.x, ext.size.y) <= 0:
         raise CadError(f"the CAD file's model space is empty ({len(msp)} entities; drawings kept only in paper-space layouts are not read)")
     k = PAGE_MM / max(ext.size.x, ext.size.y)  # millimetres on the page per drawing unit
     backend = PyMuPdfBackend()
     cfg = config.Configuration(background_policy=config.BackgroundPolicy.WHITE, color_policy=config.ColorPolicy.BLACK,
                                hatch_policy=config.HatchPolicy.SHOW_OUTLINE)
-    Frontend(RenderContext(doc), backend, config=cfg).draw_layout(msp)
+    Frontend(RenderContext(doc), backend, config=cfg).draw_layout(msp, filter_func=lambda e: e.dxf.handle not in strays)
     pdf = backend.get_pdf_bytes(layout.Page(0, 0, layout.Units.mm, margins=layout.Margins.all(0)), settings=layout.Settings(fit_page=False, scale=k))
     d = pymupdf.open("pdf", pdf)
     pg = d[0]

@@ -49,9 +49,20 @@ def read(path, img=None):
     if os.path.exists(f):
         return json.load(open(f))
     import cv2
-    from . import ocr
+    from . import remote
     if img is None:
         img = cv2.imread(path)
+    out = remote.try_call("textlayer", img) if remote.enabled() else None  # the whole tiled read in one call on Modal
+    if out is None:
+        out = read_image(img)
+    os.makedirs(CACHE, exist_ok=True)
+    json.dump(out, open(f, "w"))
+    return out
+
+
+def read_image(img):
+    """The text on an image, in native-resolution tiles when it is big (no cache: read() keeps one)."""
+    from . import ocr
     H, W = img.shape[:2]
     if max(H, W) <= BIG:
         out = [dict(t, raw=t["text"], text=normalize(t["text"])) for t in ocr.texts(img)]
@@ -76,8 +87,6 @@ def read(path, img=None):
             if not any(_iou(t["bbox"], o["bbox"]) > 0.5 and same(t["text"], o["text"]) for o in out):
                 out.append(t)
         out.sort(key=lambda t: (round(t["bbox"][1] / 20), t["bbox"][0]))
-    os.makedirs(CACHE, exist_ok=True)
-    json.dump(out, open(f, "w"))
     return out
 
 
