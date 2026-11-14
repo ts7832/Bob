@@ -99,6 +99,10 @@ def honesty(sheet, intent, res):
         if sheet.get("detector_note"):  # e.g. one orientation only on a very large sheet
             out["basis"] += ". Note: " + sheet["detector_note"]
             note = out["basis"]
+        legend = [d for d in sheet.get("legend_symbols", []) if d.get("cls") == intent.get("cls")]
+        if legend:  # the sample symbols drawn in the sheet's legend (drawqa/convert.py drop_legend_symbols)
+            out["basis"] += f". Not counted: {len(legend)} {legend[0]['cls']} symbol(s) drawn in the legend, which are samples, not part of the building"
+            note = out["basis"]
         fit = sheet.get("detector_fit") or {}
         if fit.get("level") in ("weak", "none"):  # say so when the drawing is unlike what the detector was trained on
             # a 0 is not a measurement when the detector recognises nothing on this drawing, or when it recognises
@@ -141,6 +145,7 @@ def honesty(sheet, intent, res):
         return dict(tier="measured", deterministic=True, basis="read from the building model's own elements and quantities")
     if st == "vector-dxf":
         src = " / ".join(sorted({r for r in res.get("area_sources", []) if r}))
+        # counts are what the drawing shows: copies of an element stored on top of itself are counted once (drawqa/swiss.py)
         return dict(tier="read" if src == "printed label" else "measured", deterministic=True, basis=src or "exact CAD geometry")
     return dict(tier="read" if st == "vector-pdf" else "measured", deterministic=True, basis="text and linework of the file")
 
@@ -417,6 +422,34 @@ def _finalize(res, question, plan=None):
     return res
 
 
+def _names_beat_type(sheet, intent, question):
+    """A room-TYPE pattern ("hall" = entry type) on a sheet that prints a room name containing the question's words
+    ("the area of the Multi-Purpose Hall"): the named rooms answer it, not every room of a type. The same rule the
+    language-model route applies (llm_router._fill_room_names)."""
+    it = intent.get("intent")
+    if it == "unknown":  # no pattern fits, but "how many X" / "area of X" with X a printed room name needs no model
+        if re.search(router.ARITHMETIC, question, re.I) or re.search(r"perimeter|skirting|wall|paint|tile", question, re.I):
+            return intent  # arithmetic or another measure: the model reads it
+        if re.search(router.COUNT_WORDS, question, re.I):
+            it = "count_rooms_class"
+        elif re.search(router.AREA_WORDS, question, re.I):
+            it = "class_area"
+        else:
+            return intent
+    if it not in ("class_area", "count_rooms_class"):
+        return intent
+    names = sorted({r["name"] for r in sheet.get("rooms", []) if r.get("name")}
+                   | {n["label"] for n in sheet.get("printed_names", []) if n.get("label")})
+    if not names:
+        return intent
+    match = router.names_matching(router.room_phrase(question), names)
+    if not match:
+        return intent
+    if it == "class_area":
+        return dict(intent="label_area", labels=match, label=match[0], from_type=intent.get("cls"))
+    return dict(intent="count_rooms_label", labels=match, label=match[0], from_type=intent.get("cls"))
+
+
 def _model_plan(question, sheet):
     from . import llm_router
     return llm_router.parse(question, sheet)
@@ -452,6 +485,7 @@ def solve(path, question, generic=False, llm=False):
         from . import convert
         convert.attach_printed_names(sheet)
     read_by = dict(by="pattern", note="matched a known question pattern")
+    intent = _names_beat_type(sheet, intent, question)
     plan = None
     # on a building model, a question the patterns read as a plain drawing count ("doors on the second floor") may
     # name a storey those patterns ignore: let the model read it, and keep the pattern's reading if it cannot

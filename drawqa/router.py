@@ -74,6 +74,35 @@ def names_specific_room(question):
     return m.group(1).strip()
 
 
+NOT_A_ROOM = {"floor", "building", "plan", "apartment", "unit", "whole", "total", "entire", "rooms", "drawing", "sheet",
+              "model", "house", "flat", "ceiling", "walls", "wall", "skirting", "board", "boards", "area", "perimeter",
+              "length", "height", "scale", "doors", "door", "windows", "window", "storey", "level", "plans", "same", "first",
+              "second", "third", "ground", "basement", "attic", "drawings", "question", "answer", "tiles", "paint"}
+
+
+def room_phrase(question):
+    """The room words a question is about: "the area OF THE MULTI-PURPOSE HALL", "how many SECONDARY CLASSROOMS are
+    there", "skirting does THE LIBRARY need". None when it names no particular room."""
+    p = names_specific_room(question)
+    if not p:
+        m = re.search(r"\bhow many\s+([a-z][\w\- ]{2,40}?)\s+(?:are|is|do|does|can|on|in|there|exist)\b", question, re.I)
+        p = m.group(1) if m and m.group(1).lower() not in NOT_A_ROOM else None
+    if not p:
+        m = [w for w in re.findall(r"\bthe\s+([a-z][\w\-]{3,30})\b", question, re.I) if w.lower() not in NOT_A_ROOM]
+        p = m[0] if m else None
+    return p
+
+
+def names_matching(phrase, names):
+    """Printed room names that contain every word of the phrase (plural-tolerant): "secondary classrooms" ->
+    "Secondary Classroom", "Secondary Classroom (Severe Needs)"; "multi-purpose hall" -> "Multi-Purpose Hall"."""
+    sing = lambda w: w[:-1] if len(w) > 3 and w.endswith("s") else w
+    pw = {sing(w) for w in re.findall(r"[a-z]+", (phrase or "").lower())} - {"the", "all", "and", "of", "room"} \
+        if phrase and len(re.findall(r"[a-z]+", phrase.lower())) > 1 else \
+        {sing(w) for w in re.findall(r"[a-z]+", (phrase or "").lower())} - {"the", "all", "and", "of"}
+    return [n for n in names if pw and pw <= {sing(w) for w in re.findall(r"[a-z]+", str(n).lower())}]
+
+
 def parse(question):
     q = question.strip()
     if re.search(ARITHMETIC, q, re.I):  # "total area minus 10": the pattern tools cannot do the arithmetic; the model passes it on

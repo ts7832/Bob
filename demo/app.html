@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DrawQA</title>
+<style>
+:root {
+  --bg: #f6f5f2; --panel: #ffffff; --ink: #1d1d1b; --muted: #6b6a65; --line: #e3e1db; --accent: #d9480f; --accent-soft: #fff1e8;
+  --ok: #2b8a3e; --warn: #b7791f; --bad: #c92a2a; --info: #1c7ed6; --chip: #f1efe9;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace; --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #161614; --panel: #1f1f1c; --ink: #ecebe6; --muted: #a09e96; --line: #33322e; --accent: #ff8a3d; --accent-soft: #3a2416; --chip: #2a2926;
+} }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 var(--sans); }
+header { display: flex; align-items: baseline; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); }
+header h1 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
+header .tag { color: var(--muted); font-size: 13px; }
+header .file { margin-left: auto; color: var(--muted); font-size: 13px; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 16px; padding: 16px; height: calc(100vh - 56px); }
+@media (max-width: 980px) { main { grid-template-columns: 1fr; height: auto; } #view { height: 70vh; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+#left { position: relative; overflow: hidden; display: flex; flex-direction: column; }
+#drop { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border: 2px dashed var(--line);
+  border-radius: 10px; margin: 16px; color: var(--muted); text-align: center; padding: 24px; cursor: pointer; }
+#drop.hover { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+#drop b { color: var(--ink); font-size: 18px; }
+#progress { display: none; padding: 28px; }
+#progress h2 { margin: 0 0 4px; font-size: 18px; }
+.step { display: flex; gap: 10px; align-items: center; padding: 8px 0; color: var(--muted); }
+.step .dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); flex: none; }
+.step.active { color: var(--ink); } .step.active .dot { border-color: var(--accent); border-top-color: transparent; animation: spin 0.9s linear infinite; }
+.step.done { color: var(--ink); } .step.done .dot { background: var(--ok); border-color: var(--ok); }
+@keyframes spin { to { transform: rotate(360deg); } }
+#view { display: none; flex: 1; position: relative; cursor: grab; touch-action: none; }
+#view.drag { cursor: grabbing; }
+#cv { width: 100%; height: 100%; display: block; }
+.tools { position: absolute; right: 10px; top: 10px; display: flex; gap: 6px; }
+button { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 7px; padding: 6px 11px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+#right { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+#found { padding: 12px 14px; max-height: 38%; overflow: auto; }
+#found h3, #qa h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.cls { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 14px; }
+.cls input { margin: 0; } .sw { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+.cls .n { margin-left: auto; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.src { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+.meta { color: var(--muted); font-size: 12.5px; margin-top: 8px; }
+#qa { padding: 12px 14px; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+form { display: flex; gap: 8px; }
+#q { flex: 1; font: inherit; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); }
+#q:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.chip { font-size: 12.5px; background: var(--chip); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+.chip:hover { border-color: var(--accent); }
+#answers { overflow: auto; flex: 1; margin-top: 4px; }
+.ans { border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; margin-top: 10px; cursor: pointer; }
+.ans.sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.ans .question { color: var(--muted); font-size: 13.5px; }
+.ans .value { font-size: 22px; font-weight: 650; margin: 2px 0; letter-spacing: -0.01em; }
+.ans .value .unit { font-size: 15px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+.tier { display: inline-block; font-size: 11.5px; font-weight: 600; border-radius: 5px; padding: 1px 7px; margin-right: 6px; color: #fff; }
+.t-read { background: var(--ok); } .t-measured { background: var(--ok); } .t-detected { background: var(--info); }
+.t-estimated { background: var(--warn); } .t-cannot { background: #868e96; }
+.ans .why { font-size: 13.5px; margin-top: 4px; }
+.ans .foot { color: var(--muted); font-size: 12px; margin-top: 6px; }
+.thinking { color: var(--muted); font-style: italic; }
+.err { color: var(--bad); }
+</style>
+</head>
+<body>
+<header><h1>DrawQA</h1><span class="tag">Upload any drawing. It is read once; then ask anything. Every answer says how it was obtained.</span><span class="file" id="fname"></span></header>
+<main>
+  <section id="left" class="card">
+    <label id="drop"><b>Drop a drawing here</b><span>PNG, JPG, PDF, DXF or DWG &middot; or click to choose a file</span><input id="file" type="file" hidden></label>
+    <div id="progress">
+      <h2>Reading the drawing</h2><div class="meta" id="elapsed"></div>
+      <div id="steps"></div>
+    </div>
+    <div id="view"><canvas id="cv"></canvas>
+      <div class="tools"><button id="fit" type="button">Fit</button><button id="new" type="button">New drawing</button></div>
+    </div>
+  </section>
+  <section id="right">
+    <div id="found" class="card"><h3>What was found</h3><div class="meta">Upload a drawing to start.</div></div>
+    <div id="qa" class="card"><h3>Ask</h3>
+      <form id="askf"><input id="q" placeholder="Ask about this drawing…" autocomplete="off" disabled><button class="primary" id="go" disabled>Ask</button></form>
+      <div class="chips" id="chips"></div>
+      <div id="answers"></div>
+    </div>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const PAL = ["#e8590c", "#1c7ed6", "#2b8a3e", "#ae3ec9", "#0c8599", "#d6336c", "#5c940d", "#f08c00", "#4263eb", "#862e9c", "#087f5b", "#c2255c", "#495057", "#a61e4d", "#364fc7"];
+const STEPS = [["picture", "Drawing the page as a picture"], ["models", "Our trained models: doors, windows, fixtures, walls, rooms, text"],
+               ["claude", "Claude (Opus, medium effort) reads the whole drawing"], ["done", "Ready to answer questions"]];
+let job = null, st = null, layer = [], img = null, hidden = new Set(), hi = null, view = { s: 1, x: 0, y: 0 };
+
+// ---- upload ----
+const drop = $("drop");
+["dragenter", "dragover"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("hover"); }));
+["dragleave", "drop"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove("hover"); }));
+drop.addEventListener("drop", ev => ev.dataTransfer.files[0] && upload(ev.dataTransfer.files[0]));
+$("file").addEventListener("change", ev => ev.target.files[0] && upload(ev.target.files[0]));
+$("new").onclick = () => location.reload();
+
+async function upload(f) {
+  $("fname").textContent = f.name;
+  drop.style.display = "none"; $("progress").style.display = "block";
+  renderSteps("picture");
+  const r = await fetch("/api/v2/upload?name=" + encodeURIComponent(f.name), { method: "POST", body: f });
+  const d = await r.json();
+  if (d.error) return fail(d.error);
+  job = d.id; poll();
+}
+function renderSteps(stage) {
+  const idx = STEPS.findIndex(s => s[0] === stage);
+  $("steps").replaceChildren(...STEPS.map(([k, label], i) => {
+    const e = document.createElement("div");
+    e.className = "step" + (i < idx || stage === "done" ? " done" : i === idx ? " active" : "");
+    e.innerHTML = `<span class="dot"></span><span>${label}</span>`;
+    return e;
+  }));
+}
+function fail(msg) { $("steps").innerHTML = `<p class="err">${esc(msg)}</p>`; }
+async function poll() {
+  const d = await (await fetch("/api/v2/status?id=" + job)).json();
+  $("elapsed").textContent = `${Math.round(d.elapsed)} s`;
+  if (d.stage === "error") return fail(d.detail || "Reading failed");
+  renderSteps(d.stage === "queued" ? "picture" : d.stage);
+  if (d.stage !== "done") return setTimeout(poll, 1000);
+  st = d; ready();
+}
+
+// ---- after reading ----
+async function ready() {
+  layer = await (await fetch("/api/v2/layer?id=" + job)).json();
+  img = new Image(); img.src = "/api/v2/picture?id=" + job;
+  await img.decode();
+  $("progress").style.display = "none"; $("view").style.display = "block";
+  sizeCanvas(); fit();
+  const disc = st.discovery || {};
+  $("found").innerHTML = "<h3>What was found</h3>";
+  layer.forEach((c, i) => {
+    const row = document.createElement("label"); row.className = "cls";
+    row.innerHTML = `<input type="checkbox" checked><span class="sw" style="background:${PAL[i % PAL.length]}"></span>${esc(c.name.replace(/_/g, " "))}
+      <span class="src">${/detector|model/.test(c.source || "") ? "model" : "Claude"}</span><span class="n">${c.items.length}</span>`;
+    row.querySelector("input").onchange = e => { e.target.checked ? hidden.delete(c.name) : hidden.add(c.name); draw(); };
+    $("found").appendChild(row);
+  });
+  const m = document.createElement("div"); m.className = "meta";
+  m.innerHTML = `Read in ${Math.round(st.seconds || st.elapsed)} s` + (disc.cost_usd ? ` · Claude ${Math.round(disc.seconds)} s, $${disc.cost_usd.toFixed(2)}` : "")
+    + (st.scale.m_per_px ? `<br>Scale: ${(st.scale.m_per_px * 1000).toFixed(1)} mm per px (${esc(st.scale.source || "")})` : "<br>Scale: not known")
+    + (st.notes.length ? "<br>" + st.notes.map(esc).join("<br>") : "");
+  $("found").appendChild(m);
+  $("q").disabled = false; $("go").disabled = false; $("q").focus();
+  const top = [...layer].filter(c => c.name !== "wall" && c.name !== "room").sort((a, b) => b.items.length - a.items.length)[0];
+  const ex = ["How many doors are there?", top ? `How many ${top.name.replace(/_/g, " ")} are there?` : null, "Which room is the largest?", "What is the scale of the drawing?", "What is the ceiling height?"].filter(Boolean);
+  $("chips").replaceChildren(...ex.map(t => { const c = document.createElement("span"); c.className = "chip"; c.textContent = t; c.onclick = () => { $("q").value = t; askQ(); }; return c; }));
+}
+
+// ---- questions ----
+$("askf").addEventListener("submit", ev => { ev.preventDefault(); askQ(); });
+async function askQ() {
+  const q = $("q").value.trim(); if (!q) return;
+  $("q").value = "";
+  const card = document.createElement("div"); card.className = "ans";
+  card.innerHTML = `<div class="question">${esc(q)}</div><div class="thinking">Kimi is answering from the reading…</div>`;
+  $("answers").prepend(card);
+  try {
+    const r = await (await fetch("/api/v2/ask", { method: "POST", body: JSON.stringify({ id: job, question: q }) })).json();
+    if (r.error) throw new Error(r.error);
+    const tier = r.tier || "cannot determine";
+    const val = r.answer === null || r.answer === undefined || tier === "cannot determine" ? "Cannot determine" : r.answer;
+    const unit = r.unit && !["count", ""].includes(r.unit) && tier !== "cannot determine" ? r.unit : "";
+    card.innerHTML = `<div class="question">${esc(q)}</div><div class="value">${esc(val)}<span class="unit">${esc(unit)}</span></div>
+      <div><span class="tier t-${tier.split(" ")[0]}">${esc(tier)}</span></div><div class="why">${esc(r.basis || "")}</div>
+      <div class="foot">${esc(r.model || r.route || "")} · ${r.seconds} s · ${(r.evidence || []).length} evidence item(s)${(r.notes || []).length ? " · " + r.notes.map(esc).join("; ") : ""}</div>`;
+    card.onclick = () => select(card, r.evidence || []);
+    select(card, r.evidence || []);
+  } catch (e) { card.innerHTML = `<div class="question">${esc(q)}</div><div class="err">${esc(e.message)}</div>`; }
+}
+function select(card, ev) {
+  document.querySelectorAll(".ans.sel").forEach(e => e.classList.remove("sel"));
+  card.classList.add("sel"); hi = ev.length ? ev : null; draw();
+  if (hi) { const bs = hi.map(e => e.bbox).filter(Boolean); if (bs.length) zoomTo([Math.min(...bs.map(b => b[0])), Math.min(...bs.map(b => b[1])), Math.max(...bs.map(b => b[2])), Math.max(...bs.map(b => b[3]))]); }
+}
+
+// ---- drawing ----
+const cv = $("cv"), cx = cv.getContext("2d");
+function sizeCanvas() { const r = cv.getBoundingClientRect(), d = devicePixelRatio || 1; cv.width = r.width * d; cv.height = r.height * d; }
+addEventListener("resize", () => { if (img) { sizeCanvas(); draw(); } });
+function fit() { const r = cv.getBoundingClientRect(); view.s = Math.min(r.width / img.width, r.height / img.height) * 0.97; view.x = (r.width - img.width * view.s) / 2; view.y = (r.height - img.height * view.s) / 2; draw(); }
+$("fit").onclick = () => { hi = null; document.querySelectorAll(".ans.sel").forEach(e => e.classList.remove("sel")); fit(); };
+function zoomTo(b) {
+  const k = st.display_scale, r = cv.getBoundingClientRect();
+  const w = Math.max(40, (b[2] - b[0]) * k), h = Math.max(40, (b[3] - b[1]) * k);
+  view.s = Math.min(r.width / (w * 1.6), r.height / (h * 1.6), 6); view.x = r.width / 2 - ((b[0] + b[2]) / 2 * k) * view.s; view.y = r.height / 2 - ((b[1] + b[3]) / 2 * k) * view.s; draw();
+}
+function shape(it, k) {
+  cx.beginPath();
+  if (it.polygon || it.polyline) { const p = it.polygon || it.polyline; p.forEach(([x, y], i) => i ? cx.lineTo(x * k, y * k) : cx.moveTo(x * k, y * k)); if (it.polygon) cx.closePath(); }
+  else if (it.bbox) cx.rect(it.bbox[0] * k, it.bbox[1] * k, (it.bbox[2] - it.bbox[0]) * k, (it.bbox[3] - it.bbox[1]) * k);
+  else if (it.point) cx.arc(it.point[0] * k, it.point[1] * k, 4, 0, 7);
+}
+function draw() {
+  if (!img) return;
+  const d = devicePixelRatio || 1, k = st.display_scale;
+  cx.setTransform(d, 0, 0, d, 0, 0); cx.clearRect(0, 0, cv.width, cv.height);
+  cx.setTransform(d * view.s, 0, 0, d * view.s, d * view.x, d * view.y);
+  cx.drawImage(img, 0, 0);
+  const ids = hi ? new Set(hi.map(e => e.id)) : null;
+  layer.forEach((c, i) => {
+    if (hidden.has(c.name)) return;
+    cx.strokeStyle = PAL[i % PAL.length]; cx.lineWidth = 1.6 / view.s; cx.globalAlpha = ids ? 0.18 : 0.85;
+    c.items.forEach(it => { if (!ids || !ids.has(it.id)) { shape(it, k); cx.stroke(); } });
+  });
+  if (ids) {
+    cx.globalAlpha = 1; cx.strokeStyle = getComputedStyle(document.body).getPropertyValue("--accent"); cx.lineWidth = 3.2 / view.s; cx.fillStyle = "rgba(255,120,40,0.18)";
+    layer.forEach(c => c.items.forEach(it => { if (ids.has(it.id)) { shape(it, k); cx.fill(); cx.stroke(); } }));
+  }
+  cx.globalAlpha = 1;
+}
+let dragAt = null;
+cv.addEventListener("pointerdown", e => { dragAt = [e.clientX, e.clientY, view.x, view.y]; $("view").classList.add("drag"); cv.setPointerCapture(e.pointerId); });
+cv.addEventListener("pointermove", e => { if (!dragAt) return; view.x = dragAt[2] + e.clientX - dragAt[0]; view.y = dragAt[3] + e.clientY - dragAt[1]; draw(); });
+cv.addEventListener("pointerup", () => { dragAt = null; $("view").classList.remove("drag"); });
+cv.addEventListener("wheel", e => {
+  e.preventDefault(); const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, f = Math.exp(-e.deltaY * 0.0015);
+  view.x = mx - (mx - view.x) * f; view.y = my - (my - view.y) * f; view.s *= f; draw();
+}, { passive: false });
+function esc(t) { return String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+</script>
+</body>
+</html>

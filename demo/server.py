@@ -236,6 +236,97 @@ def render(path):
     return r
 
 
+# ---- picture-first app (/app): upload -> reading (models + Claude) -> questions to the answer agent (Kimi) ----
+import threading, time  # noqa: E402
+
+JOBS = {}  # job id -> dict(path, name, stage, detail, started, steps, layer, error)
+STAGES = {"queued": "waiting", "picture": "Drawing the page as a picture", "models": "Our trained models: doors, windows, fixtures, walls, rooms, text",
+          "claude": "Claude (Opus, medium effort) is reading the whole drawing, usually 2-5 min", "done": "Ready", "error": "Failed"}
+
+
+def start_reading(f, name):
+    from drawqa import layer as LY
+    jid = os.path.basename(f).split("_")[0]
+    if jid in JOBS and JOBS[jid]["stage"] != "error":
+        return jid
+    J = JOBS[jid] = dict(path=f, name=name or os.path.basename(f), stage="queued", detail="", started=time.time(), steps=[])
+
+    def progress(stage, detail):
+        J.update(stage=stage, detail=detail)
+        J["steps"].append(dict(stage=stage, at=round(time.time() - J["started"], 1)))
+
+    def run():
+        try:
+            L = LY.ingest(f, progress=progress)
+            if not L.get("picture"):
+                raise ValueError("; ".join(L.get("notes") or []) or "this file could not be drawn as a picture")
+            J.update(stage="done", detail="Ready", layer=L, seconds=round(time.time() - J["started"], 1))
+        except Exception as e:
+            traceback.print_exc()
+            J.update(stage="error", detail=str(e))
+    threading.Thread(target=run, daemon=True).start()
+    return jid
+
+
+def job_status(jid):
+    J = JOBS[jid]
+    out = dict(id=jid, name=J["name"], stage=J["stage"], label=STAGES.get(J["stage"], J["stage"]), detail=J.get("detail"),
+               elapsed=round(time.time() - J["started"], 1), steps=J["steps"])
+    L = J.get("layer")
+    if L:
+        W, Hh = L["width"], L["height"]
+        out.update(width=W, height=Hh, display_scale=min(1.0, 3200 / max(W, Hh)), seconds=J.get("seconds"),
+                   scale=dict(m_per_px=L.get("m_per_px"), source=L.get("scale_source")), notes=L.get("notes") or [],
+                   discovery={k: v for k, v in (L.get("discovery") or {}).items() if k != "report"},
+                   classes=[dict(name=c["name"], count=c.get("count", len(c.get("items") or [])), source=c.get("source")) for c in L.get("classes", [])])
+    return out
+
+
+def job_picture(jid):
+    J = JOBS[jid]
+    if "jpg" not in J:
+        from PIL import Image
+        import io
+        Image.MAX_IMAGE_PIXELS = None
+        im = Image.open(J["layer"]["picture"]).convert("RGB")
+        s = min(1.0, 3200 / max(im.size))
+        if s < 1:
+            im = im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
+        buf = io.BytesIO(); im.save(buf, "JPEG", quality=85)
+        J["jpg"] = buf.getvalue()
+    return J["jpg"]
+
+
+def job_layer(jid):
+    keep = ("id", "bbox", "polygon", "polyline", "point", "label", "type", "tag", "name", "area_m2")
+    return [dict(name=c["name"], source=c.get("source"), items=[{k: it[k] for k in keep if k in it} for it in c.get("items") or []])
+            for c in JOBS[jid]["layer"].get("classes", [])]
+
+
+def job_ask(jid, question):
+    from drawqa.ask import ask
+    J = JOBS[jid]
+    r = ask(J["path"], question)
+    return {k: r.get(k) for k in ("answer", "unit", "tier", "basis", "evidence", "notes", "route", "model", "seconds")}
+
+
+def warm_kimi():
+    try:
+        from drawqa import llm
+        print(f"Kimi on Modal is warm ({llm.warm()} s)")
+    except Exception as e:
+        print(f"Kimi warm-up failed: {e}")
+
+
+def warm_models():
+    try:
+        from drawqa import remote
+        if remote.enabled():
+            print(f"Our models on the Modal GPU are warm ({remote.warm()} s)")
+    except Exception as e:
+        print(f"Model service warm-up failed (reading will run on this computer): {e}")
+
+
 class H(BaseHTTPRequestHandler):
     def _send(self, code, body, ctype="application/json"):
         data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False, default=str).encode()
@@ -250,6 +341,14 @@ class H(BaseHTTPRequestHandler):
         try:
             if u.path == "/":
                 return self._send(200, open(os.path.join(ROOT, "demo", "index.html"), "rb").read(), "text/html; charset=utf-8")
+            if u.path == "/app":
+                return self._send(200, open(os.path.join(ROOT, "demo", "app.html"), "rb").read(), "text/html; charset=utf-8")
+            if u.path == "/api/v2/status":
+                return self._send(200, job_status(parse_qs(u.query)["id"][0]))
+            if u.path == "/api/v2/picture":
+                return self._send(200, job_picture(parse_qs(u.query)["id"][0]), "image/jpeg")
+            if u.path == "/api/v2/layer":
+                return self._send(200, job_layer(parse_qs(u.query)["id"][0]))
             if u.path == "/api/samples":
                 return self._send(200, samples())
             if u.path == "/api/open":
@@ -280,6 +379,25 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         u = urlparse(self.path)
+        if u.path == "/api/v2/upload":  # body = the file's bytes, ?name= its file name -> starts the reading
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+                if not 0 < n <= MAX_UPLOAD:
+                    return self._send(413, {"error": f"file is empty or larger than {MAX_UPLOAD // 2 ** 20} MB"})
+                name = (parse_qs(u.query).get("name") or [""])[0]
+                return self._send(200, {"id": start_reading(save_upload(name, self.rfile.read(n)), name)})
+            except Exception as e:
+                traceback.print_exc()
+                return self._send(500, {"error": str(e)})
+        if u.path == "/api/v2/ask":
+            try:
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                if JOBS.get(body["id"], {}).get("stage") != "done":
+                    return self._send(409, {"error": "the drawing is still being read"})
+                return self._send(200, job_ask(body["id"], body["question"].strip()))
+            except Exception as e:
+                traceback.print_exc()
+                return self._send(500, {"error": str(e)})
         if u.path == "/api/upload":  # body = the file's bytes, ?name= its file name
             try:
                 n = int(self.headers.get("Content-Length") or 0)
@@ -329,5 +447,7 @@ class H(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    print(f"Drawing QA demo on http://localhost:{port}")
+    print(f"Drawing QA demo on http://localhost:{port}  (new flow: http://localhost:{port}/app)")
+    threading.Thread(target=warm_kimi, daemon=True).start()
+    threading.Thread(target=warm_models, daemon=True).start()
     ThreadingHTTPServer(("127.0.0.1", port), H).serve_forever()

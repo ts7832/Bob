@@ -413,10 +413,7 @@ def _generic_room_label(d, question):
     return None
 
 
-NOT_A_ROOM = {"floor", "building", "plan", "apartment", "unit", "whole", "total", "entire", "rooms", "drawing", "sheet",
-              "model", "house", "flat", "ceiling", "walls", "wall", "skirting", "board", "boards", "area", "perimeter",
-              "length", "height", "scale", "doors", "door", "windows", "window", "storey", "level", "plans", "same", "first",
-              "second", "third", "ground", "basement", "attic", "drawings", "question", "answer", "tiles", "paint"}
+from .router import NOT_A_ROOM  # words that do not name a room (one list, in router.py)
 
 
 AREA_UNITS = {"SF", "SQFT", "SQ FT", "M2", "M²", "SQM"}
@@ -484,17 +481,8 @@ def _fill_room_names(d, question, sheet):
     # the question's room words all appear in printed names ("the secondary classrooms" -> "Secondary Classroom",
     # "Secondary Classroom (Severe Needs)"): those names, ahead of a room TYPE the model may have picked (it once took
     # classrooms for bedrooms, because the detector types school rooms as apartment rooms)
-    from .router import names_specific_room
-    sing = lambda w: w[:-1] if len(w) > 3 and w.endswith("s") else w
-    phrase = names_specific_room(question)
-    if not phrase:  # "how many secondary classrooms are there?"
-        m = re.search(r"\bhow many\s+([a-z][\w\- ]{2,40}?)\s+(?:are|is|do|does|can|on|in|there|exist)\b", question, re.I)
-        phrase = m.group(1) if m and m.group(1).lower() not in NOT_A_ROOM else None
-    if not phrase:
-        m = [w for w in re.findall(r"\bthe\s+([a-z][\w\-]{3,30})\b", question, re.I) if w.lower() not in NOT_A_ROOM]
-        phrase = m[0] if m else None
-    pw = {sing(w) for w in re.findall(r"[a-z]+", (phrase or "").lower())} - {"the", "all", "and", "of"}
-    match = [n for n in names if pw and pw <= {sing(w) for w in re.findall(r"[a-z]+", n.lower())}]
+    from .router import room_phrase, names_matching
+    match = names_matching(room_phrase(question), names)
     if match:
         swap = {"class_area": "label_area", "count_rooms_class": "count_rooms_label", "label_area": "label_area",
                 "count_rooms_label": "count_rooms_label", "room_perimeter": "room_perimeter", "wall_area": "wall_area"}

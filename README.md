@@ -7,6 +7,12 @@ up: what exists, what is measured, what is running, and the plan. `HANDOFF.md` h
 State as of 2026-11-14, about 13:45 local time, with corrections at 14:40. Every number below was measured that day
 unless it says otherwise. **What is running and what to do next: `TODO.md`** (newer than this file where they differ).
 
+**Newer (15 Nov night): read `docs/SESSION_2026-11-15.md` first** (picture-first reading, answers from the reading by
+Kimi, our models on Modal, the `/app` demo page) and **`docs/DATASET_ISSUES.md`** (where the dataset's answers are
+wrong: Swiss door/window answers count copies a DXF stores twice, legend sample symbols, scales, and more).
+**Trained models:** not in git; `python tools/get_models.py` downloads them from the GitHub release `v0.1-models`
+(or leave them out: by default they run on Modal, app `drawqa-infer`).
+
 ## 1. What we are judged on
 
 Stoa, the company behind the challenge (international: Europe and US), hands over **one unknown file** and asks question after
@@ -112,9 +118,9 @@ Other measurements that shape the design:
 
 | Model | What | State |
 |---|---|---|
-| `c26l` | YOLO26-l detector, 15 classes, three drawing styles | **in use** (`models/detector.pt`) |
+| `c26l` | YOLO26-l detector, 15 classes, three drawing styles | replaced by `e26l` on 14 Nov 21:15 (kept as `models/c26l.pt`) |
 | `d26l` | `c26l` fine-tuned with 10 more room types and style-varied copies | cut at epoch 18 of 30 by the network drop; held-out 85.7% against 85.8% on the scored types, new room types counted exactly on 85-98% of held-out plans; preview scans 85.3% (against 85.0%); Swiss PDF check and install decision pending |
-| `e26l` | `d26l` + sauna-room labels, 12 epochs | finished; held-out 86.0%, best of the three; preview not scored, weights still on the volume (`runs/e26l/`) |
+| `e26l` | `d26l` + sauna-room labels, 12 epochs | **in use** (`models/detector.pt`, release `v0.1-models`, also on Modal `drawqa-infer`); held-out 86.0%; doors+windows 104/104 on 5 held-out CubiCasa plans, 239/239 on 6 Swiss plans |
 | `seg1` | YOLO26-m-seg, walls and room outlines | **in use**, final (`models/segmenter.pt`). 200 held-out plans: 87.3% of rooms outlined, room area error 1.9% median, plan indoor area error 3.6% median (16.8% worst tenth), wall IoU 0.77 |
 | Qwen3-VL-32B | room-name reader, not trained by us | deployed as `drawqa-reader`; cold start about 11 minutes, 13-35 s per drawing when warm, stays up 10 minutes after a call |
 

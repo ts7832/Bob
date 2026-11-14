@@ -3,6 +3,11 @@
 For the next agent or teammate. Every number here was measured in the session that wrote this file; the commands that
 produce them are given. The previous version of this file had several wrong assumptions; section 8 lists them.
 
+> **Superseded in parts by the 15 Nov night session:** see `docs/SESSION_2026-11-15.md` (new picture-first design and
+> measurements) and `docs/DATASET_ISSUES.md`. In particular the choice below to make PDF door counts match the Swiss
+> answer key (counting rectangles drawn twice) was reversed: answers now say what is drawn, and the key is corrected
+> in `data/answer_corrections.jsonl`.
+
 ---
 
 ## 1. What we are judged on

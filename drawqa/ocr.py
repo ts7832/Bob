@@ -24,6 +24,11 @@ def available():
 
 def texts(img):
     """Small plans are read at twice their size: printed labels on these scans are often under 10 px high."""
+    from . import remote
+    if remote.enabled():  # on Modal (drawqa/remote.py); None = not reachable, run here
+        r = remote.try_call("ocr", img)
+        if r is not None:
+            return r
     import cv2, logging
     global _engine
     if _engine is None:

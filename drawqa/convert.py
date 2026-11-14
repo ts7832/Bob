@@ -100,13 +100,20 @@ def snap_to_linework(dets, quads, classes=("door", "window"), min_iou=0.4):
             dets_on_style = sum(1 for h in hits if any(quads[i][1] == style for i in h))
             if len(matched) >= 3 and dets_on_style >= 0.8 * len(D) and len(matched) >= 0.8 * len(group):
                 conf = sorted(d["conf"] for d in D)[len(D) // 2]
-                out += [dict(cls=cls, bbox=[round(v, 1) for v in quads[i][0]], conf=conf, exact=True) for i in group]
-                notes[cls] = f"{len(group)} paths drawn in this sheet's {cls} style; the detector marked {dets_on_style} of {len(D)} detections on them"
+                # a path drawn twice exactly on top of itself is one element on the drawing: count what people see
+                uniq = list({tuple(round(v) for v in quads[i][0]): i for i in group}.values())
+                out += [dict(cls=cls, bbox=[round(v, 1) for v in quads[i][0]], conf=conf, exact=True) for i in uniq]
+                notes[cls] = f"{len(uniq)} {cls}s drawn in this sheet's {cls} style; the detector marked {dets_on_style} of {len(D)} detections on them"
                 continue
+        seen = set()
         for d, h in zip(D, hits):
             if not h:
                 out.append(d)
             for i in h:
+                k = tuple(round(v) for v in quads[i][0])
+                if k in seen:  # the same path drawn twice
+                    continue
+                seen.add(k)
                 out.append(dict(cls=cls, bbox=[round(v, 1) for v in quads[i][0]], conf=d["conf"], exact=True))
     return out, notes
 
@@ -199,15 +206,85 @@ def convert(path, page=0, use_detector=True):
         # walls and room outlines: only where the sheet has none of its own. The model was trained on scanned apartment
         # plans read whole, so it is not run on vector sheets, which carry exact outlines anyway.
         if use_detector and segment.available() and os.environ.get("DRAWQA_OUTLINES", "1") == "1":
-            add_outlines(sheet, raw_outlines(path, page, img))
+            if max(img.shape[:2]) > SEG_MAX_SIDE:
+                # the model reads the whole sheet shrunk to 1280 px: on a big sheet walls vanish and it draws shapes
+                # across rooms (diagonal "walls" on a 10200 px dormitory plan), so it is not used there
+                sheet["outline_note"] = (f"walls and room outlines from the trained model are not used on a sheet this large "
+                                         f"({max(img.shape[:2])} px; it reads sheets at 1280 px and was trained on plans up to ~2500 px)")
+            else:
+                add_outlines(sheet, raw_outlines(path, page, img))
     elif img is not None and kind == "pdf" and sheet.get("texts"):  # vector PDF: check the printed scale it read
         scale_from_text(sheet, img, dpi=pdfsheet.DPI)
     if kind == "pdf" and sheet.get("texts"):  # US-style room labels ("BEDROOM" / "218 SF")
         add_printed_room_labels(sheet)
     if kind == "pdf" and vector:
         add_door_arcs(sheet, pg)
+    if img is not None:
+        drop_legend_symbols(sheet, img)
     sheet["format"] = "drawqa-sheet/1"
     return sheet
+
+
+SEG_MAX_SIDE = int(os.environ.get("DRAWQA_SEG_MAX_SIDE", "4000"))  # longest sheet side the wall/room model is used on
+
+
+LEGEND_TITLE = re.compile(r"^(legend|legende|légende|legenda|leyenda|zeichenerkl[äa]rung|symbol legend)\s*:?$", re.I)
+
+
+def legend_boxes(sheet, img):
+    """Where the sheet's legend is: the panel of ruled lines around a 'Legend' / 'Legende' / 'Legenda' title. Without such
+    a panel (or if it would cover more than a third of the sheet) only a small area beside and below the title."""
+    import cv2
+    import numpy as np
+    titles = [t for t in sheet.get("texts", []) if t.get("bbox") and LEGEND_TITLE.match(str(t.get("text", "")).strip())]
+    if not titles:
+        return []
+    H, W = img.shape[:2]
+    g = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    ink = (g < 128).astype(np.uint8)
+    hl = cv2.morphologyEx(ink, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (max(40, W // 5), 1)))
+    vl = cv2.morphologyEx(ink, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (1, max(40, H // 8))))
+    hs = [cv2.boundingRect(c) for c in cv2.findContours(hl, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]]
+    vs = [cv2.boundingRect(c) for c in cv2.findContours(vl, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]]
+    out = []
+    for t in titles:
+        x0, y0, x1, y1 = t["bbox"]
+        cx, cy, th = (x0 + x1) / 2, (y0 + y1) / 2, max(8, y1 - y0)
+        top = max([y + h for x, y, w, h in hs if y + h <= y0 and x <= cx <= x + w], default=None)
+        bot = min([y for x, y, w, h in hs if y >= y1 and x <= cx <= x + w], default=H)
+        left = max([x + w for x, y, w, h in vs if x + w <= x0 and y <= cy <= y + h], default=0)
+        right = min([x for x, y, w, h in vs if x >= x1 and y <= cy <= y + h], default=W)
+        box = [left, top, right, bot] if top is not None else None
+        if box is None or (box[2] - box[0]) * (box[3] - box[1]) > W * H / 3 or y0 - top > 6 * th:
+            box = [x0 - 2 * th, y0 - th, x0 + 28 * th, y0 + 12 * th]  # the legend's own rows, next to its title
+        out.append(dict(title=t["text"], bbox=[round(float(v), 1) for v in box]))
+    return out
+
+
+def drop_legend_symbols(sheet, img):
+    """A door or WC drawn in the legend is a sample, not an element of the building: leave it out of the counts and
+    keep it in sheet['legend_symbols'], so an answer can say so."""
+    boxes = legend_boxes(sheet, img)
+    if not boxes:
+        return
+    sheet["legend_boxes"] = boxes
+    inside = lambda b: any(L[0] <= (b[0] + b[2]) / 2 <= L[2] and L[1] <= (b[1] + b[3]) / 2 <= L[3] for L in (x["bbox"] for x in boxes))
+    detected = {el["id"] for el in sheet.get("elements", []) if str(el.get("found_by", "")).startswith("detector")}
+    dropped = []
+    for group in ("openings", "fixtures"):
+        keep = []
+        for e in sheet.get(group, []):
+            if e.get("id") in detected and e.get("bbox") and inside(e["bbox"]):
+                dropped.append(dict(id=e["id"], cls=e.get("cls"), bbox=e["bbox"]))
+            else:
+                keep.append(e)
+        sheet[group] = keep
+    gone = {d["id"] for d in dropped}
+    sheet["elements"] = [el for el in sheet.get("elements", []) if el.get("id") not in gone]
+    if dropped:
+        sheet["legend_symbols"] = dropped
+        names = ", ".join(sorted({str(d["cls"]) for d in dropped}))
+        sheet["legend_note"] = f"{len(dropped)} symbol(s) drawn in the legend ({names}) are samples and were not counted"
 
 
 def scale_from_text(sheet, img, dpi=None):
