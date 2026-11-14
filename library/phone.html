@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bob: scan a drawing</title>
+<style>
+  :root { --ink: #14181f; --soft: #5b6472; --line: #dfe3ea; --bg: #f5f6f8; --card: #fff; --go: #1456d9; --ok: #0a7d45; --warn: #b45309; --bad: #b42318; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.4 -apple-system, system-ui, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+  header { padding: 14px 16px; background: var(--card); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: baseline; }
+  header b { font-size: 18px; letter-spacing: .02em; }
+  header span { color: var(--soft); font-size: 13px; }
+  main { padding: 14px 16px 60px; max-width: 640px; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); margin: 0 0 8px; }
+  button, .btn { font: inherit; border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 12px 14px; width: 100%; display: block; text-align: center; color: var(--ink); }
+  .primary { background: var(--go); border-color: var(--go); color: #fff; font-weight: 600; }
+  input[type=password], input[type=text] { font: inherit; width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 10px; }
+  img.sheet { width: 100%; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  .seg button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .note { font-size: 13px; color: var(--soft); margin: 6px 0 0; }
+  .tag { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--soft); margin-right: 4px; }
+  .tag.ok { color: var(--ok); border-color: var(--ok); } .tag.warn { color: var(--warn); border-color: var(--warn); } .tag.bad { color: var(--bad); border-color: var(--bad); }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { padding: 10px 0; border-top: 1px solid var(--line); }
+  li:first-child { border-top: 0; }
+  .q { font-weight: 600; } .a { font-size: 20px; font-weight: 700; margin: 2px 0; }
+  .alert { border-color: var(--warn); background: #fffbeb; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header><b>Bob</b><span id="who">scan a drawing</span></header>
+<main>
+  <div class="card" id="login">
+    <h2>Workspace password</h2>
+    <input type="password" id="pw" inputmode="numeric" autocomplete="current-password" placeholder="Password">
+    <button class="primary" id="go">Open</button>
+    <p class="note" id="loginmsg"></p>
+  </div>
+
+  <div id="app" hidden>
+    <div class="card">
+      <label class="btn primary" for="cam">Scan a paper drawing</label>
+      <input type="file" id="cam" accept="image/*" capture="environment" hidden>
+      <p class="note" id="status">Point the camera at the sheet so most of it is in the picture.</p>
+    </div>
+
+    <div class="card alert" id="newer" hidden></div>
+
+    <div class="card" id="match" hidden>
+      <h2>Found in the library</h2>
+      <img class="sheet" id="thumb" alt="">
+      <p style="margin:8px 0 2px"><b id="sheetname"></b></p>
+      <p class="note" id="matchinfo"></p>
+    </div>
+
+    <div class="card" id="scope" hidden>
+      <h2>Ask about</h2>
+      <div class="row seg"><button id="one" class="on">This sheet</button><button id="all">Whole project</button></div>
+      <p class="note" id="scopeinfo"></p>
+    </div>
+
+    <div class="card" id="askcard" hidden>
+      <h2>Question</h2>
+      <input type="text" id="question" placeholder="e.g. How many doors are on this floor?">
+      <button class="primary" id="ask">Ask</button>
+      <div id="result"></div>
+    </div>
+
+    <div class="card" id="savedcard" hidden>
+      <h2>Already answered on this sheet</h2>
+      <ul id="saved"></ul>
+    </div>
+
+    <div class="card" id="nomatch" hidden>
+      <h2>Not found</h2>
+      <p class="note" id="nomatchinfo"></p>
+    </div>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let pw = sessionStorage.getItem("bobpw") || "", scan = null, scopeAll = false;
+const api = (path, opt = {}) => fetch(path, { ...opt, headers: { "x-bob-password": pw, ...(opt.headers || {}) } })
+  .then(async (r) => { if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText); return r.json(); });
+const money = (x) => "$" + (x || 0).toFixed(4);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const value = (a) => a == null || a.answer == null ? "cannot determine" : a.answer + (a.unit && a.unit !== "count" ? " " + a.unit : "");
+
+async function open_() {
+  pw = $("pw").value || pw;
+  try {
+    const r = await api("/api/login", { method: "POST" });
+    sessionStorage.setItem("bobpw", pw);
+    $("login").hidden = true; $("app").hidden = false; $("who").textContent = r.workspace + " workspace";
+  } catch (e) { $("loginmsg").textContent = "That password was not accepted."; }
+}
+$("go").onclick = open_;
+if (pw) open_();
+
+$("cam").onchange = async (ev) => {
+  const f = ev.target.files[0];
+  if (!f) return;
+  ["match", "scope", "askcard", "savedcard", "nomatch", "newer"].forEach((i) => $(i).hidden = true);
+  $("status").textContent = "Looking it up...";
+  try {
+    const small = await shrink(f);
+    scan = await api("/api/scan", { method: "POST", body: small, headers: { "content-type": "image/jpeg" } });
+  } catch (e) { $("status").textContent = "Could not send the photo: " + e.message; return; }
+  $("status").textContent = "Scan another drawing any time.";
+  if (!scan.matched && scan.look_alikes.length) {
+    $("nomatch").hidden = false;
+    $("nomatch").querySelector("h2").textContent = "Which one is it?";
+    $("nomatchinfo").innerHTML = "These sheets look almost the same in the photo. Pick the one on the table:" +
+      scan.look_alikes.map((c) => `<button style="margin-top:8px" data-id="${c.id}"><img src="/api/sheets/${c.id}/thumb?pw=${encodeURIComponent(pw)}" style="height:64px;vertical-align:middle;margin-right:10px">${esc(c.name)}</button>`).join("");
+    $("nomatchinfo").querySelectorAll("button").forEach((b) => b.onclick = async () => {
+      Object.assign(scan, await api(`/api/open/${b.dataset.id}?scan_id=${scan.scan_id}`), { matched: true, details: "your choice and matching" });
+      $("nomatch").hidden = true; show();
+    });
+    return;
+  }
+  if (!scan.matched) {
+    $("nomatch").hidden = false;
+    $("nomatch").querySelector("h2").textContent = "Not found";
+    const c = scan.candidates[0];
+    $("nomatchinfo").textContent = c ? `No sheet in this workspace matches well enough. Closest: ${c.name} (${c.details} matching details; 25 are needed).`
+                                     : "This workspace has no sheets yet.";
+    return;
+  }
+  show();
+};
+
+function show() {
+  const s = scan.sheet, n = scan.project.sheets.length;
+  $("thumb").src = `/api/sheets/${s.id}/thumb?pw=${encodeURIComponent(pw)}`;
+  $("sheetname").textContent = s.name;
+  $("matchinfo").innerHTML = `Project <b>${esc(scan.project.name)}</b> · ${n} sheet${n === 1 ? "" : "s"} · matched on ${scan.details} details in ${scan.seconds}s`;
+  $("match").hidden = false;
+  if (scan.newer_revision) {
+    $("newer").hidden = false;
+    $("newer").innerHTML = `<b>This paper is out of date.</b><br>A newer version is in the library: ${esc(scan.newer_revision.name)}` +
+      (scan.newer_revision.revision ? ` (revision ${esc(scan.newer_revision.revision)})` : "") + ".";
+  }
+  scopeAll = false; setScope();
+  $("scope").hidden = n < 2; $("askcard").hidden = false; $("result").innerHTML = "";
+  showSaved(scan.saved_answers);
+}
+
+function setScope() {
+  $("one").classList.toggle("on", !scopeAll); $("all").classList.toggle("on", scopeAll);
+  const names = scan.project.sheets.map((s) => s.name).join(", ");
+  $("scopeinfo").textContent = scopeAll ? `All ${scan.project.sheets.length} sheets: ${names}` : `Only ${scan.sheet.name}`;
+}
+$("one").onclick = () => { scopeAll = false; setScope(); };
+$("all").onclick = () => { scopeAll = true; setScope(); };
+
+function showSaved(list) {
+  $("savedcard").hidden = !list.length;
+  $("saved").innerHTML = list.map((a) => `<li><div class="q">${esc(a.question)}</div><div class="a">${esc(value(a.answer))}</div>
+    <span class="tag">${esc((a.answer.honesty || {}).tier || a.answer.tier || "")}</span><span class="tag">first cost ${money(a.cost_usd)}</span><span class="tag ok">now $0</span></li>`).join("");
+}
+
+$("ask").onclick = async () => {
+  const question = $("question").value.trim();
+  if (!question) return;
+  $("result").innerHTML = '<p class="note">Asking...</p>';
+  try {
+    const body = scopeAll ? { question, project_id: scan.project.id } : { question, sheet_id: scan.sheet.id };
+    const r = await api("/api/ask", { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
+    render(r);
+    if (r.pending) poll(r);
+  } catch (e) { $("result").innerHTML = `<p class="note">${esc(e.message)}</p>`; }
+};
+
+function render(r) {
+  let h = "<ul>";
+  for (const p of r.parts) {
+    h += `<li><div class="q">${esc(p.sheet)}</div>` + (p.status === "saved"
+      ? `<div class="a">${esc(value(p.answer))}</div><span class="tag ok">from the library, $0</span><span class="tag">first time ${money(p.first_cost_usd)}, ${(p.first_seconds || 0).toFixed(1)}s</span>`
+      : `<div class="a">...</div><span class="tag warn">new question, being worked out</span>`) + "</li>";
+  }
+  h += "</ul>";
+  if (r.total) h = `<p class="a" style="margin-top:12px">Total: ${esc(value(r.total))}</p>` + h;
+  $("result").innerHTML = h;
+}
+
+async function poll(r) {
+  for (let i = 0; i < 90 && r.pending; i++) {
+    await new Promise((ok) => setTimeout(ok, 2000));
+    for (const p of r.parts) {
+      if (p.status !== "pending") continue;
+      const a = await api(`/api/answers/${p.answer_id}`);
+      if (a.status === "done") { p.status = "saved"; p.answer = a.answer; p.first_cost_usd = a.cost_usd; p.first_seconds = a.seconds; r.pending--; }
+    }
+    render(r);
+  }
+}
+
+function shrink(file) {   // phones take 12 MP photos; 1600 px is plenty for matching and uploads much faster
+  return new Promise((ok, bad) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob((b) => b ? ok(b) : bad(new Error("could not read the photo")), "image/jpeg", 0.85);
+    };
+    img.onerror = () => bad(new Error("could not read the photo"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+</script>
+</body>
+</html>

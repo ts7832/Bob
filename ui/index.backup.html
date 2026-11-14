@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DrawQA</title>
+<style>
+:root{
+  --bg:#f4f4f1; --panel:#ffffff; --fg:#1c1c1a; --muted:#6a6a64; --line:#e2e2dc; --soft:#f0f0ec;
+  --accent:#ff6a00; --accent-fg:#fff;
+  --read:#1f7a3f; --measured:#1d5fa8; --detected:#a86400; --estimated:#7a3fa8; --cannot:#9b2c2c;
+  --ok:#1f7a3f; --bad:#b3261e;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#121211; --panel:#1b1b1a; --fg:#ececea; --muted:#a2a29c; --line:#2f2f2c; --soft:#242422;
+  --read:#7fd39b; --measured:#8bbcf2; --detected:#f0c36b; --estimated:#c9a2f2; --cannot:#f2a6a6;
+  --ok:#7fd39b; --bad:#f2a6a6;
+}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+header .brand{font-weight:700;font-size:16px;letter-spacing:.2px}
+header .brand span{color:var(--accent)}
+header .title{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+header a{color:var(--muted);font-size:12px}
+main{flex:1;display:flex;min-height:0}
+#viewer{flex:1;position:relative;min-width:0;background:#1a1f2b}
+#viewer .missing{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#e8e8e8;padding:24px;text-align:center}
+aside{width:420px;max-width:46vw;display:flex;flex-direction:column;border-left:1px solid var(--line);background:var(--panel);min-height:0}
+.scroll{overflow:auto;flex:1;min-height:0}
+section{padding:14px 16px;border-bottom:1px solid var(--line)}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:0 0 8px;font-weight:600}
+.tabs{display:flex;gap:4px;margin-bottom:8px}
+.tabs button{flex:1;border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:8px;padding:6px 8px;cursor:pointer;font:inherit;font-size:13px}
+.tabs button.on{background:var(--fg);color:var(--panel);border-color:var(--fg)}
+.list{display:flex;flex-direction:column;gap:4px;max-height:210px;overflow:auto}
+.item{border:1px solid var(--line);border-radius:8px;padding:7px 9px;cursor:pointer;background:var(--panel)}
+.item:hover{border-color:var(--muted)}
+.item.on{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.item b{display:block;font-weight:600;font-size:13px}
+.item small{color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drop{border:1.5px dashed var(--line);border-radius:10px;padding:14px;text-align:center;color:var(--muted);cursor:pointer}
+.drop b{display:block;color:var(--fg)}
+body.dragging .drop{border-color:var(--accent);color:var(--fg)}
+input[type=text],textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;background:var(--panel);color:var(--fg)}
+textarea{resize:vertical;min-height:58px}
+.row{display:flex;gap:8px;align-items:center;margin-top:8px}
+button.ask{background:var(--accent);color:var(--accent-fg);border:0;border-radius:8px;padding:8px 16px;font:inherit;font-weight:600;cursor:pointer}
+button.ask:disabled{opacity:.5;cursor:wait}
+label.toggle{color:var(--muted);font-size:12px;display:flex;gap:6px;align-items:center;margin-left:auto;cursor:pointer}
+.chips{display:flex;flex-direction:column;gap:4px;margin-top:10px}
+.chip{border:1px solid var(--line);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:13px;background:var(--soft);text-align:left;color:var(--fg);font-family:inherit}
+.chip:hover{border-color:var(--muted)}
+.chip .exp{color:var(--muted);font-size:12px;margin-left:6px;white-space:nowrap}
+.card{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel)}
+.value{font-size:30px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.value.cannot{font-size:18px;color:var(--cannot)}
+.q{color:var(--muted);margin:4px 0 10px}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;border:1px solid currentColor}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.t-read{color:var(--read)}.t-measured{color:var(--measured)}.t-detected{color:var(--detected)}.t-estimated{color:var(--estimated)}.t-cannot{color:var(--cannot)}
+dl{display:grid;grid-template-columns:96px 1fr;gap:4px 10px;margin:12px 0 0;font-size:13px}
+dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
+.check{margin-top:12px;padding:8px 10px;border-radius:8px;font-size:13px;background:var(--soft)}
+.check.ok{color:var(--ok)}.check.bad{color:var(--bad)}
+.check small{display:block;color:var(--muted)}
+.ev{margin-top:12px}
+.ev h3{font-size:12px;color:var(--muted);margin:0 0 6px;font-weight:600}
+.evlist{display:flex;flex-wrap:wrap;gap:4px;max-height:140px;overflow:auto}
+.evlist button{border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:6px;padding:2px 7px;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;cursor:pointer}
+.evlist button.on{border-color:var(--accent);background:var(--accent);color:var(--accent-fg)}
+.error{color:var(--bad);background:var(--soft);border-radius:8px;padding:8px 10px;margin-top:8px;font-size:13px}
+.muted{color:var(--muted)}
+.hist{display:flex;flex-direction:column;gap:6px}
+.hist .h{font-size:13px;border-left:3px solid var(--line);padding:2px 0 2px 8px;cursor:pointer}
+.hist .h b{font-variant-numeric:tabular-nums}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (max-width:820px){main{flex-direction:column}#viewer{min-height:55vh}aside{width:auto;max-width:none;border-left:0;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Draw<span>QA</span></div>
+  <div class="title" id="title">Open a drawing</div>
+  <a href="/classic">classic demo page</a>
+</header>
+<main>
+  <div id="viewer"></div>
+  <aside>
+    <div class="scroll">
+      <section>
+        <h2>Drawing</h2>
+        <div class="tabs" id="tabs">
+          <button data-tab="gold" class="on">Checked set</button>
+          <button data-tab="samples">Samples</button>
+          <button data-tab="mine">Your file</button>
+        </div>
+        <div id="tab-gold" class="list"></div>
+        <div id="tab-samples" class="list" hidden></div>
+        <div id="tab-mine" hidden>
+          <div class="drop" id="drop"><b>Drop a drawing here</b>or click to choose: PDF, PNG, JPG, DXF, DWG or IFC</div>
+          <input type="file" id="pick" hidden accept=".pdf,.png,.jpg,.jpeg,.dxf,.dwg,.ifc,.tif,.tiff,.bmp,image/*,application/pdf">
+          <div class="row"><input type="text" id="openpath" placeholder="or paste a file's full path and press Enter"></div>
+          <div class="list" id="minelist" style="margin-top:8px"></div>
+        </div>
+        <div id="drawerr"></div>
+      </section>
+
+      <section>
+        <h2>Question</h2>
+        <textarea id="q" placeholder="e.g. How many doors are shown on this floor plan?"></textarea>
+        <div class="row">
+          <button class="ask" id="askbtn">Ask</button>
+          <label class="toggle"><input type="checkbox" id="showexp" checked> show checked answers</label>
+        </div>
+        <div class="chips" id="chips"></div>
+      </section>
+
+      <section id="answersec" hidden>
+        <h2>Answer</h2>
+        <div id="answer"></div>
+      </section>
+
+      <section id="histsec" hidden>
+        <h2>Asked on this drawing</h2>
+        <div class="hist" id="hist"></div>
+      </section>
+    </div>
+  </aside>
+</main>
+
+<script src="/viz/drawview.js"></script>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const UNIT = {m2:"m²", m3:"m³", m:"m", ft2:"ft²", sqft:"ft²", sf:"ft²", ft:"ft", ft3:"ft³", in:"in", count:""};
+const TIER = {read:["Read from the sheet","t-read"], measured:["Measured from geometry","t-measured"],
+  detected:["Detected by a model","t-detected"], estimated:["Estimated","t-estimated"], "cannot determine":["Cannot determine","t-cannot"]};
+// unit -> [dimension, factor to SI]; used only to compare an answer with the checked one (counts exact, others 2%)
+const SI = {m2:["area",1], ft2:["area",0.09290304], sqft:["area",0.09290304], sf:["area",0.09290304],
+  m:["length",1], ft:["length",0.3048], in:["length",0.0254], m3:["volume",1], ft3:["volume",0.028316846592]};
+
+let view = null, current = null, lastAnswer = null, gold = [], samples = [];
+const history = new Map();   // drawing path -> [{question, answer}]
+
+function mountView() {
+  if (!window.DrawView) {
+    $("viewer").innerHTML = `<div class="missing"><div><b>The drawing view is not loaded.</b><br>
+      The page needs <code>viz/dist/drawview.js</code> (PR #5). Start the server with <code>--viz &lt;path&gt;</code> or merge PR #5.<br>
+      Questions still work; the evidence list below lists what the answer used.</div></div>`;
+    return;
+  }
+  view = DrawView.mount($("viewer"));
+  view.onSelect((el) => markEvidence(el ? el.id : null));
+}
+
+async function getJSON(url, opts) {
+  const r = await fetch(url, opts);
+  let j;
+  try { j = await r.json(); } catch (e) { throw new Error(`${url.split("?")[0]}: HTTP ${r.status}, not JSON`); }
+  if (!r.ok || (j && j.error)) throw new Error(j && j.error ? j.error : `${url.split("?")[0]}: HTTP ${r.status}`);
+  return j;
+}
+
+function fileName(p) { return p.replace(/^file:/, "").split(/[\\/]/).pop(); }
+
+function goldTitle(g) {
+  const name = fileName(g.path).replace(/\.(pdf|png|jpg)$/i, "");
+  const src = g.path.split("/")[1];
+  return { name: name.length > 46 ? name.slice(0, 44) + "…" : name,
+           meta: `${src}${g.page > 1 ? ` · page ${g.page}` : ""} · ${g.questions.length} checked question${g.questions.length > 1 ? "s" : ""}${g.topic ? " · " + g.topic : ""}` };
+}
+
+function renderLists() {
+  const gl = $("tab-gold");
+  gl.innerHTML = "";
+  gold.forEach((g, i) => {
+    const t = goldTitle(g), div = document.createElement("div");
+    div.className = "item"; div.dataset.key = "g" + i;
+    div.innerHTML = `<b>${esc(t.name)}</b><small>${esc(t.meta)}</small>`;
+    div.onclick = () => openGold(g, div);
+    gl.appendChild(div);
+  });
+  const sl = $("tab-samples");
+  sl.innerHTML = "";
+  samples.forEach((s, i) => {
+    const div = document.createElement("div");
+    div.className = "item"; div.dataset.key = "s" + i;
+    div.innerHTML = `<b>${esc(s.title)}</b><small>${esc(s.path.replace("data/", ""))}</small>`;
+    div.onclick = () => openDrawing({ path: s.path, title: s.title, questions: s.questions.map((q) => ({ question: q.question, dataset: q.answer, unit: q.unit })) }, div);
+    sl.appendChild(div);
+  });
+}
+
+function selectItem(div) { document.querySelectorAll(".item").forEach((x) => x.classList.toggle("on", x === div)); }
+
+async function openGold(g, div) {
+  const qs = g.questions.map((q) => ({ question: q.question, checked: q.answer, unit: q.unit, type: q.type, expected_tier: q.expected_tier, id: q.id, note: q.evidence_note, hasCheck: true }));
+  if (g.generic) {   // open it as an unknown file, the way a judge's file arrives (no CAD sibling, no stored predictions)
+    selectItem(div);
+    setStatus(`<span class="spinner"></span>Reading ${esc(fileName(g.path))} as an unknown file…`);
+    try {
+      const d = await getJSON("/api/open?file=" + encodeURIComponent(g.abs_path));
+      return openDrawing({ path: d.path, title: fileName(g.path) + " (as an unknown file)", questions: qs, page: g.page }, div);
+    } catch (e) { return setStatus(`<div class="error">Could not open ${esc(fileName(g.path))}: ${esc(e.message)}</div>`); }
+  }
+  openDrawing({ path: g.path, title: fileName(g.path), questions: qs, page: g.page }, div);
+}
+
+function setStatus(html) { $("drawerr").innerHTML = html; }
+
+async function openDrawing(d, div) {
+  selectItem(div);
+  current = d; lastAnswer = null;
+  $("title").textContent = d.title;
+  $("answersec").hidden = true;
+  setStatus(d.page > 1 ? `<div class="error">These questions are about page ${d.page} of this PDF. The system reads page 1 only, so expect “cannot determine” until multi-page sets are supported (issue #8).</div>` : "");
+  renderChips();
+  renderHistory();
+  if (view) {
+    try { await view.open(d.path); }
+    catch (e) { setStatus(`<div class="error">The drawing view could not open this file: ${esc(e.message)}</div>`); }
+  }
+}
+
+function renderChips() {
+  const box = $("chips"), show = $("showexp").checked;
+  box.innerHTML = "";
+  (current?.questions || []).forEach((q) => {
+    const b = document.createElement("button");
+    b.className = "chip";
+    let exp = "";
+    if (show && q.hasCheck) exp = `<span class="exp">checked: ${esc(fmt(q.checked, q.unit))}</span>`;
+    else if (show && q.dataset !== undefined && q.dataset !== null) exp = `<span class="exp">dataset label: ${esc(fmt(q.dataset, q.unit))}</span>`;
+    b.innerHTML = esc(q.question) + exp;
+    b.onclick = () => { $("q").value = q.question; ask(); };
+    box.appendChild(b);
+  });
+}
+
+function fmt(v, unit) {
+  if (v === null || v === undefined) return "cannot determine";
+  const u = UNIT[unit] ?? unit ?? "";
+  return `${v}${u ? " " + u : ""}`;
+}
+
+function parseNum(answer, unit) {
+  if (typeof answer === "number") return [answer, unit];
+  const m = String(answer ?? "").match(/^\s*(-?[\d,]*\.?\d+)\s*([A-Za-z²³]+)?\s*$/);
+  if (!m) return [null, unit];
+  const u = unit || (m[2] && (/^sf$/i.test(m[2]) ? "sqft" : m[2].replace("²", "2").replace("³", "3")));
+  return [parseFloat(m[1].replace(/,/g, "")), u];
+}
+
+// Compare with a checked answer: counts exact, measures within 2% after unit conversion; null means "cannot determine" is right
+function compare(res, q) {
+  const checked = q.checked;
+  if (checked === null || checked === undefined) return { ok: res.answer === null || res.answer === undefined, text: "The checked answer is “cannot determine”." };
+  const [v, u] = parseNum(res.answer, res.unit);
+  if (v === null) return { ok: false, text: `Checked answer: ${fmt(checked, q.unit)}.` };
+  if (q.type === "count" || q.unit === "count") return { ok: v === checked, text: `Checked answer: ${fmt(checked, q.unit)}.` };
+  let val = v;
+  if (u && q.unit && u !== q.unit && SI[u] && SI[q.unit] && SI[u][0] === SI[q.unit][0]) val = v * SI[u][1] / SI[q.unit][1];
+  return { ok: Math.abs(val - checked) <= 0.02 * Math.abs(checked), text: `Checked answer: ${fmt(checked, q.unit)} (areas and lengths within 2%).` };
+}
+
+async function ask() {
+  const question = $("q").value.trim();
+  if (!current) return setStatus(`<div class="error">Open a drawing first.</div>`);
+  if (!question) return;
+  const btn = $("askbtn");
+  btn.disabled = true;
+  $("answersec").hidden = false;
+  $("answer").innerHTML = `<div class="card"><span class="spinner"></span>Working on it…</div>`;
+  const t0 = performance.now();
+  let res;
+  try {
+    res = await getJSON("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: current.path, question }) });
+  } catch (e) {
+    btn.disabled = false;
+    $("answer").innerHTML = `<div class="card"><div class="error">The server failed on this question: ${esc(e.message)}</div></div>`;
+    return;
+  }
+  btn.disabled = false;
+  res._seconds = (performance.now() - t0) / 1000;
+  lastAnswer = res;
+  if (view) view.showAnswer(res, question);
+  renderAnswer(res, question);
+  const h = history.get(current.path) || [];
+  h.unshift({ question, res });
+  history.set(current.path, h.slice(0, 12));
+  renderHistory();
+}
+
+function renderAnswer(res, question) {
+  const tier = res.honesty?.tier || (res.answer == null ? "cannot determine" : null);
+  const [tierText, tierCls] = TIER[tier] || [tier || "no tier", ""];
+  const cannot = res.answer === null || res.answer === undefined;
+  const q = (current.questions || []).find((x) => x.question.trim() === question.trim());
+  let check = "";
+  if (q && q.hasCheck) {
+    const c = compare(res, q);
+    check = `<div class="check ${c.ok ? "ok" : "bad"}">${c.ok ? "✓ Matches the checked answer." : "✗ Differs from the checked answer."}<small>${esc(c.text)}${q.note ? " Where to look: " + esc(q.note) : ""}</small></div>`;
+  } else if (res.dataset_answer !== undefined) {
+    check = `<div class="check"><span class="muted">Dataset label: ${esc(fmt(res.dataset_answer, res.unit))}</span><small>Written by people; some labels are wrong.</small></div>`;
+  }
+  const ev = res.evidence || [];
+  const evHtml = ev.length ? `<div class="ev"><h3>Evidence used (${ev.length}) · click to show it on the drawing</h3><div class="evlist">${
+    ev.slice(0, 300).map((e, i) => `<button data-id="${esc(e.id ?? "ev" + i)}" title="${esc(e.shape || "")}">${esc(e.label && String(e.label).length < 14 ? e.label : e.id ?? i + 1)}</button>`).join("")
+  }${ev.length > 300 ? `<span class="muted">+${ev.length - 300} more</span>` : ""}</div></div>` : "";
+  const read = res.question_read ? `${res.question_read.by}${res.question_read.model ? " (" + res.question_read.model + ")" : ""}` : "";
+  $("answer").innerHTML = `<div class="card">
+    <div class="value ${cannot ? "cannot" : ""}">${cannot ? "Cannot determine from this drawing" : esc(fmt(res.answer, res.unit))}</div>
+    <div class="q">${esc(question)}</div>
+    <span class="pill ${tierCls}">${esc(tierText)}</span>${res.honesty?.deterministic === false ? ` <span class="muted" style="font-size:12px">not deterministic</span>` : ""}
+    <dl>
+      ${res.honesty?.basis ? `<dt>How</dt><dd>${esc(res.honesty.basis)}</dd>` : ""}
+      ${res.explanation && res.explanation !== res.honesty?.basis ? `<dt>Explanation</dt><dd>${esc(res.explanation)}</dd>` : ""}
+      ${res.method ? `<dt>Method</dt><dd>${esc(res.method)}</dd>` : ""}
+      ${read ? `<dt>Question read by</dt><dd>${esc(read)}</dd>` : ""}
+      ${res.honesty?.style_warning ? `<dt>Warning</dt><dd>${esc(res.honesty.style_warning)}</dd>` : ""}
+      <dt>Time</dt><dd>${res._seconds.toFixed(1)} s</dd>
+      ${res.cost ? `<dt>Cost</dt><dd>${costHtml(res.cost)}</dd>` : ""}
+    </dl>
+    ${check}
+    ${evHtml}
+  </div>`;
+  $("answer").querySelectorAll(".evlist button").forEach((b) => b.onclick = () => { if (view) view.select(b.dataset.id); markEvidence(b.dataset.id); });
+}
+
+// Measured by tools/ui_cost.py while the answer was computed: dollars, model calls and the drawing's running total
+function usd(v) { return v === 0 ? "$0" : v < 0.01 ? `$${v.toFixed(4)}` : `$${v.toFixed(2)}`; }
+function costHtml(c) {
+  const head = c.usd === null
+    ? `at least ${usd(c.usd_known)}`   // some call had no known price: say so instead of guessing
+    : usd(c.usd);
+  let html = `<b>${esc(head)}</b> · ${esc(c.text)}`;
+  if (c.incomplete && c.incomplete.length) html += `<br><span class="muted">${esc(c.incomplete.join("; "))}</span>`;
+  if (c.drawing) {
+    const d = c.drawing;
+    html += `<br><span class="muted">This drawing so far: ${esc(usd(d.usd))}${d.unpriced_calls ? " + unpriced calls" : ""} over ${d.requests} request${d.requests === 1 ? "" : "s"}, ${d.model_calls} model call${d.model_calls === 1 ? "" : "s"} (opening it included)</span>`;
+  }
+  return html;
+}
+
+function markEvidence(id) {
+  $("answer").querySelectorAll(".evlist button").forEach((b) => b.classList.toggle("on", b.dataset.id === id));
+}
+
+function renderHistory() {
+  const h = history.get(current?.path) || [];
+  $("histsec").hidden = !h.length;
+  $("hist").innerHTML = "";
+  h.forEach((x) => {
+    const div = document.createElement("div");
+    div.className = "h";
+    const tier = x.res.honesty?.tier || "";
+    const cost = x.res.cost ? ` · ${x.res.cost.usd === null ? "≥ " + usd(x.res.cost.usd_known) : usd(x.res.cost.usd)}` : "";
+    div.innerHTML = `<b>${esc(x.res.answer == null ? "cannot determine" : fmt(x.res.answer, x.res.unit))}</b> <span class="muted">· ${esc(tier)}${esc(cost)}</span><br>${esc(x.question)}`;
+    div.onclick = () => { $("q").value = x.question; lastAnswer = x.res; if (view) view.showAnswer(x.res, x.question); renderAnswer(x.res, x.question); $("answersec").hidden = false; };
+    $("hist").appendChild(div);
+  });
+}
+
+async function openLocal(promise, label) {
+  setStatus(`<span class="spinner"></span>Reading ${esc(label)}…`);
+  try {
+    const d = await promise;
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `<b>${esc(d.title)}</b><small>${esc(d.note || "your file")}</small>`;
+    const entry = { path: d.path, title: d.title, questions: (d.questions || []).map((q) => ({ question: q.question })) };
+    div.onclick = () => openDrawing(entry, div);
+    $("minelist").prepend(div);
+    openDrawing(entry, div);
+  } catch (e) { setStatus(`<div class="error">Could not read ${esc(label)}: ${esc(e.message)}</div>`); }
+}
+
+function upload(file) {
+  openLocal(getJSON("/api/upload?name=" + encodeURIComponent(file.name), { method: "POST", body: file }), file.name);
+}
+
+function wire() {
+  $("tabs").querySelectorAll("button").forEach((b) => b.onclick = () => {
+    $("tabs").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+    ["gold", "samples", "mine"].forEach((t) => $("tab-" + t).hidden = t !== b.dataset.tab);
+  });
+  $("askbtn").onclick = ask;
+  $("q").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); } });
+  $("showexp").onchange = () => { renderChips(); if (lastAnswer) renderAnswer(lastAnswer, $("q").value.trim()); };
+  $("drop").onclick = () => $("pick").click();
+  $("pick").onchange = () => { if ($("pick").files[0]) upload($("pick").files[0]); $("pick").value = ""; };
+  let depth = 0;
+  addEventListener("dragenter", (e) => { if (e.dataTransfer?.types.includes("Files")) { depth++; document.body.classList.add("dragging"); } });
+  addEventListener("dragleave", () => { if (--depth <= 0) { depth = 0; document.body.classList.remove("dragging"); } });
+  addEventListener("dragover", (e) => e.preventDefault());
+  addEventListener("drop", (e) => { e.preventDefault(); depth = 0; document.body.classList.remove("dragging"); if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]); });
+  $("openpath").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || !e.target.value.trim()) return;
+    const p = e.target.value.trim(); e.target.value = "";
+    openLocal(getJSON("/api/open?file=" + encodeURIComponent(p)), fileName(p));
+  });
+}
+
+async function init() {
+  wire();
+  mountView();
+  try { [gold, samples] = await Promise.all([getJSON("/api/gold"), getJSON("/api/samples")]); }
+  catch (e) { return setStatus(`<div class="error">Could not load the drawing lists: ${esc(e.message)}</div>`); }
+  renderLists();
+  const first = $("tab-gold").querySelector(".item");
+  if (first) first.click();
+}
+init();
+</script>
+</body>
+</html>
