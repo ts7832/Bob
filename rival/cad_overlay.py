@@ -20,8 +20,19 @@ def main():
     for det in sorted(d["detections"], key=lambda t: (t["bbox"][1], t["bbox"][0])):
         x0, y0, x1, y1 = det["bbox"]
         cls = det["cls"]
-        if cls in ("door", "double_door") and max(x1 - x0, y1 - y0) / d["px_per_m"] < min_m:
+        long_m, short_m = max(x1 - x0, y1 - y0) / d["px_per_m"], min(x1 - x0, y1 - y0) / d["px_per_m"]
+        # a swing door's box is as deep as its leaf is wide: about square for one leaf, about 2:1 for two leaves.
+        # Boxes of another shape, or with low confidence, are furniture or wall lines and are dropped (drawn thin, grey).
+        if cls == "door" and (short_m / long_m < 0.6 or det["conf"] < 0.4):
+            cls = "rejected"
+        elif cls == "double_door" and (short_m / long_m < 0.4 or det["conf"] < 0.5):
+            cls = "rejected"
+        elif cls in ("door", "double_door") and long_m < min_m * (2 if cls == "double_door" else 1):
             cls = "cupboard door"
+        if cls == "rejected":
+            n[cls] += 1
+            dr.rectangle([x0, y0, x1, y1], outline=(170, 170, 170), width=3)
+            continue
         n[cls] += 1
         dr.rectangle([x0, y0, x1, y1], outline=COL[cls], width=8)
         dr.text((x0 + 6, y0 - 46), f"{n[cls]}", fill=COL[cls], font_size=44)
