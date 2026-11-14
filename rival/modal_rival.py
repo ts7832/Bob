@@ -314,9 +314,11 @@ def train(run: str, epochs: int, batch: int, lr: float, limit: int = 0):
                                      pin_memory=True, persistent_workers=True)
     dv = torch.utils.data.DataLoader(_dataset(labels, va, False), batch_size=batch, num_workers=11, pin_memory=True)
     model = _model().cuda().to(memory_format=torch.channels_last)
-    opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.05)
+    body = list(model.body.parameters())
+    new = [p for n, p in model.named_parameters() if not n.startswith("body.")]
+    opt = torch.optim.AdamW([dict(params=body, lr=lr), dict(params=new, lr=lr * 2)], weight_decay=0.05)   # new layers learn a little faster
     steps = epochs * len(dl)
-    sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=lr, total_steps=steps, pct_start=0.05)
+    sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=[lr, lr * 2], total_steps=steps, pct_start=0.05)
     log, best, t0 = [], -1, time.time()
     for ep in range(epochs):
         model.train()
@@ -326,12 +328,13 @@ def train(run: str, epochs: int, batch: int, lr: float, limit: int = 0):
             dens, count = dens.cuda(non_blocking=True), count.cuda(non_blocking=True)
             with torch.autocast("cuda", dtype=torch.bfloat16):
                 p = model(x).float()
-            l_d = F.mse_loss(p, dens)
-            l_c = F.smooth_l1_loss(p.clamp(min=0).sum((2, 3)) / 100, count)
-            loss = l_d + 0.02 * l_c
+            # density error summed over each map (a mean over 100,000 mostly empty pixels gives almost no signal)
+            l_d = ((p - dens) ** 2).sum((2, 3)).mean() / 1000
+            l_c = F.smooth_l1_loss(p.sum((2, 3)) / 100, count)   # no clamp here, so the count always has a gradient
+            loss = l_d + 0.1 * l_c
             opt.zero_grad(set_to_none=True)
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step()
             sched.step()
             tot[0] += l_d.item()
@@ -410,7 +413,7 @@ def predict(run: str, weights: str = "best"):
 
 
 @APP.local_entrypoint()
-def main(stage: str = "download", run: str = "r1", epochs: int = 30, batch: int = 8, limit: int = 0, lr: float = 3e-4,
+def main(stage: str = "download", run: str = "r1", epochs: int = 30, batch: int = 8, limit: int = 0, lr: float = 1e-4,
          weights: str = "best"):
     if stage == "download":
         print(download.remote())
