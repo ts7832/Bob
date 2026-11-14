@@ -1,0 +1,2 @@
+when,who,name,commit,questions,accuracy,answered,accuracy_when_answered,confidence_gap,brier,cost_per_question_usd,by_kind,note
+2026-11-14 15:04,aleks,drawqa-c26l,84bb0da,4270,0.8496,1.0,0.8496,0.1256,0.1247,0.0,"{""balcony"": 0.9118, ""bathroom"": 0.9279, ""bedroom"": 0.8442, ""door"": 0.75, ""floor"": 0.9793, ""kitchen"": 0.8199, ""sauna"": 0.9758, ""shower_bath"": 0.8502, ""sink"": 0.8745, ""toilet"": 0.9542, ""wc_room"": 0.9464, ""window"": 0.5021}","Aleks's engine, detector c26l with test-time augmentation"
