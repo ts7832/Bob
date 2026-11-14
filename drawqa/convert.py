@@ -14,7 +14,7 @@ Unified sheet (format "drawqa-sheet/1"), all coordinates in pixels of the page i
               centre lines (drawqa/segment.py); doors and windows then carry wall, along_px, width_px, width_m
 `openings` / `fixtures` are views of `elements` kept for the question engine.
 """
-import json, os
+import json, os, re
 
 from . import detect
 
@@ -191,6 +191,8 @@ def convert(path, page=0, use_detector=True):
         add_outlines(sheet, raw_outlines(path, page, img))
     elif img is not None and kind == "pdf" and sheet.get("texts"):  # vector PDF: check the printed scale it read
         scale_from_text(sheet, img, dpi=pdfsheet.DPI)
+    if kind == "pdf" and sheet.get("texts"):  # US-style room labels ("BEDROOM" / "218 SF")
+        add_printed_room_labels(sheet)
     sheet["format"] = "drawqa-sheet/1"
     return sheet
 
@@ -346,10 +348,10 @@ for _cls, _names in {
     "living_room": "OH OLOH OLOHUONE LIVING WOHNZIMMER SOGGIORNO SEJOUR STUE",
     "dining": "RUOKAILU RT DINING ESSZIMMER",
     "entry": "ET ETEINEN TK TUULIK TUULIKAAPPI HALL ENTRY FLUR INGRESSO ENTREE",
-    "storage": "VH VAR VARASTO KOMERO STORAGE ABSTELLRAUM RIPOSTIGLIO",
-    "utility": "KHH KODINHOITOH TEKN LAUNDRY UTILITY",
+    "storage": "VH VAR VARASTO KOMERO STORAGE ABSTELLRAUM RIPOSTIGLIO CLOS CLOSET CLO",
+    "utility": "KHH KODINHOITOH TEKN LAUNDRY UTILITY WD HVAC MECH MECHANICAL",
     "dressing_room": "PUKUH PUKUHUONE",
-    "balcony": "PARVEKE PARV BALCONY BALKON BALCONE",
+    "balcony": "PARVEKE PARV BALCONY BALKON BALCONE BALC",
     "terrace": "TERASSI TERRACE",
 }.items():
     for _n in _names.split():
@@ -360,6 +362,19 @@ def name_key(label):
     import unicodedata
     s = unicodedata.normalize("NFKD", str(label).upper())
     return "".join(ch for ch in s if ch.isascii() and ch.isalnum())
+
+
+def name_meaning(label):
+    """The room type a printed name stands for: the whole name ('MAKUUH'), else its words ('1BD - BATH - OPTION' ->
+    BATH -> bathroom; 'W/D' -> utility). None when no word is known. Words that only qualify ('1BD', 'OPTION') are
+    ignored because they are not in the list."""
+    whole = NAME_MEANING.get(name_key(label))
+    if whole:
+        return whole
+    words = re.split(r"[\s\-–,()]+", str(label))
+    hits = [NAME_MEANING.get(name_key(w)) for w in words if name_key(w)]
+    hits = [h for h in hits if h]
+    return hits[0] if len(set(hits)) == 1 else None  # two different meanings in one name: say nothing
 
 
 def attach_printed_names(sheet):
@@ -401,10 +416,48 @@ def attach_printed_names(sheet):
             room.setdefault("name", label)
             room["names_from_reader"] = True
         printed.append(dict(label=label, bbox=n["bbox"], area=n.get("area"), room=room["id"] if room else None,
-                            room_cls=room.get("cls") if room else None, meaning=NAME_MEANING.get(name_key(label))))
+                            room_cls=room.get("cls") if room else None, meaning=name_meaning(label)))
     sheet["printed_names"] = printed
     sheet["printed_names_model"] = "a vision model"
     sheet["_printed_names_key"] = key
+
+
+SQFT_M2 = 0.09290304
+
+
+def add_printed_room_labels(sheet):
+    """US-style plans print each room's name with its area under it ("BEDROOM" / "218 SF") and a unit's total in
+    brackets beside its tag ("A - U208" / "(762 SF)"): drawqa/tags.printed_room_areas. When the sheet's own reader
+    found fewer rooms with an area than that, these become the sheet's rooms (area from the printed label, tier read),
+    each tagged with the nearest unit tag when the sheet has several units; unit totals become the units' areas."""
+    from . import tags
+    r = tags.printed_room_areas(sheet.get("texts") or [])
+    # rooms the sheet's own reader found WITH a name and an area (on US sheets it can mistake door-type tags such as
+    # U41 / U02 for room numbers and give them outline areas: those have no name and are dropped)
+    have = [x for x in sheet.get("rooms", []) if x.get("area_m2") is not None and x.get("name")]
+    if len(r["rooms"]) < 2 or len(have) >= len(r["rooms"]):
+        return
+    to_m2 = lambda v, u: round(v * SQFT_M2, 6) if u == "sqft" else v  # kept exact: answers are converted back to SF
+    centre = lambda b: ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)
+    units = {}
+    for t in r["totals"]:
+        units.setdefault(t["unit_tag"], t)
+    rooms = []
+    for i, x in enumerate(r["rooms"]):
+        unit = None
+        if units:
+            cx, cy = centre(x["bbox"])
+            unit = min(units.values(), key=lambda t: (centre(t["label_bbox"])[0] - cx) ** 2 + (centre(t["label_bbox"])[1] - cy) ** 2)["unit_tag"]
+        rooms.append(dict(id=f"pr{i}", name=x["name"], area_m2=to_m2(x["value"], x["unit"]), area_source="printed label",
+                          printed_text=f"{x['name']} {x['value']:g} {'SF' if x['unit'] == 'sqft' else 'm2'}", bbox=x["bbox"],
+                          unit=unit, drawing_unit=x["unit"], outdoor=name_meaning(x["name"]) in ("balcony", "terrace"),
+                          unit_from="nearest unit tag" if unit and len(units) > 1 else None))
+    sheet["rooms"] = have + rooms
+    if units:
+        sheet["units_list"] = [dict(label=k, residential=True, printed_total_m2=to_m2(t["value"], t["unit"]), drawing_unit=t["unit"],
+                                    printed_text=f"{t['label']} ({t['value']:g} {'SF' if t['unit'] == 'sqft' else 'm2'})", bbox=t["bbox"])
+                               for k, t in units.items()]
+    sheet.setdefault("notes", []).append(f"{len(rooms)} rooms read from printed name/area labels; {len(units)} unit totals")
 
 
 def calibrate_scale_from_areas(sheet):

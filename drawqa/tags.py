@@ -904,3 +904,75 @@ def key_values(texts):
                         ids=lb["ids"] + v["ids"]))
     out.sort(key=lambda d: (d["bbox"][1], d["bbox"][0]))
     return out
+
+
+# ---------------------------------------------------------------- printed room areas (US style: name over "218 SF")
+AREA_LABEL = re.compile(r"^\(?\s*(?P<v>\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)\s*(?P<u>SF|S\.F\.|SQ\.?\s*FT\.?|FT²|FT2|SQFT|m²|m2|M2|SQ\.?\s*M\.?)\s*\)?$", re.I)
+UNIT_TAG = re.compile(r"\b(?:U|UNIT|APT\.?|APARTMENT)\s*-?\s*(\d{1,4}[A-Z]?)\b", re.I)
+
+
+def _name_like(t):
+    s = t.strip()
+    if len(s) < 2 or sum(c.isalpha() for c in s) < 2 or AREA_LABEL.match(s):
+        return False
+    if re.search(r"\d\s*['\"]|['\"]\s*-?\s*\d|\d\s*/\s*\d", s):  # a dimension (12' - 7", 3/8")
+        return False
+    return sum(c.isdigit() for c in s) <= sum(c.isalpha() for c in s)
+
+
+def printed_room_areas(texts):
+    """Room names with the area printed under them, as US plans do ("BEDROOM" over "218 SF"; on a rotated sheet the
+    name is beside it), and unit totals in brackets next to a unit tag ("A - U208" + "(762 SF)").
+    -> dict(rooms=[dict(name, value, unit ('sqft' | 'm2'), bbox, area_bbox, ids)], totals=[dict(unit_tag, label, value,
+    unit, bbox)]). Every value is printed on the sheet; only the pairing of a name with an area is inferred (nearest
+    name in the reading direction, within 2.5 text heights)."""
+    T = [t for t in texts if t.get("text") and t.get("bbox")]
+    vert = lambda b: (b[3] - b[1]) > 1.5 * (b[2] - b[0])
+    rooms, totals = [], []
+    for a in T:
+        m = AREA_LABEL.match(a["text"].strip())
+        if not m:
+            continue
+        ab = a["bbox"]
+        v = float(m.group("v").replace(",", ""))
+        u = "m2" if m.group("u").lower().replace(" ", "").replace(".", "") in ("m²", "m2", "sqm") else "sqft"
+        is_v = vert(ab)
+        th = (ab[2] - ab[0]) if is_v else (ab[3] - ab[1])  # text height across the reading direction
+        cand = []
+        for t in T:
+            if t is a or vert(t["bbox"]) != is_v:
+                continue
+            b = t["bbox"]
+            if is_v:  # rotated text: names sit beside the area, overlapping it along the reading direction
+                gap = min(abs(ab[0] - b[2]), abs(b[0] - ab[2]))
+                along = min(ab[3], b[3]) - max(ab[1], b[1])
+                if gap > 2.5 * th or along < 0.3 * min(ab[3] - ab[1], b[3] - b[1]):
+                    continue
+            else:
+                gap = ab[1] - b[3]
+                cx, acx = (b[0] + b[2]) / 2, (ab[0] + ab[2]) / 2
+                if gap < -0.3 * th or gap > 2.5 * th or abs(cx - acx) > max(3 * th, (b[2] - b[0]) / 2 + th):
+                    continue
+            cand.append((gap, t))
+        paren = a["text"].strip().startswith("(")
+        if paren:  # a unit total: the unit tag next to it
+            tags_ = [(g, t) for g, t in cand if UNIT_TAG.search(t["text"])]
+            if tags_:
+                g, t = min(tags_, key=lambda x: x[0])
+                totals.append(dict(unit_tag="U" + UNIT_TAG.search(t["text"]).group(1).upper(), label=t["text"].strip(),
+                                   value=v, unit=u, bbox=[round(x, 1) for x in ab], label_bbox=t["bbox"]))
+            continue
+        names = [(g, t) for g, t in cand if _name_like(t["text"]) and not UNIT_TAG.search(t["text"])]
+        if not names:
+            continue
+        g, t = min(names, key=lambda x: x[0])
+        name, nb = t["text"].strip(), list(t["bbox"])
+        if not is_v:  # a two-line name ("MASTER" / "BEDROOM"): the name-like line right above it, centred the same
+            up = [s for s in T if s is not t and not vert(s["bbox"]) and _name_like(s["text"])
+                  and 0 <= nb[1] - s["bbox"][3] <= 0.8 * th and abs((s["bbox"][0] + s["bbox"][2]) / 2 - (nb[0] + nb[2]) / 2) < 2 * th]
+            if up:
+                s = min(up, key=lambda s: nb[1] - s["bbox"][3])
+                name, nb = f"{s['text'].strip()} {name}", [min(nb[0], s["bbox"][0]), s["bbox"][1], max(nb[2], s["bbox"][2]), nb[3]]
+        bb = [min(nb[0], ab[0]), min(nb[1], ab[1]), max(nb[2], ab[2]), max(nb[3], ab[3])]
+        rooms.append(dict(name=name, value=v, unit=u, bbox=[round(x, 1) for x in bb], area_bbox=[round(x, 1) for x in ab]))
+    return dict(rooms=rooms, totals=totals)

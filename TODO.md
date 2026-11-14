@@ -4,6 +4,28 @@ Read this first, then `README.md` (rules, how it works, measurements) and `HANDO
 walls, areas and free-form questions). Written at 14:31, updated at 15:15 (section "Changes 14:31-15:15" and tasks
 1-4, 8). Re-check anything marked "check".
 
+## Changes 16:45-17:40 (session B; branch `freeform-tools`)
+
+- **Gold set** (teammates' 86 judge-style questions; answers still unverified drafts), first full run with the model:
+  60 / 83 right. Misses by cause: 9 US floor plans with printed room areas (fixed below), 7 table questions (other
+  session fixed 5 in `schedule.py`, branch `schedules-e26l`), 5 FZK-Haus BIM questions (its model file is not in the
+  local preview: refusing is correct here), 2 fixture counts on US restroom details (detector does not know US CAD
+  symbols). After the fixes: about 74 / 83 (from partial re-runs, not one clean full run).
+- **US-style room labels** (`tags.printed_room_areas`, `convert.add_printed_room_labels`): name over "218 SF", also on
+  rotated sheets; unit totals "(762 SF)" next to unit tags become the units' areas; rooms go to the nearest unit tag.
+  Replaces a vector PDF's rooms when its own reader found fewer named rooms with an area (on A477 it had mistaken
+  door-type tags U41/U02 for rooms). Answers stay in the sheet's own SF unless the question asks for another unit.
+  The 9 gold questions on Cherokee Path / A477: 9 / 9, tier read.
+- Room types on named sheets: `convert.name_meaning` reads a name word by word ("1BD - BATH - OPTION" = bathroom);
+  type areas and counts use it. `label_area` takes an optional unit; new tool `count_rooms`.
+- Router: plain "how many bathrooms" = bathroom count; "<room> in unit U212" goes to the model (it passes the unit).
+  Preview questions changed: 2 ifc_bench text questions, both closer to what they ask.
+- Detector on Stoa's UK school sheet (c26l, tiles): about 17 of ~20 doors in a checked part, exterior windows
+  reliable; misses are exterior doors below threshold, 1-2 false doors on desks. The piping plan is not a floor plan.
+- In progress: FloorPlanCAD training data on Modal (subagent, `tools/modal_fpc.py`, writes `/data/yolo_fpc`); the
+  other session will fine-tune from `e26l` (86.1% on preview scans) on CubiCasa + FloorPlanCAD once it is ready.
+- Scoreboards unchanged: scans 85.0%, Swiss 98.6%, BIM 97.7%.
+
 ## Changes 15:15-16:45 (session B and its subagents; branch `freeform-tools`)
 
 Stoa posted example question types and four example sheets (UK school plan 1:200, US dorm plan with an area list,

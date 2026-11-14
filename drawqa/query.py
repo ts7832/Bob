@@ -84,6 +84,11 @@ def _sum_areas(sheet, rooms, what):
             by[k] = by.get(k, 0) + 1
         left_out += (" Rooms by source: " + ", ".join(f"{n} from {k}" for k, n in by.items())
                      + ". On an image only rooms that were found can be summed; a room with no outline and no printed area would be missing.")
+    du = {r.get("drawing_unit") for r in rooms}
+    if du == {"sqft"}:  # the sheet prints its areas in square feet: say them in its own unit (answer converted at the end)
+        terms = " + ".join(f"{r['area_m2'] / 0.09290304:.0f}" for r in rooms)
+        return dict(answer=total, unit="m2", evidence=ev, area_sources=[r.get("area_source") for r in rooms], elements_used=rooms,
+                    drawing_unit="sqft", explanation=f"{what}: {terms} = {total / 0.09290304:.0f} SF, as printed.{left_out}")
     return dict(answer=total, unit="m2", evidence=ev, area_sources=[r.get("area_source") for r in rooms], elements_used=rooms,
                 explanation=f"{what}: {terms} = {total:.2f} m².{left_out}")
 
@@ -453,9 +458,8 @@ def execute(sheet, intent):
     if it == "count_rooms_class" and any(r.get("name") for r in rooms):
         # a drawing whose rooms carry printed names, not types (CAD, vector PDF): a name that is a known word for the
         # type counts (Schlafzimmer, Camera, MAKUUH = bedroom); otherwise say which names there are instead of guessing
-        from .convert import NAME_MEANING, name_key
+        from .convert import name_meaning as means
         cls = intent["cls"]
-        means = lambda n: NAME_MEANING.get(name_key(n)) or NAME_MEANING.get(name_key(str(n).split()[0]) if str(n).split() else "")
         hit = [r for r in rooms if r.get("name") and means(r["name"]) == cls]
         if hit:
             res = _count(sheet, hit, f"room named as {ROOM_WORDS.get(cls, cls)} ({', '.join(sorted({r['name'] for r in hit}))})")
@@ -479,19 +483,43 @@ def execute(sheet, intent):
     if it == "label_area":  # one printed name (pattern route) or several (a language model's reading of "the toilets")
         labels = intent.get("labels") or [intent["label"]]
         want = {l.strip().lower() for l in labels}
-        res = _sum_areas(sheet, [r for r in rooms if _names_of(r) & want], "Rooms labelled " + ", ".join(f"'{l}'" for l in labels))
+        pick = [r for r in rooms if _names_of(r) & want and (not intent.get("unit") or r.get("unit") == intent["unit"])]
+        res = _sum_areas(sheet, pick, "Rooms labelled " + ", ".join(f"'{l}'" for l in labels)
+                         + (f" in unit {intent['unit']}" if intent.get("unit") else ""))
+        if intent.get("unit") and any(r.get("unit_from") for r in pick):
+            res["explanation"] = (res.get("explanation") or "") + " Rooms are assigned to the nearest unit tag on the sheet."
         loose = [n for n in sheet.get("printed_names", []) if n["room"] is None and n["label"].strip().lower() in want]
         if loose and res.get("answer") is not None:
             res["explanation"] += (f" {len(loose)} more printed name(s) ({', '.join(n['label'] for n in loose)}) lie in no room "
                                    f"outline, so their rooms are NOT in this sum: the true value is larger.")
         return res
     if it == "unit_area":
-        return _sum_areas(sheet, [r for r in rooms if r.get("unit") == intent["unit"] and not r.get("outdoor")],
-                          f"Apartment {intent['unit']} (indoor rooms)")
+        rs = [r for r in rooms if r.get("unit") == intent["unit"] and not r.get("outdoor")]
+        u = next((u for u in sheet.get("units_list", []) if u.get("label") == intent["unit"] and u.get("printed_total_m2")), None)
+        if u:  # the sheet prints the unit's own total: that is the answer; its rooms are a cross-check
+            tot = sum(r["area_m2"] for r in rs if r.get("area_m2") is not None)
+            chk = (f" Its rooms read on the sheet add up to {tot / 0.09290304:.0f} SF" if u.get("drawing_unit") == "sqft" else
+                   f" Its rooms read on the sheet add up to {tot:.2f} m²") + " (rooms are assigned to the nearest unit tag)." if rs else ""
+            return dict(answer=u["printed_total_m2"], unit="m2", area_sources=["printed label"], drawing_unit=u.get("drawing_unit"),
+                        evidence=[dict(id="unit_total", shape="box", bbox=u["bbox"], label=u["printed_text"])],
+                        explanation=f"Unit {intent['unit']}: total printed on the sheet, \"{u['printed_text']}\".{chk}")
+        return _sum_areas(sheet, rs, f"Apartment {intent['unit']} (indoor rooms)")
+    if it == "count_rooms":  # every room the sheet names (with or without a printed area)
+        named = [r for r in rooms if r.get("name") or r.get("area_m2") is not None]
+        return _count(sheet, named, "named room")
     if it == "class_area":  # rooms known by type (found by the detector on an image), e.g. "area of the bedrooms"
         classes = intent.get("classes") or [intent["cls"]]
         classes = [("sauna_room" if c == "sauna" else c) for c in classes]
         if not sheet.get("room_classes_available"):
+            # rooms known by printed names: a name that is a known word for the type counts ("BEDROOM", "1BD - BATH")
+            from .convert import name_meaning
+            want = {("sauna" if c == "sauna_room" else c) for c in classes}
+            hit = [r for r in rooms if r.get("name") and name_meaning(r["name"]) in want]
+            if hit:
+                res = _sum_areas(sheet, hit, "Rooms named as " + " + ".join(ROOM_WORDS.get(c, c) for c in classes)
+                                 + f" ({', '.join(sorted({r['name'] for r in hit}))})")
+                res["explanation"] = (res.get("explanation") or "") + " Rooms are chosen by their printed name; a fixed list says which names mean this room type."
+                return res
             return dict(answer=None, explanation="Rooms on this drawing are known by their printed names, not by type; ask for the area of rooms labelled with a name.")
         res = _sum_areas(sheet, [r for r in rooms if r.get("cls") in classes], " + ".join(ROOM_WORDS.get(c, c) for c in classes) + " rooms")
         _name_check_area(sheet, classes, res)

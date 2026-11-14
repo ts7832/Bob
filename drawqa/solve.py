@@ -301,6 +301,9 @@ def combine(parts, how, read_by, sheet):
                     honesty=dict(tier="cannot determine", deterministic=None, basis=why))
     vals = [r["answer"] for _, r in parts]
     unit = next(iter(units)) if len(units) == 1 else None
+    if {r.get("drawing_unit") for _, r in parts} == {"sqft"}:  # all parts printed in SF: the answer is said in SF too
+        base["drawing_unit"] = "sqft"
+        listing = "; ".join(f"{t}: {r['answer'] / 0.09290304:.0f} SF" for t, r in parts)
     if how == "sum":
         ans, text = round(sum(vals), 2), f"{listing}. Sum = {round(sum(vals), 2):g}{UNIT_WORDS.get(unit, '')}."
     elif how == "difference":
@@ -368,7 +371,12 @@ def _finalize(res, question, plan=None):
     notes = []
     if isinstance(ans, (int, float)) and not isinstance(ans, bool) and unit in ("m2", "m", "sqft"):
         want = next((u for rx, u in ASKED_UNITS if re.search(rx, question, re.I)), None)
-        if want and want != unit:
+        if not want and res.get("drawing_unit") == "sqft" and unit == "m2":  # no unit asked: the sheet's own (US: SF)
+            new = round(ans / 0.09290304, 0)
+            res["answer_before_conversion"] = dict(answer=ans, unit=unit)
+            res.update(answer=new, unit="sqft")
+            ans, unit = new, "sqft"
+        elif want and want != unit:
             k = TO_UNIT.get((unit, want))
             if k:
                 new = round(ans * k, 2)

@@ -46,6 +46,7 @@ INTENTS = {
     "room_perimeter": ((), None),
     "wall_area": ((), None),
     # read from the drawing's own text (PDF text layer, CAD text, or OCR of an image): drawqa/tags.py, drawqa/slabs.py
+    "count_rooms": ((), None),
     "count_tags": (("label",), None),
     "find_text": (("label",), None),
     "read_value": (("label",), None),
@@ -54,7 +55,8 @@ INTENTS = {
     "unknown": ((), None),
 }
 ROOM_PICK = ("labels", "classes", "number", "unit")  # which rooms; none of them = all indoor rooms
-OPTIONAL = {"opening_width": ("quantity", "storey"), "room_perimeter": ROOM_PICK, "wall_area": ROOM_PICK + ("height",)}
+OPTIONAL = {"opening_width": ("quantity", "storey"), "room_perimeter": ROOM_PICK, "wall_area": ROOM_PICK + ("height",),
+            "label_area": ("unit",)}
 COMBINE = ["single", "sum", "difference", "largest", "smallest", "each"]
 MAX_STEPS = 8
 EVERY_STOREY = ("ifc_count", "ifc_storey_area", "ifc_quantity")  # tools a storey = "*" step may be repeated with
@@ -117,8 +119,12 @@ Tools (intent: what it does; arguments):
 - room_area: area of one room identified by its printed room number. number = e.g. "2.03"
 - label_area: total area of all rooms whose printed name is one of `labels`. labels = every listed room name that
   the question covers, copied exactly ("the toilets" on an Italian plan listing Bagno and WC = ["Bagno", "WC"];
-  "the kitchen" = ["Cucina"]). Use as few names as the question needs
-- unit_area: indoor area of one apartment. unit = its letter, e.g. "B"
+  "the kitchen" = ["Cucina"]). Use as few names as the question needs. When the question names one apartment / unit
+  and the same room name occurs in several, also set unit = that apartment's tag from `apartments` ("the living
+  room in unit U212" = labels ["1BD - LIVING"], unit "U212"); otherwise unit = ""
+- unit_area: indoor area of one apartment / unit. unit = its letter or tag as listed in `apartments`, e.g. "B" or
+  "U208" (a total printed on the sheet is used when there is one)
+- count_rooms: number of rooms the drawing names (each room label, with or without a printed area)
 - floor_area: total indoor area of all rooms on the sheet
 - class_area: total area of all rooms of the given types, for drawings whose rooms are found by type
   (rooms_found_by_type is true). classes = the room types the question covers, from the list above and preferably
@@ -213,6 +219,7 @@ def _context(sheet):
                room_numbers=[r["number"] for r in rooms if r.get("number")][:120],
                apartments=sorted({u["label"] for u in sheet.get("units_list", []) if u.get("label")}),
                rooms_found_by_type=bool(sheet.get("room_classes_available")),
+               rooms_have_printed_areas=any(r.get("area_source") == "printed label" for r in rooms),
                room_types_found=sorted({r["cls"] for r in rooms if r.get("cls") and r["cls"] != "unlabelled"}))
     ctx.update(_text_context(sheet))
     if sheet.get("source_type") == "ifc" and sheet.get("model"):

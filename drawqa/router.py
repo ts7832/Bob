@@ -32,6 +32,7 @@ COUNT_RULES = [
     ("count_rooms_class", "sauna", r"\bsauna"),
     ("count_rooms_class", "kitchen", r"kitchens?|keittiö"),
     ("count_rooms_class", "bedroom", r"bedrooms?|makuuhuone"),
+    ("count_rooms_class", "bathroom", r"\bbathrooms?\b"),  # plain "how many bathrooms" (the template above says "or washrooms")
     ("count_rooms_class", "balcony", r"balcon(y|ies)|parveke"),
     ("count_floors", None, r"floors \(storeys\)|kerrosta"),
     # room types beyond the dataset's templates (found by the detector on images)
@@ -63,6 +64,9 @@ def parse(question):
     q = question.strip()
     if re.search(ARITHMETIC, q, re.I):  # "total area minus 10": the pattern tools cannot do the arithmetic; the model passes it on
         return dict(intent="unknown")
+    if re.search(r"\b(?:in|of|for)\s+(?:the\s+)?(?:unit|apt\.?|apartment)\s+[A-Z]?\d+[A-Z]?\b", q, re.I) and \
+            re.search(r"living|kitchen|bed|bath|toilet|closet|balcon|entry|dining|room", q, re.I):
+        return dict(intent="unknown")  # "the living room in unit U212": a room in one unit; the model passes the unit
     quoted = quoted_strings(q)
     # "how many metres of skirting", "wie viele Quadratmeter": a measurement, not a count of things
     is_count = re.search(COUNT_WORDS, q, re.I) is not None and not re.search(
