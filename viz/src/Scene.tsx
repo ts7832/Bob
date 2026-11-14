@@ -8,7 +8,7 @@ import { Photo } from './Photo'
 import type { Answer, Drawing, Element, Loaded, Pt, Tier } from './types'
 import { anchor, bbox, outline, shapeOf, thickness, toShape, toWorld, tube } from './geom'
 
-export const ACCENT = '#ff6a00'
+export const ACCENT = '#ff7a00' // = the demo page's --accent
 const LOW = '#e0a100' // low-confidence detections
 const LOW_CONF = 0.6
 const CLICK_PX = 3 // pointer travel above this is a drag (pan / orbit), not a click
@@ -80,6 +80,8 @@ function wallHeight(l: Loaded) {
   return 0.035 * max
 }
 
+export type Insets = { l: number; t: number; r: number; b: number } // px of the view covered by cards / toolbar
+
 export type Focus = { x0: number; y0: number; x1: number; y1: number; min: number } | null
 
 interface Props {
@@ -96,12 +98,13 @@ interface Props {
   onSlow: (slow: boolean) => void
   focus: Focus
   fitAll: number
+  insets: Insets
   onSelect: (id: string | null) => void
   onHover: (id: string | null) => void
   overlay: RefObject<HTMLDivElement | null> // DOM layer over the canvas; Html labels portal here (fiber 9 + React 19)
 }
 
-export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode, photo, photoStatus, low, onSlow, focus, fitAll, onSelect, onHover, overlay }: Props) {
+export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode, photo, photoStatus, low, onSlow, focus, fitAll, insets, onSelect, onHover, overlay }: Props) {
   const drawing = loaded.drawing
   const max = Math.max(drawing.width, drawing.height)
   const L = max / 2500 // height step between flat layers, so they never z-fight
@@ -134,7 +137,7 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
   return (
     <>
       <CameraControls makeDefault />
-      <CameraRig drawing={drawing} focus={focus} fitAll={fitAll} mode={mode} home={home} />
+      <CameraRig drawing={drawing} focus={focus} fitAll={fitAll} mode={mode} home={home} insets={insets} />
       <Lighting drawing={drawing} active={lifted && !low} catcherY={2.5 * L} />
       {lifted && !photo && !low && <Effects wallH={wallH} />}
       {/* 3D only: if the frame rate stays low, drop AO, shadows and resolution (2D is cheap and never degrades) */}
@@ -152,7 +155,7 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
       {dim && els.length > 0 && (
         <mesh rotation-x={-Math.PI / 2} position-y={2 * L} renderOrder={2} raycast={() => null}>
           <planeGeometry args={[drawing.width, drawing.height]} />
-          <meshBasicMaterial color="#0b1020" transparent opacity={0.55} depthWrite={false} toneMapped={false} />
+          <meshBasicMaterial color="#f4f5f7" transparent opacity={0.66} depthWrite={false} toneMapped={false} /> {/* light veil: the rest fades back */}
         </mesh>
       )}
 
@@ -297,7 +300,7 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, 
 
 // Camera: one perspective camera for both modes. Looking straight down, a flat sheet shows exactly as in a 2D viewer;
 // 3D tilts the same camera while the walls rise. Fits `focus` (sheet-pixel rect) smoothly; user input takes over.
-function CameraRig({ drawing, focus, fitAll, mode, home }: { drawing: Drawing; focus: Focus; fitAll: number; mode: '2d' | '3d'; home: Focus }) {
+function CameraRig({ drawing, focus, fitAll, mode, home, insets }: { drawing: Drawing; focus: Focus; fitAll: number; mode: '2d' | '3d'; home: Focus; insets: Insets }) {
   const controls = useThree((s) => s.controls) as unknown as CameraControlsImpl | null
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
   const size = useThree((s) => s.size)
@@ -338,13 +341,17 @@ function CameraRig({ drawing, focus, fitAll, mode, home }: { drawing: Drawing; f
     const pad = f ? 1.5 : 1.06, min = f ? max * f.min : 0
     const w = Math.max((r.x1 - r.x0) * pad, min), h = Math.max((r.y1 - r.y0) * pad, min)
     const [x, z] = toWorld(drawing, [(r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2])
-    const vf = THREE.MathUtils.degToRad(camera.fov), hf = 2 * Math.atan(Math.tan(vf / 2) * (size.width / size.height))
-    const dist = Math.max(h / 2 / Math.tan(vf / 2), w / 2 / Math.tan(hf / 2)) * (mode === '3d' ? 1.3 : 1)
+    // fit into the part of the view the cards leave free, then shift the framing so it is centred there
+    const fw = Math.max(size.width - insets.l - insets.r, size.width * 0.4), fh = Math.max(size.height - insets.t - insets.b, size.height * 0.4)
+    const vf = THREE.MathUtils.degToRad(camera.fov), tv = Math.tan(vf / 2), th = tv * (size.width / size.height)
+    const dist = Math.max((h / 2 / tv) * (size.height / fh), (w / 2 / th) * (size.width / fw)) * (mode === '3d' ? 1.3 : 1)
+    const wpp = (2 * dist * tv) / size.height // world units per screen pixel at the target
     const anim = !first.current
     first.current = false
     controls.moveTo(x, 0, z, anim)
     controls.dollyTo(dist, anim)
-  }, [focus, fitAll, drawing, size.width, size.height, controls, mode, home])
+    controls.setFocalOffset((-(insets.l - insets.r) / 2) * wpp, ((insets.t - insets.b) / 2) * wpp, 0, anim)
+  }, [focus, fitAll, drawing, size.width, size.height, controls, mode, home, insets])
 
   useFrame(() => { // near/far follow the distance so the thin flat layers keep their depth order at every zoom
     if (!controls) return

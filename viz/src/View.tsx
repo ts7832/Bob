@@ -1,8 +1,8 @@
-import { Suspense, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react'
 import { Canvas } from '@react-three/fiber'
 import type { Answer, Drawing, Element } from './types'
 import type { Store } from './store'
-import { Scene, focusOf } from './Scene'
+import { Scene, focusOf, type Insets } from './Scene'
 import { Crop } from './Crop'
 import { bbox, outline } from './geom'
 
@@ -14,6 +14,7 @@ const TIER_TEXT: Record<string, string> = {
 export function View({ store }: { store: Store }) {
   const s = useSyncExternalStore(store.subscribe, store.get)
   const overlay = useRef<HTMLDivElement>(null)
+  const viewRef = useRef<HTMLDivElement>(null), badgeRef = useRef<HTMLDivElement>(null), detailRef = useRef<HTMLDivElement>(null)
   const photoStatus = useRef<HTMLSpanElement>(null)
   const { loaded, answer, selectedId } = s
   const selected = answer?.elements.find((e) => e.id === selectedId) ?? null
@@ -23,6 +24,28 @@ export function View({ store }: { store: Store }) {
   )
   const select = (id: string | null) => store.set({ selectedId: id })
   const low = s.quality === 'low' || (s.quality === 'auto' && s.slow)
+  // Room the cards take, so zoom-to-answer frames the evidence in the free part of the view (not under a card)
+  const [insets, setInsets] = useState<Insets>({ l: 0, t: 0, r: 0, b: 48 })
+  useLayoutEffect(() => {
+    const measure = () => {
+      const v = viewRef.current?.getBoundingClientRect()
+      if (!v) return
+      const q = (n: number) => Math.max(0, Math.round(n / 8) * 8)
+      const bd = badgeRef.current?.getBoundingClientRect(), dt = detailRef.current?.getBoundingClientRect()
+      const wide = v.width > 900 // wide view: cards take a column at the side; narrow: a band at the top
+      const next: Insets = {
+        l: bd && wide ? q(bd.right - v.left + 12) : 0,
+        t: bd && !wide ? q(bd.bottom - v.top + 12) : 0,
+        r: dt && wide ? q(v.right - dt.left + 12) : 0,
+        b: 48,
+      }
+      setInsets((p) => (p.l === next.l && p.t === next.t && p.r === next.r && p.b === next.b ? p : next))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    for (const n of [viewRef.current, badgeRef.current, detailRef.current]) if (n) ro.observe(n)
+    return () => ro.disconnect()
+  }, [answer, selected])
   useEffect(() => { // Esc clears the selection
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && store.get().selectedId) store.set({ selectedId: null }) }
     window.addEventListener('keydown', k)
@@ -30,13 +53,13 @@ export function View({ store }: { store: Store }) {
   }, [store])
 
   return (
-    <div className="dv-view">
+    <div className="dv-view" ref={viewRef}>
       {loaded && (
         <Canvas flat shadows="percentage" dpr={low ? 1 : [1, 2]} camera={{ fov: 30, near: 1, far: 1e6, position: [0, 1e4, 0] }} onPointerMissed={() => select(null)}>
-          <color attach="background" args={['#1a1f2b']} />
+          <color attach="background" args={['#f4f5f7']} />
           <Suspense fallback={null}>
             <Scene key={loaded.drawing.key} loaded={loaded} answer={answer} selectedId={selectedId} hoverId={s.hoverId}
-              dim={s.dim} showPlan={s.showPlan} mode={s.mode} photo={s.photo && s.mode === '3d'} photoStatus={photoStatus} focus={focus} fitAll={s.fitAll}
+              dim={s.dim} showPlan={s.showPlan} mode={s.mode} photo={s.photo && s.mode === '3d'} photoStatus={photoStatus} focus={focus} fitAll={s.fitAll} insets={insets}
               low={low} onSlow={(slow) => { if (store.get().slow !== slow) store.set({ slow }) }}
               onSelect={select} onHover={(id) => store.set({ hoverId: id })} overlay={overlay} />
           </Suspense>
@@ -44,8 +67,8 @@ export function View({ store }: { store: Store }) {
       )}
       <div ref={overlay} className="dv-overlay" />
 
-      {answer && <AnswerBadge answer={answer} />}
-      {selected && loaded && <Detail drawing={loaded.drawing} el={selected} onClose={() => select(null)} />}
+      {answer && <AnswerBadge answer={answer} boxRef={badgeRef} />}
+      {selected && loaded && <Detail drawing={loaded.drawing} el={selected} onClose={() => select(null)} boxRef={detailRef} />}
 
       {loaded && (
         <div className="dv-tools">
@@ -83,25 +106,26 @@ function friendly(t?: string | null) {
   return t
 }
 
-function AnswerBadge({ answer }: { answer: Answer }) {
+function AnswerBadge({ answer, boxRef }: { answer: Answer; boxRef: RefObject<HTMLDivElement | null> }) {
   if (answer.status === 'cannot_answer')
     return (
-      <div className="dv-badge dv-cannot">
-        <div className="dv-eyebrow">Can't answer from this drawing</div>
+      <div className="dv-badge dv-cannot" ref={boxRef}>
+        <div className="dv-title">Can't answer this from the drawing</div>
         {answer.question && <div className="dv-q">{answer.question}</div>}
         <p title={answer.explanation ?? undefined}>{friendly(answer.explanation)}</p>
       </div>
     )
   const off = answer.cited - answer.elements.length
+  const [num, ...rest] = (answer.value ?? '').split(' '), unit = rest.join(' ') // '278.9 m²' -> big number, small unit (page's .big)
   return (
-    <div className="dv-badge">
-      <div className="dv-value">{answer.value}</div>
+    <div className="dv-badge" ref={boxRef}>
+      <div className="dv-value">{num}{unit && <small>{unit}</small>}</div>
       {answer.question && <div className="dv-q">{answer.question}</div>}
       <div className="dv-chips">
         {answer.tier && <span className={`dv-chip dv-tier-${answer.tier.replace(' ', '-')}`}>{TIER_TEXT[answer.tier] ?? answer.tier}</span>}
         {answer.deterministic === false && <span className="dv-chip">not deterministic</span>}
-        {answer.basis && <span className="dv-chip">{answer.basis}</span>}
       </div>
+      {answer.basis && <p className="dv-basis">{answer.basis}</p>}
       {(answer.groups.length > 1 || answer.groups.some((g) => g.value)) && (
         <ul className="dv-legend">
           {answer.groups.map((g) => (
@@ -123,15 +147,15 @@ function AnswerBadge({ answer }: { answer: Answer }) {
 const pct = (c?: number | null) => (c == null ? null : `${Math.round(c * 100)}%`)
 const HOW: Record<string, string> = { polygon: 'outline', polyline: 'line', box: 'detection box', guid: 'BIM element', detector: 'detected', read: 'read from sheet' }
 
-function Detail({ drawing, el, onClose }: { drawing: Drawing; el: Element; onClose: () => void }) {
+function Detail({ drawing, el, onClose, boxRef }: { drawing: Drawing; el: Element; onClose: () => void; boxRef: RefObject<HTMLDivElement | null> }) {
   const b = bbox(outline(el))
   const [x0, y0] = drawing.fromPx([b.x0, b.y0]), [x1, y1] = drawing.fromPx([b.x1, b.y1])
   const unit = drawing.units === 'm' ? 'm' : drawing.units === 'px' ? 'px' : ''
   const f = (v: number) => (drawing.units === 'px' ? Math.round(v) : v.toFixed(2))
   return (
-    <div className="dv-detail">
+    <div className="dv-detail" ref={boxRef}>
       <div className="dv-row">
-        <div className="dv-eyebrow">Where this is on the original drawing</div>
+        <div className="dv-title">Where this is on the original drawing</div>
         <button className="dv-x" onClick={onClose} aria-label="Close">×</button>
       </div>
       <Crop drawing={drawing} el={el} width={300} height={190} />
@@ -144,7 +168,7 @@ function Detail({ drawing, el, onClose }: { drawing: Drawing; el: Element; onClo
         {pct(el.confidence) && <><dt>Confidence</dt><dd>{pct(el.confidence)}</dd></>}
         <dt>ID</dt><dd><code>{el.id}</code></dd>
         <dt>Position</dt>
-        <dd><code>x {f(Math.min(x0, x1))}–{f(Math.max(x0, x1))}, y {f(Math.min(y0, y1))}–{f(Math.max(y0, y1))}{unit && ' ' + unit}</code></dd>
+        <dd><code>x {f(Math.min(x0, x1))} to {f(Math.max(x0, x1))}, y {f(Math.min(y0, y1))} to {f(Math.max(y0, y1))}{unit && ' ' + unit}</code></dd>
       </dl>
     </div>
   )

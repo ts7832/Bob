@@ -103,7 +103,7 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
 const UNITS: Record<string, string> = { m2: 'm²', m3: 'm³', m: 'm', ft2: 'ft²', sqft: 'ft²', sf: 'ft²', ft3: 'ft³', ft: 'ft', lf: 'ft', count: '' }
 
 // Category colours, first = the usual answer orange; all readable over a white sheet and the dark UI.
-export const GROUP_COLORS = ['#ff6a00', '#2f6fde', '#12a37a', '#a24bd6', '#d63a7a', '#0d93b5', '#c99200', '#5f6f86']
+export const GROUP_COLORS = ['#ff7a00', '#2f6fde', '#12a37a', '#a24bd6', '#d63a7a', '#0d93b5', '#c99200', '#5f6f86']
 const LENGTH = new Set(['m', 'ft', 'mm', 'cm', 'lf'])
 const AREA = new Set(['m2', 'ft2', 'sqft', 'sf'])
 

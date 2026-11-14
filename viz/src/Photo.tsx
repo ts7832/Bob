@@ -11,7 +11,7 @@ import type { BuildingGeo } from './Model'
 import { outline, shapeOf, tube } from './geom'
 import { planComposite } from './floors'
 
-const BG = '#1a1f2b', ACCENT = '#ff6a00'
+const BG = '#f4f5f7', ACCENT = '#ff7a00'
 
 function buildPhotoScene(loaded: Loaded, b: BuildingGeo, drawingTex: THREE.Texture, wallH: number, answer: Answer | null, baseY: number) {
   const d = loaded.drawing, max = Math.max(d.width, d.height)

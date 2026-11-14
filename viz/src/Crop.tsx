@@ -27,7 +27,7 @@ export function Crop({ drawing, el, width, height, pad = 0.35 }: {
     g.drawImage(src, x0 * s0, y0 * s0, w * s0, h * s0, 0, 0, c.width, c.height)
     g.beginPath()
     pts.forEach(([x, y], i) => (i ? g.lineTo : g.moveTo).call(g, (x - x0) * s, (y - y0) * s))
-    const color = el.color ?? '#ff6a00'
+    const color = el.color ?? '#ff7a00'
     if (el.geometry === 'polyline') { // open lines (baseboards, pipes) stay open: no closing segment, no fill
       g.lineWidth = 3 * dpr; g.lineJoin = 'round'; g.strokeStyle = color; g.stroke()
     } else {
