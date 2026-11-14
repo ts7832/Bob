@@ -32,12 +32,18 @@ export function wallsFromImage(img: HTMLImageElement | HTMLCanvasElement, width:
   // 3. opening = erosion then dilation with a k x k square (separable)
   mask = dilate(erode(mask, w, h, k), w, h, k)
 
-  // 4. runs per row merged into rectangles
+  // 4. keep only large connected wall networks: letters, dimension text, logos and symbols are small separate pieces
+  //    (bold headings on full sheets survived the opening and stood up as wall 'pillars')
+  mask = keepLarge(mask, w, h, 0.04 * Math.max(w, h))
+
+  // 5. runs per row merged into rectangles
   const rects = rectangles(mask, w, h)
   const minArea = k * k * 3 // drop specks
   const sx = width / w, sy = height / h // working px -> sheet px (sheet frame = render width/height)
-  return rects
-    .filter((r) => (r.x1 - r.x0) * (r.y1 - r.y0) >= minArea)
+  const kept = rects.filter((r) => (r.x1 - r.x0) * (r.y1 - r.y0) >= minArea)
+  // a handful of thick pieces is not a building (title-block borders, one thick-outlined foundation): no walls then
+  if (kept.length < 12) return []
+  return kept
     .map((r) => [[r.x0 * sx, r.y0 * sy], [r.x1 * sx, r.y0 * sy], [r.x1 * sx, r.y1 * sy], [r.x0 * sx, r.y1 * sy]] as Pt[])
 }
 
@@ -52,14 +58,33 @@ function hairline(m: Uint8Array, w: number, h: number) {
   return best
 }
 
+// Connected components (4-neighbour) of the mask; components whose bounding-box diagonal is below minDiag are dropped.
+function keepLarge(m: Uint8Array, w: number, h: number, minDiag: number) {
+  const seen = new Uint8Array(w * h), out = new Uint8Array(w * h), q = new Int32Array(w * h)
+  for (let s = 0; s < w * h; s++) {
+    if (!m[s] || seen[s]) continue
+    let head = 0, tail = 0, x0 = w, y0 = h, x1 = 0, y1 = 0
+    q[tail++] = s; seen[s] = 1
+    while (head < tail) {
+      const i = q[head++], x = i % w, y = (i / w) | 0
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y
+      if (x > 0 && m[i - 1] && !seen[i - 1]) { seen[i - 1] = 1; q[tail++] = i - 1 }
+      if (x < w - 1 && m[i + 1] && !seen[i + 1]) { seen[i + 1] = 1; q[tail++] = i + 1 }
+      if (y > 0 && m[i - w] && !seen[i - w]) { seen[i - w] = 1; q[tail++] = i - w }
+      if (y < h - 1 && m[i + w] && !seen[i + w]) { seen[i + w] = 1; q[tail++] = i + w }
+    }
+    if (Math.hypot(x1 - x0, y1 - y0) >= minDiag) for (let k = 0; k < tail; k++) out[q[k]] = 1
+  }
+  return out
+}
+
 // Min (erode) / max (dilate) over a k-wide window, rows then columns.
 function filter(m: Uint8Array, w: number, h: number, k: number, isErode: boolean) {
   const a = Math.floor((k - 1) / 2), b = k - 1 - a
   const tmp = new Uint8Array(w * h), out = new Uint8Array(w * h)
   const pass = (src: Uint8Array, dst: Uint8Array, n: number, lines: number, idx: (line: number, i: number) => number) => {
+    const pre = new Int32Array(n + 1) // prefix sums of the line make each window an O(1) lookup; one buffer per pass
     for (let l = 0; l < lines; l++) {
-      // prefix sums of the line make each window an O(1) lookup
-      const pre = new Int32Array(n + 1)
       for (let i = 0; i < n; i++) pre[i + 1] = pre[i] + src[idx(l, i)]
       for (let i = 0; i < n; i++) {
         const lo = Math.max(0, i - a), hi = Math.min(n, i + b + 1), sum = pre[hi] - pre[lo]

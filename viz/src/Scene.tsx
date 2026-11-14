@@ -1,16 +1,17 @@
-import { useEffect, useMemo, useRef, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import * as THREE from 'three'
-import { useFrame, useThree } from '@react-three/fiber'
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { CameraControls, Html, Line } from '@react-three/drei'
 import CameraControlsImpl from 'camera-controls'
 import { Building, Effects, Floors, Lighting, drawingUV, useBuilding, useLifted, type Lift } from './Model'
 import { Photo } from './Photo'
 import type { Answer, Drawing, Element, Loaded, Pt, Tier } from './types'
-import { anchor, bbox, outline, shapeOf, thickness, toShape, toWorld } from './geom'
+import { anchor, bbox, outline, shapeOf, thickness, toShape, toWorld, tube } from './geom'
 
 export const ACCENT = '#ff6a00'
 const LOW = '#e0a100' // low-confidence detections
 const LOW_CONF = 0.6
+const CLICK_PX = 3 // pointer travel above this is a drag (pan / orbit), not a click
 const ACTION = CameraControlsImpl.ACTION
 const TILT = { azimuth: -0.45, polar: 0.8 } // 3D view: about 53° from straight down, turned a little
 
@@ -104,14 +105,24 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
   const L = max / 2500 // height step between flat layers, so they never z-fight
   const tex = useDrawingTexture(drawing)
   const hatch = useHatch(drawing)
-  const wallH = useMemo(() => wallHeight(loaded), [loaded])
+  // 3D geometry (and a scan's image walls) only once 3D is first asked for: opening a sheet in 2D stays fast
+  const [want3d, setWant3d] = useState(mode === '3d')
+  useEffect(() => { if (mode === '3d') setWant3d(true) }, [mode])
+  const wallH = useMemo(() => (want3d ? wallHeight(loaded) : 0.035 * max), [loaded, want3d, max]) // reading walls is lazy work
   const els = answer?.status === 'answered' ? answer.elements : []
   const tier = answer?.tier ?? null
   const lift = useRef<Lift>({ v: 0 })
   // in 3D with nothing selected, frame the building (walls), not the whole paper with its title block
-  const home = useMemo(() => { const w = loaded.context.walls.flat(); return w.length > 3 ? (() => { const b = bbox(w); return { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1, min: 0 } })() : null }, [loaded])
+  const home = useMemo(() => {
+    if (!want3d) return null
+    const ws = loaded.context.walls
+    if (ws.length < 12) return null // too few walls to be a building: frame the whole sheet
+    const b = bbox(ws.flat())
+    if (Math.hypot(b.w, b.h) < 0.25 * Math.hypot(drawing.width, drawing.height)) return null
+    return { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1, min: 0 }
+  }, [loaded, want3d])
   const lifted = useLifted(lift)
-  const building = useBuilding(loaded)
+  const building = useBuilding(loaded, want3d)
 
   useFrame((_, dt) => {
     const t = mode === '3d' ? 1 : 0, l = lift.current
@@ -127,12 +138,12 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
       {lifted && photo && <Photo loaded={loaded} b={building} tex={tex} wallH={wallH} answer={answer} baseY={0.5 * L} status={photoStatus} />}
 
       {/* the original drawing: always visible */}
-      <mesh rotation-x={-Math.PI / 2} onClick={(e) => { e.stopPropagation(); onSelect(null) }}>
+      <mesh rotation-x={-Math.PI / 2} onClick={(e) => { e.stopPropagation(); if (e.delta <= CLICK_PX) onSelect(null) }}>
         <planeGeometry args={[drawing.width, drawing.height]} />
         <meshBasicMaterial map={tex} toneMapped={false} />
       </mesh>
 
-      {showPlan && !els.length && loaded.plan.map((el) => <PlanMark key={el.id} el={el} drawing={drawing} y={L} />)}
+      {showPlan && !answer && loaded.plan.map((el) => <PlanMark key={el.id} el={el} drawing={drawing} y={L} />)}
 
       {dim && els.length > 0 && (
         <mesh rotation-x={-Math.PI / 2} position-y={2 * L} renderOrder={2} raycast={() => null}>
@@ -141,7 +152,7 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
         </mesh>
       )}
 
-      <Floors loaded={loaded} wallH={wallH} lift={lift} y={1.5 * L} />
+      {want3d && <Floors loaded={loaded} wallH={wallH} lift={lift} y={1.5 * L} />}
       <Building b={building} tex={tex} wallH={wallH} lift={lift} y={0.5 * L} />
 
       {els.map((el) => (
@@ -177,14 +188,6 @@ function ribbon(d: Drawing, pts: Pt[], closed: boolean) {
   return g
 }
 
-// A pipe along a polyline at its printed diameter (world space, centred on y = 0).
-function tube(d: Drawing, pts: Pt[], r: number) {
-  const path = new THREE.CurvePath<THREE.Vector3>()
-  const w = pts.map((p) => { const [x, z] = toWorld(d, p); return new THREE.Vector3(x, 0, z) })
-  for (let i = 0; i + 1 < w.length; i++) path.add(new THREE.LineCurve3(w[i], w[i + 1]))
-  return new THREE.TubeGeometry(path, Math.max(16, w.length * 6), Math.max(r, 0.5), 14, false)
-}
-
 function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, lift, selected, hovered, onSelect, onHover, overlay }: {
   el: Element; drawing: Drawing; tex: THREE.Texture; hatch: THREE.Texture; tier: Tier | null; measure: Answer['measure']; crowded: boolean
   L: number; wallH: number; lift: RefObject<Lift>
@@ -202,6 +205,7 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, 
   const strip = useMemo(() => (linear && !pipe ? ribbon(drawing, pts, !open) : null), [el, drawing, linear, pipe])
   const pipeGeo = useMemo(() => (pipe ? tube(drawing, pts, el.diameterPx! / 2) : null), [el, drawing, pipe])
   useEffect(() => () => { geo?.dispose(); vol?.dispose(); strip?.dispose(); pipeGeo?.dispose() }, [geo, vol, strip, pipeGeo])
+  useEffect(() => () => { document.body.style.cursor = '' }, [])
   const line = useMemo(() => {
     const w = pts.map((p) => toWorld(drawing, p))
     return (open ? w : [...w, w[0]]).map(([x, z]) => new THREE.Vector3(x, 0, z))
@@ -216,8 +220,8 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, 
   // count numbers always; per-item values only while there is room (else on hover / selection; the legend has totals)
   const tag = el.label ?? (crowded && !active ? null : el.valueText ?? null)
   const events = {
-    onClick: (e: { stopPropagation(): void }) => { e.stopPropagation(); onSelect(el.id) },
-    onPointerOver: (e: { stopPropagation(): void }) => { e.stopPropagation(); onHover(el.id); document.body.style.cursor = 'pointer' },
+    onClick: (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); if (e.delta <= CLICK_PX) onSelect(el.id) },
+    onPointerOver: (e: ThreeEvent<PointerEvent>) => { e.stopPropagation(); onHover(el.id); document.body.style.cursor = 'pointer' },
     onPointerOut: () => { onHover(null); document.body.style.cursor = '' },
   }
 

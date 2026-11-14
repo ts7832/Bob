@@ -57,11 +57,12 @@ function mergeCapsSides(geos: THREE.BufferGeometry[]): [THREE.BufferGeometry, TH
 
 export type BuildingGeo = ReturnType<typeof useBuilding>
 
-export function useBuilding(loaded: Loaded) {
+export function useBuilding(loaded: Loaded, enabled = true) {
   return useMemo(() => {
+    if (!enabled) return { solid: null, glass: null, fixtures: null } // 2D only so far: build nothing
     const d = loaded.drawing, ctx = loaded.context
     const solid: THREE.BufferGeometry[] = [], glass: THREE.BufferGeometry[] = [], fixtures: THREE.BufferGeometry[] = []
-    for (const s of shapesFromRings(d, ctx.walls)) solid.push(drawingUV(extrude(s, 1), d))
+    for (const s of shapesFromRings(d, ctx.walls, ctx.wallsDisjoint)) solid.push(drawingUV(extrude(s, 1), d))
     for (const o of ctx.openings) {
       if (o.polygon.length < 3) continue
       const b = obb(o.polygon)
@@ -87,7 +88,7 @@ export function useBuilding(loaded: Loaded) {
       glass: glass.length ? mergeGeometries(glass) : null,
       fixtures: fixtures.length ? mergeGeometries(fixtures) : null,
     }
-  }, [loaded])
+  }, [loaded, enabled])
 }
 
 export function Building({ b, tex, wallH, lift, y }: { b: BuildingGeo; tex: THREE.Texture; wallH: number; lift: RefObject<Lift>; y: number }) {

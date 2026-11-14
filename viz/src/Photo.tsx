@@ -8,7 +8,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { WebGLPathTracer, GradientEquirectTexture } from 'three-gpu-pathtracer'
 import type { Answer, Loaded } from './types'
 import type { BuildingGeo } from './Model'
-import { outline, shapeOf } from './geom'
+import { outline, shapeOf, tube } from './geom'
 import { planComposite } from './floors'
 
 const BG = '#1a1f2b', ACCENT = '#ff6a00'
@@ -52,12 +52,21 @@ function buildPhotoScene(loaded: Loaded, b: BuildingGeo, drawingTex: THREE.Textu
   if (b.fixtures) group.add(new THREE.Mesh(b.fixtures, mats.ceramic))
   if (b.glass) group.add(new THREE.Mesh(b.glass, mats.glass))
   // the answer: low glowing volumes that light their rooms
+  const lines: THREE.Mesh[] = []
   if (answer?.status === 'answered') for (const el of answer.elements) {
+    if (el.geometry === 'polyline') { // open lines glow as tubes (pipes at their size), never as closed filled shapes
+      const g = tube(d, outline(el), (el.diameterPx ?? max / 700) / 2)
+      owned.push(g)
+      const m = new THREE.Mesh(g, mats.glow)
+      m.position.y = baseY + (el.diameterPx != null ? wallH * 0.55 : wallH * 0.05)
+      lines.push(m)
+      continue
+    }
     const g = new THREE.ExtrudeGeometry(shapeOf(d, outline(el)), { depth: 0.12, bevelEnabled: false })
     owned.push(g)
     group.add(new THREE.Mesh(g, mats.glow))
   }
-  scene.add(group)
+  scene.add(group, ...lines)
 
   const sun = new THREE.DirectionalLight('#fff6ea', 2.4)
   sun.position.set(-0.55 * max, 1.25 * max, -0.42 * max)
@@ -78,11 +87,12 @@ export function Photo({ loaded, b, tex, wallH, answer, baseY, status }: {
     p.tiles.set(2, 2)
     p.bounces = 5
     p.filterGlossyFactor = 0.5
-    p.minSamples = 1
-    p.renderDelay = 0
-    p.fadeDuration = 350
-    p.dynamicLowRes = true
-    p.lowResScale = 0.3
+    // sharp while the camera moves: the photo scene is rasterised; path tracing starts after 300 ms at rest and fades
+    // in once a few samples exist (low-res-while-moving made it blurry, every move restarting the samples)
+    p.minSamples = 4
+    p.renderDelay = 300
+    p.fadeDuration = 500
+    p.dynamicLowRes = false
     p.textureSize.set(2048, 2048)
     return p
   }, [gl])

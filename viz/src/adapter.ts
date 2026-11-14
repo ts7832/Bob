@@ -29,6 +29,7 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
   let drawing: Drawing
   let guids = new Map<string, Element>()
   const walls: Pt[][] = []
+  let lazyWalls: (() => Pt[][]) | null = null
 
   if (render.type === 'image') {
     const img = await loadSheetImage(imageUrl ?? render.url!)
@@ -36,9 +37,10 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
     const height = render.height ?? (img instanceof HTMLImageElement ? img.naturalHeight : img.height)
     drawing = { key, kind: 'image', width, height, source: img, toPx: (p) => p, fromPx: (p) => p, units: 'px', mPerPx: sheet?.scale?.m_per_px ?? null, note: render.note }
     for (const w of sheet?.walls ?? []) if (w.polygon?.length) walls.push(w.polygon)
-    // scans without the segmentation model: display-only walls from the image (not for PDF pages: tables, text)
+    // scans without the segmentation model: display-only walls from the image (not for PDF pages: tables, text).
+    // Found lazily, on the first switch to 3D, so opening a sheet in 2D stays fast.
     if (!walls.length && render.source_type === 'raster') {
-      try { walls.push(...wallsFromImage(img, width, height)) } catch { /* 3D just has no walls */ }
+      lazyWalls = () => { try { return wallsFromImage(img, width, height) } catch { return [] } }
     }
   } else if (render.type === 'vector') {
     const v = rasterVector(render)
@@ -83,14 +85,19 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
   }
   if (drawing.kind === 'svg') for (const e of guids.values()) if (e.type === 'IfcSpace') rooms.push({ id: e.id, name: e.name, type: 'IfcSpace', polygon: e.polygon })
 
-  const planEls: Element[] = (plan?.items ?? []).map((it, i) => ({
+  const planEls: Element[] = (plan?.items ?? []).filter((it) => it.pts?.length || it.bbox?.length === 4).map((it, i) => ({
     id: `plan${i}`, type: it.type, how: it.how ?? null, confidence: it.conf ?? null,
     name: it.label ?? null, value: it.area_m2 != null ? `${it.area_m2} m²` : null,
     ...(it.pts?.length ? { geometry: 'polygon' as const, polygon: it.pts.map(drawing.toPx) }
       : { geometry: 'box' as const, polygon: boxPts(it.bbox!.map(Number), drawing.toPx) }),
   }))
 
-  return { drawing, plan: planEls, context: { walls, rooms, openings, fixtures }, guids }
+  let cached: Pt[][] | null = null
+  const context: Context = {
+    get walls() { return lazyWalls ? (cached ??= lazyWalls()) : walls },
+    wallsDisjoint: !!lazyWalls, rooms, openings, fixtures,
+  }
+  return { drawing, plan: planEls, context, guids }
 }
 
 const UNITS: Record<string, string> = { m2: 'm²', m3: 'm³', m: 'm', ft2: 'ft²', sqft: 'ft²', sf: 'ft²', ft3: 'ft³', ft: 'ft', lf: 'ft', count: '' }
@@ -116,6 +123,8 @@ export function toAnswer(ask: AskJSON, loaded: Loaded, question?: string | null)
   const colorOf = (g?: string | null) => g ? GROUP_COLORS[order.indexOf(g) % GROUP_COLORS.length] : GROUP_COLORS[0]
 
   const elements: Element[] = []
+  const seen = new Map<string, number>()
+  const uid = (id: string) => { const n = seen.get(id) ?? 0; seen.set(id, n + 1); return n ? `${id}#${n + 1}` : id }
   ev.forEach((e, i) => {
     // count answers number their evidence on the drawing; the backend's own label wins when it is short
     const label = isCount && ev.length <= 150 ? (e.label && e.label.length < 4 ? e.label : String(i + 1)) : null
@@ -124,7 +133,7 @@ export function toAnswer(ask: AskJSON, loaded: Loaded, question?: string | null)
       thicknessPx: e.thickness_m != null && mPerPx ? e.thickness_m / mPerPx : null,
       diameterPx: e.diameter_m != null && mPerPx ? e.diameter_m / mPerPx : null,
     }
-    const base = { id: e.id ?? `ev${i}`, label, how: e.shape, ...extra }
+    const base = { id: uid(e.id ?? `ev${i}`), label, how: e.shape, ...extra }
     if (e.shape === 'polygon' && e.pts?.length) {
       elements.push({ ...base, type: 'evidence', geometry: 'polygon', polygon: e.pts.map(toPx) })
     } else if (e.shape === 'polyline' && e.pts && e.pts.length >= 2) {
@@ -134,7 +143,7 @@ export function toAnswer(ask: AskJSON, loaded: Loaded, question?: string | null)
       elements.push({ ...base, type: 'evidence', geometry: 'box', polygon, confidence: confOf(loaded.plan, polygon) })
     } else if (e.shape === 'guid' && e.id) {
       const g = loaded.guids.get(e.id)
-      if (g) elements.push({ ...g, label, how: 'guid', ...extra })
+      if (g) elements.push({ ...g, id: uid(g.id), label, how: 'guid', ...extra })
     }
   })
   const groups: Answer['groups'] = order.map((name) => {
@@ -183,12 +192,16 @@ async function loadSheetImage(url: string): Promise<HTMLImageElement | HTMLCanva
     const im = await loadImage(url)
     await im.decode()
     return im
-  } catch {
-    const blob = await (await fetch(url)).blob()
+  } catch (first) {
+    const res = await fetch(url).catch(() => null)
+    if (!res || !res.ok) throw first instanceof Error ? first : new Error(`could not load drawing image ${url}`) // a real load error, not size
+    const blob = await res.blob()
     const probe = await createImageBitmap(blob, { resizeWidth: 64, resizeQuality: 'low' }) // aspect ratio only
     const aspect = probe.height / probe.width
     probe.close()
-    const w = 8192, bmp = await createImageBitmap(blob, { resizeWidth: w, resizeHeight: Math.round(w * aspect), resizeQuality: 'high' })
+    const L = 8192 // long side of the copy; portrait sheets scale by height
+    const [rw, rh] = aspect > 1 ? [Math.round(L / aspect), L] : [L, Math.round(L * aspect)]
+    const bmp = await createImageBitmap(blob, { resizeWidth: rw, resizeHeight: rh, resizeQuality: 'high' })
     const c = document.createElement('canvas')
     c.width = bmp.width; c.height = bmp.height
     c.getContext('2d')!.drawImage(bmp, 0, 0)
@@ -242,7 +255,11 @@ function rasterVector(r: RenderJSON) {
 async function rasterSvg(text: string) {
   const doc = new DOMParser().parseFromString(text, 'image/svg+xml')
   const svg = doc.documentElement
-  const [vx, vy, vw, vh] = (svg.getAttribute('viewBox') ?? '0 0 1000 1000').split(/[\s,]+/).map(Number)
+  if (!svg.getAttribute('viewBox')) { // no viewBox: its user space is width x height (units dropped); make it explicit
+    const num = (v: string | null) => parseFloat(v ?? '') || 1000
+    svg.setAttribute('viewBox', `0 0 ${num(svg.getAttribute('width'))} ${num(svg.getAttribute('height'))}`)
+  }
+  const [vx, vy, vw, vh] = svg.getAttribute('viewBox')!.split(/[\s,]+/).map(Number)
   const k = MAX_PX / Math.max(vw, vh)
   const width = Math.round(vw * k), height = Math.round(vh * k)
   const toPx = (p: Pt): Pt => [(p[0] - vx) * k, (p[1] - vy) * k]
@@ -285,19 +302,26 @@ async function rasterSvg(text: string) {
   }
 }
 
-// "M x,y L x,y A rx,ry rot large sweep x,y ... Z" -> rings of points (arc end points only; fine for outlines).
+// SVG path data -> rings of points (end points of every segment; curves are not sampled, fine for outlines).
+// Handles absolute and relative M L H V C S Q T A Z.
+const ARGS: Record<string, number> = { M: 2, L: 2, H: 1, V: 1, C: 6, S: 4, Q: 4, T: 2, A: 7, Z: 0 }
 function pathRings(d: string): Pt[][] {
   const rings: Pt[][] = []
-  let cur: Pt[] = []
-  const re = /([MLAZmlaz])([^MLAZmlaz]*)/g
+  let cur: Pt[] = [], x = 0, y = 0, sx = 0, sy = 0
+  const re = /([MLHVCSQTAZmlhvcsqtaz])([^MLHVCSQTAZmlhvcsqtaz]*)/g
   let m: RegExpExecArray | null
   while ((m = re.exec(d))) {
+    const c = m[1], C = c.toUpperCase(), rel = c !== C, n = ARGS[C]
     const nums = (m[2].match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi) ?? []).map(Number)
-    const cmd = m[1].toUpperCase()
-    if (cmd === 'M') { if (cur.length) rings.push(cur); cur = []; for (let i = 0; i + 1 < nums.length; i += 2) cur.push([nums[i], nums[i + 1]]) }
-    else if (cmd === 'L') for (let i = 0; i + 1 < nums.length; i += 2) cur.push([nums[i], nums[i + 1]])
-    else if (cmd === 'A') for (let i = 0; i + 6 < nums.length; i += 7) cur.push([nums[i + 5], nums[i + 6]])
-    else if (cmd === 'Z') { if (cur.length) rings.push(cur); cur = [] }
+    if (C === 'Z') { if (cur.length) rings.push(cur); cur = []; x = sx; y = sy; continue }
+    for (let i = 0; i + n <= nums.length; i += n) {
+      const a = nums.slice(i, i + n)
+      if (C === 'H') x = rel ? x + a[0] : a[0]
+      else if (C === 'V') y = rel ? y + a[0] : a[0]
+      else { const ex = a[n - 2], ey = a[n - 1]; x = rel ? x + ex : ex; y = rel ? y + ey : ey }
+      if (C === 'M' && i === 0) { if (cur.length) rings.push(cur); cur = []; sx = x; sy = y }
+      cur.push([x, y]) // further pairs after M are line-tos, as in SVG
+    }
   }
   if (cur.length) rings.push(cur)
   return rings

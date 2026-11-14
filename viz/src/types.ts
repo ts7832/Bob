@@ -54,7 +54,8 @@ export interface Answer {
 
 // Geometry for the 3D lift (M3). Display only; never used to answer anything.
 export interface Context {
-  walls: Pt[][]
+  walls: Pt[][] // computed on first read for scans (image wall finder), so 2D-only use never pays for it
+  wallsDisjoint?: boolean // rectangles from the image: they never nest, skip the containment test
   rooms: { id: string; name?: string | null; type?: string | null; polygon: Pt[] }[]
   openings: { cls: 'door' | 'window'; polygon: Pt[] }[] // window/door rectangles in the wall line: sills, glass, lintels
   fixtures: { cls: string; polygon: Pt[] }[] // wc, washbasin, bathtub, kitchen_unit, ... shown as low volumes

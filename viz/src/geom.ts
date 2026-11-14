@@ -62,7 +62,8 @@ export const ringArea = (p: Pt[]) => {
 
 // Closed rings (sheet px) -> extrudable shapes. Even-odd nesting: a ring inside a solid ring is its hole,
 // a ring inside a hole is solid again. Wall layers mix free-standing wall bodies with a few that wrap a shaft.
-export function shapesFromRings(d: Drawing, rings: Pt[][]): THREE.Shape[] {
+export function shapesFromRings(d: Drawing, rings: Pt[][], disjoint = false): THREE.Shape[] {
+  if (disjoint) return rings.filter((r) => r.length >= 3).map((r) => shapeOf(d, r)) // image rectangles never nest
   const rs = rings.filter((r) => r.length >= 3 && Math.abs(ringArea(r)) > 1e-3)
     .map((r) => ({ r, a: Math.abs(ringArea(r)), depth: 0, parent: -1 }))
     .sort((p, q) => q.a - p.a)
@@ -109,4 +110,12 @@ export function obb(pts: Pt[]) {
 export function obbRect(o: ReturnType<typeof obb>, depScale = 1, shrink = 0): Pt[] {
   const hl = Math.max(o.len / 2 - shrink, 0.5), hd = Math.max((o.dep * depScale) / 2 - shrink, 0.5)
   return [[-hl, -hd], [hl, -hd], [hl, hd], [-hl, hd]].map(([a, b]) => [o.cx + a * o.ux + b * o.vx, o.cy + a * o.uy + b * o.vy] as Pt)
+}
+
+// A pipe along a polyline at its printed diameter (world space, centred on y = 0).
+export function tube(d: Drawing, pts: Pt[], r: number) {
+  const path = new THREE.CurvePath<THREE.Vector3>()
+  const w = pts.map((p) => { const [x, z] = toWorld(d, p); return new THREE.Vector3(x, 0, z) })
+  for (let i = 0; i + 1 < w.length; i++) path.add(new THREE.LineCurve3(w[i], w[i + 1]))
+  return new THREE.TubeGeometry(path, Math.max(16, w.length * 6), Math.max(r, 0.5), 14, false)
 }

@@ -143,8 +143,8 @@ async function main() {
   $('drawing').innerHTML = index.map((f) => `<option value="${esc(f.stem)}">${esc(f.title)}</option>`).join('')
   await openStem(P.get('d') ?? index[0].stem)
   if (P.has('q')) await showAsk(Number(P.get('q')))
-  if (P.get('sel')) view.select(P.get('sel'))
   if (P.get('synthetic')) await synthetic(P.get('synthetic')!)
+  if (P.get('sel')) view.select(P.get('sel'))
   if (P.get('mode') === '3d') view.setMode('3d')
   if (P.has('photo')) setTimeout(() => (document.querySelector('.dv-tools button[title^="Path"]') as HTMLButtonElement | null)?.click(), 1500)
 }

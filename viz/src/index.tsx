@@ -50,6 +50,9 @@ export function mount(el: HTMLElement, opts: MountOptions = {}): DrawViewHandle 
   let seq = 0
   let pending: [AskJSON, string | null | undefined] | null = null // an answer that arrived before its drawing finished loading
 
+  // demo/index.html's open() empties #viewer (`v.innerHTML = ""`): put the view back instead of silently vanishing
+  const ensureAttached = () => { if (!host.isConnected) el.appendChild(host) }
+
   const getJSON = async (u: string) => {
     const r = await fetch(base + u)
     if (!r.ok) throw new Error(`${u.split('?')[0]}: HTTP ${r.status}`)
@@ -65,6 +68,7 @@ export function mount(el: HTMLElement, opts: MountOptions = {}): DrawViewHandle 
 
   const handle: DrawViewHandle = {
     async open(path) {
+      ensureAttached()
       const s = ++seq
       pending = null
       store.set({ loading: true, error: null, answer: null, selectedId: null })
@@ -85,6 +89,7 @@ export function mount(el: HTMLElement, opts: MountOptions = {}): DrawViewHandle 
       }
     },
     async load({ render, plan = null, sheet = null, imageUrl }) {
+      ensureAttached()
       const s = ++seq
       pending = null
       store.set({ loading: true, error: null, answer: null, selectedId: null })
@@ -98,6 +103,7 @@ export function mount(el: HTMLElement, opts: MountOptions = {}): DrawViewHandle 
       }
     },
     showAnswer(ask, question) {
+      ensureAttached()
       const { loaded, loading } = store.get()
       if (!loaded || loading) { pending = [ask, question]; return }
       store.set({ answer: toAnswer(ask, loaded, question), selectedId: null, hoverId: null })
