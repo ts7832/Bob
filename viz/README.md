@@ -2,6 +2,8 @@
 
 The left 75% of the demo: the drawing, with the answer to a question shown on it. Every highlight sits on its exact spot on the original sheet, and clicking one shows a crop of the original with its ID, position and confidence. One script, `dist/drawview.js` (React, three.js and CSS inside, no CDN, works offline). It reads only the demo's existing endpoints: `/api/render`, `/api/plan`, `/api/sheet` and `/api/ask`.
 
+Teammates: start with [`TEAM.md`](TEAM.md) (what the view does, what it reads from your JSON, how not to collide).
+
 ## Use it in demo/index.html
 
 ```html
