@@ -317,7 +317,8 @@ def prompt_for(question, tabs, samples=8):
         lines.append(f"\nTABLE {i}: \"{t['title']}\" ({len(t['rows'])} rows)")
         for c, name in enumerate(t["columns"]):
             vals = list(dict.fromkeys(r[c] for r in t["rows"] if r[c]))[:samples]
-            lines.append(f"  column {c} \"{name}\": " + " | ".join(v[:28] for v in vals))
+            more = len({r[c] for r in t["rows"] if r[c]}) - len(vals)
+            lines.append(f"  column {c} \"{name}\": " + " | ".join(v[:28] for v in vals) + (f" | ... ({more} more values not shown)" if more > 0 else ""))
     lines.append(f"\nQuestion: {question}\n")
     lines.append(
         "Translate the question into ONE query over these tables. Do not answer it yourself. Reply with JSON only:\n"
@@ -328,7 +329,10 @@ def prompt_for(question, tabs, samples=8):
         "rows; \"column\" may be a list of column numbers. max / min = the row with the largest / smallest number in "
         "\"column\". A condition is true when the cell equals one of the values (equals), contains one of them as a "
         "separate word or code (has_token), or starts with one (starts_with). Copy values exactly as they appear in the "
-        "table. If no table can answer the question, reply {\"table\": null}.")
+        "table. Only some example values are shown for each column; a door, room or type number named in the question "
+        "is in the table even if it is not among the examples. Use as few conditions as the question needs: usually one. "
+        "Words in brackets in the question explain a code and are not a second condition. If the question is about "
+        "something drawn on the sheet and not listed in a table, reply {\"table\": null}.")
     return "\n".join(lines)
 
 
@@ -363,8 +367,8 @@ def parse_plan(text, tabs):
 def _match(cell, test, values):
     if test == "not_empty":
         return bool(str(cell).strip())
-    if test == "equals":
-        return squash(cell) in {squash(v) for v in values}
+    if test == "equals":  # a long value may have been shortened in the prompt: its start is enough
+        return any(squash(cell) == squash(v) or (len(squash(v)) >= 16 and squash(cell).startswith(squash(v).rstrip("-"))) for v in values)
     if test == "starts_with":
         return any(squash(cell).startswith(squash(v)) for v in values)
     toks = {squash(x) for x in re.split(r"[\s,;/&+]+", str(cell)) if x}
@@ -389,6 +393,12 @@ def run(tabs, plan, px_per_pt=150 / 72):
 
     base = dict(schedule_source=src, query=dict(table=name, where=cond, op=plan["op"], columns=[t["columns"][c] for c in plan["columns"]]))
     if plan["op"] == "count":
+        qc = next((c for c in range(len(t["columns"])) if COUNT_COLUMN.match(t["columns"][c])), None)
+        if qc is not None and rows and all(re.fullmatch(r"\d+", r[qc] or "") for r in rows):
+            # a schedule by type lists how many of each: "how many" means those quantities, not the number of lines
+            n = sum(int(r[qc]) for r in rows)
+            return dict(answer=n, unit="count", evidence=boxes(rows), **base,
+                        explanation=f"{name} lists a quantity per row: '{t['columns'][qc]}' added over the {len(rows)} row(s) where {cond} = {n}.")
         return dict(answer=len(rows), unit="count", evidence=boxes(rows), explanation=f"{name}: {len(rows)} row(s) where {cond}.", **base)
     c = plan["columns"][0]
     if plan["op"] == "sum":
@@ -420,7 +430,12 @@ def run(tabs, plan, px_per_pt=150 / 72):
 
 
 def plan(question, tabs):
-    """Ask the model on Modal (tools/modal_reader.py) for a query. Returns (checked plan or None, note)."""
+    """Ask the model on Modal (tools/modal_reader.py) for a query. Returns (checked plan or None, note).
+    A question that names exactly one row by its key and a column by its header needs no model: that is tried first."""
+    g = guess(question, tabs)
+    if g and g["intent"] == "schedule_lookup" and g.get("columns"):
+        return dict(table=g["table"], op="lookup", columns=g["columns"], where=[dict(column=g["key_column"], test="equals", values=[g["key"]])]), \
+            "row and column matched to the table's own values, no language model used"
     try:
         import modal
         r = modal.Cls.from_name("drawqa-reader", "Reader")().text.remote(prompt_for(question, tabs), 500)

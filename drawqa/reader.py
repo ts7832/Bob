@@ -45,6 +45,17 @@ def read_rooms(path, img=None):
     return out
 
 
+def text(prompt, max_tokens=700, system="You are a careful assistant. Answer with JSON only."):
+    """A text-only question to the same model on Modal (no image, no API key needed).
+    Returns dict(text, model, seconds, truncated) or dict(error=...). 1-3 s when the service is warm; when it is cold
+    the call waits for the model to load (minutes), so callers that must stay fast should check warm() first."""
+    try:
+        import modal
+        return modal.Cls.from_name("drawqa-reader", "Reader")().text.remote(prompt, max_tokens, system)
+    except Exception as e:
+        return dict(error=f"language model on Modal not available: {type(e).__name__}: {str(e)[:200]}")
+
+
 if __name__ == "__main__":  # python -m drawqa.reader <image>
     import sys
     r = read_rooms(sys.argv[1])
