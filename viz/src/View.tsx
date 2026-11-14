@@ -2,7 +2,7 @@ import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyn
 import { Canvas } from '@react-three/fiber'
 import type { Answer, Drawing, Element } from './types'
 import type { Store } from './store'
-import { Scene, focusOf, type Insets } from './Scene'
+import { Scene, focusOf, measureTotals, type Insets } from './Scene'
 import { Crop } from './Crop'
 import { bbox, outline } from './geom'
 
@@ -19,7 +19,7 @@ export function View({ store }: { store: Store }) {
   const { loaded, answer, selectedId } = s
   const selected = answer?.elements.find((e) => e.id === selectedId) ?? null
   const focus = useMemo(
-    () => (selected ? focusOf([selected], 0.3) : answer?.status === 'answered' ? focusOf(answer.elements) : null),
+    () => (selected ? focusOf([selected], 0.12) : answer?.status === 'answered' ? focusOf(answer.elements) : null),
     [selected, answer],
   )
   const select = (id: string | null) => store.set({ selectedId: id })
@@ -46,11 +46,35 @@ export function View({ store }: { store: Store }) {
     for (const n of [viewRef.current, badgeRef.current, detailRef.current]) if (n) ro.observe(n)
     return () => ro.disconnect()
   }, [answer, selected])
-  useEffect(() => { // Esc clears the selection
-    const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && store.get().selectedId) store.set({ selectedId: null }) }
-    window.addEventListener('keydown', k)
-    return () => window.removeEventListener('keydown', k)
+  // Keyboard, like takeoff tools: arrows step through the evidence, F frames it again, M measures, Space (held) shows
+  // the untouched original, Esc clears the measurement / selection. Ignored while typing in the host page's inputs.
+  useEffect(() => {
+    const typing = (e: KeyboardEvent) => { const t = e.target as HTMLElement | null; return !!t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable) }
+    const down = (e: KeyboardEvent) => {
+      const st = store.get()
+      if (typing(e) || !st.loaded) return
+      if (e.key === 'Escape') {
+        if (st.mpts.length) store.set({ mpts: [], mclosed: false })
+        else if (st.measure) store.set({ measure: false })
+        else if (st.selectedId) store.set({ selectedId: null })
+      } else if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && st.answer?.status === 'answered') {
+        e.preventDefault(); step(e.key === 'ArrowRight' ? 1 : -1)
+      } else if (e.key === 'f' || e.key === 'F') store.set({ refit: st.refit + 1 })
+      else if (e.key === 'm' || e.key === 'M') store.set({ measure: !st.measure, mpts: [], mclosed: false })
+      else if (e.key === ' ' && !e.repeat) { e.preventDefault(); store.set({ peek: true }) }
+    }
+    const up = (e: KeyboardEvent) => { if (e.key === ' ' && store.get().peek) store.set({ peek: false }) }
+    window.addEventListener('keydown', down); window.addEventListener('keyup', up)
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
   }, [store])
+  // step through the visible evidence (legend groups switched off are skipped)
+  const step = (d: number) => {
+    const st = store.get(), list = (st.answer?.elements ?? []).filter((e) => !e.group || !st.hidden.includes(e.group))
+    if (!list.length) return
+    const i = list.findIndex((e) => e.id === st.selectedId)
+    const n = i < 0 ? (d > 0 ? 0 : list.length - 1) : (i + d + list.length) % list.length
+    store.set({ selectedId: list[n].id })
+  }
 
   return (
     <div className="dv-view" ref={viewRef}>
@@ -60,6 +84,8 @@ export function View({ store }: { store: Store }) {
           <Suspense fallback={null}>
             <Scene key={loaded.drawing.key} loaded={loaded} answer={answer} selectedId={selectedId} hoverId={s.hoverId}
               dim={s.dim} showPlan={s.showPlan} mode={s.mode} photo={s.photo && s.mode === '3d'} photoStatus={photoStatus} focus={focus} fitAll={s.fitAll} insets={insets}
+              tools={{ measure: s.measure, mpts: s.mpts, mclosed: s.mclosed, peek: s.peek, hidden: s.hidden, cut: s.cut, refit: s.refit }}
+              onMeasure={(mpts, mclosed) => store.set({ mpts, mclosed })}
               low={low} onSlow={(slow) => { if (store.get().slow !== slow) store.set({ slow }) }}
               onSelect={select} onHover={(id) => store.set({ hoverId: id })} overlay={overlay} />
           </Suspense>
@@ -67,7 +93,8 @@ export function View({ store }: { store: Store }) {
       )}
       <div ref={overlay} className="dv-overlay" />
 
-      {answer && <AnswerBadge answer={answer} boxRef={badgeRef} />}
+      {answer && <AnswerBadge answer={answer} boxRef={badgeRef} selectedId={selectedId} hidden={s.hidden} onStep={step}
+        onToggle={(g) => store.set({ hidden: s.hidden.includes(g) ? s.hidden.filter((x) => x !== g) : [...s.hidden, g], selectedId: null })} />}
       {selected && loaded && <Detail drawing={loaded.drawing} el={selected} onClose={() => select(null)} boxRef={detailRef} />}
 
       {loaded && (
@@ -79,18 +106,28 @@ export function View({ store }: { store: Store }) {
             <button className={s.showPlan ? 'dv-on' : ''} onClick={() => store.set({ showPlan: !s.showPlan })}>Found plan</button>
           )}
           <button title="Clear the selection and frame the sheet (the building in 3D)" onClick={() => store.set({ selectedId: null, fitAll: s.fitAll + 1 })}>Reset view</button>
+          <button className={s.measure ? 'dv-on' : ''} title="Measure lengths and areas on the drawing (M)" onClick={() => store.set({ measure: !s.measure, mpts: [], mclosed: false })}>Measure</button>
+          <button title="Hold to see the original drawing without any highlights (or hold Space)"
+            onPointerDown={() => store.set({ peek: true })} onPointerUp={() => store.set({ peek: false })} onPointerLeave={() => s.peek && store.set({ peek: false })}>Original</button>
           {s.mode === '3d' && (
             <button className={s.photo ? 'dv-on' : ''} title="Path-traced render: refines while the camera rests" onClick={() => store.set({ photo: !s.photo })}>Photo</button>
           )}
           <button className={s.mode === '3d' ? 'dv-on' : ''} onClick={() => store.set({ mode: s.mode === '3d' ? '2d' : '3d', photo: false })}>
             {s.mode === '3d' ? '2D' : '3D'}
           </button>
+          {s.mode === '3d' && (
+            <label className="dv-cut" title="Cut the walls lower to see into the rooms (illustrative heights)">Walls
+              <input type="range" min={20} max={100} value={Math.round(s.cut * 100)} onChange={(e) => store.set({ cut: Number(e.target.value) / 100 })} />
+            </label>
+          )}
         </div>
       )}
       {loaded && s.mode === '3d' && (
         <div className="dv-illustrative">3D for orientation only: wall heights are illustrative, answers come from the drawing{s.photo && <> · <span ref={photoStatus}>Path tracing…</span></>}</div>
       )}
 
+      {loaded && s.measure && <MeasureReadout drawing={loaded.drawing} pts={s.mpts} closed={s.mclosed} />}
+      {s.peek && <div className="dv-peek">Original drawing</div>}
       {s.loading && <div className="dv-status">Loading drawing…</div>}
       {s.error && <div className="dv-status dv-error">{s.error}</div>}
       {!loaded && !s.loading && !s.error && <div className="dv-status">Open a drawing to see it here.</div>}
@@ -106,7 +143,10 @@ function friendly(t?: string | null) {
   return t
 }
 
-function AnswerBadge({ answer, boxRef }: { answer: Answer; boxRef: RefObject<HTMLDivElement | null> }) {
+function AnswerBadge({ answer, boxRef, selectedId, hidden, onStep, onToggle }: {
+  answer: Answer; boxRef: RefObject<HTMLDivElement | null>; selectedId: string | null; hidden: string[]
+  onStep: (d: number) => void; onToggle: (group: string) => void
+}) {
   if (answer.status === 'cannot_answer')
     return (
       <div className="dv-badge dv-cannot" ref={boxRef}>
@@ -116,6 +156,7 @@ function AnswerBadge({ answer, boxRef }: { answer: Answer; boxRef: RefObject<HTM
       </div>
     )
   const off = answer.cited - answer.elements.length
+  const visible = answer.elements.filter((e) => !e.group || !hidden.includes(e.group)), pos = visible.findIndex((e) => e.id === selectedId)
   const [num, ...rest] = (answer.value ?? '').split(' '), unit = rest.join(' ') // '278.9 m²' -> big number, small unit (page's .big)
   return (
     <div className="dv-badge" ref={boxRef}>
@@ -129,9 +170,19 @@ function AnswerBadge({ answer, boxRef }: { answer: Answer; boxRef: RefObject<HTM
       {(answer.groups.length > 1 || answer.groups.some((g) => g.value)) && (
         <ul className="dv-legend">
           {answer.groups.map((g) => (
-            <li key={g.name}><i style={{ background: g.color }} /><span>{g.name}</span><b>{g.value ?? `${g.count}×`}</b></li>
+            <li key={g.name} className={hidden.includes(g.name) ? 'dv-off' : ''} onClick={() => onToggle(g.name)} title="Show or hide this group">
+              <i style={{ background: g.color }} /><span>{g.name}</span><b>{g.value ?? `${g.count}×`}</b>
+            </li>
           ))}
         </ul>
+      )}
+      {answer.elements.length > 1 && (
+        <div className="dv-step">
+          <button onClick={() => onStep(-1)} aria-label="Previous item">‹</button>
+          <span>{pos >= 0 ? `${pos + 1} of ${visible.length}` : `${visible.length} items`}</span>
+          <button onClick={() => onStep(1)} aria-label="Next item">›</button>
+          <em>check each one with ← →</em>
+        </div>
       )}
       {answer.cited > 0 && off > 0 && (
         <p className="dv-note">
@@ -170,6 +221,19 @@ function Detail({ drawing, el, onClose, boxRef }: { drawing: Drawing; el: Elemen
         <dt>Position</dt>
         <dd><code>x {f(Math.min(x0, x1))} to {f(Math.max(x0, x1))}, y {f(Math.min(y0, y1))} to {f(Math.max(y0, y1))}{unit && ' ' + unit}</code></dd>
       </dl>
+    </div>
+  )
+}
+
+function MeasureReadout({ drawing, pts, closed }: { drawing: Drawing; pts: [number, number][]; closed: boolean }) {
+  const t = measureTotals(drawing, pts, closed)
+  const fmt = (v: number) => (t.sc.unit === 'px' ? Math.round(v).toLocaleString() : v.toFixed(2))
+  return (
+    <div className="dv-measure">
+      {pts.length < 2
+        ? <span>Click points on the drawing. Click the first point again to measure an area. Esc clears.</span>
+        : <span><b>{fmt(t.length)} {t.sc.unit}</b>{closed ? ' perimeter' : ' length'}{t.area != null && <> · <b>{fmt(t.area)} {t.sc.areaUnit}</b> area</>}</span>}
+      <small>{t.sc.source}</small>
     </div>
   )
 }

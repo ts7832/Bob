@@ -43,6 +43,23 @@ What the view shows:
   - PDF pages get no walls. The image path works on full A1/A2 sheets too (the filter is sized from the sheet's own hairlines; 67-138 megapixel PNGs are decoded downscaled).
   - Door openings come from the sources themselves, so walls already have gaps there.
 
+## Checking an answer (built-in tools)
+
+Modelled on takeoff and BIM viewers (Bluebeam markups list and measure, Autodesk Measure and isolate, xeokit section planes, Matterport dollhouse), aimed at Stoa's "verify in seconds":
+
+| Control | What it does |
+|---|---|
+| **‹ ›** in the answer card, or **← →** | Step through the evidence one item at a time: zooms to it and shows the crop of the original (e.g. "4 of 13") |
+| **Click** an item / **double-click** anywhere | Zoom to the item / zoom in towards that spot |
+| **F** | Frame the selection (or the whole answer) again |
+| **Original** (hold), or hold **Space** | Hide every highlight and show the untouched drawing |
+| **Measure**, or **M** | Click points to measure lengths; click the first point again to close an area. Points snap to the drawing's corners. Units come from the sheet: metres on CAD sheets, paper millimetres on BIM plans, pixels when there is no scale. The readout says which. **Esc** clears. |
+| **Legend rows** | Switch a category of a breakdown answer on or off |
+| **Walls** slider (3D) | Cut the walls lower to see into the rooms (heights are illustrative) |
+| **Reset view**, **Esc** | Frame the sheet, clear the selection |
+
+Keys are ignored while typing in the host page's inputs.
+
 ## Optional evidence fields (for the judges' harder questions)
 
 The view reads `/api/ask` as it is today. These optional fields let the backend show multi-category and linear answers. All of them are optional and ignored if absent, and the view never computes a value itself:
@@ -89,6 +106,7 @@ npx vite build                # -> dist/drawview.js
 npx tsc -p .                  # typecheck
 python3 tests/matrix.py http://localhost:5180 /tmp/shots    # every fixture x {plain, answer, selected, cannot, 3D}: screenshots + console errors
 python3 tests/toggle.py 'http://localhost:5180/?d=colorful-11397&q=0' /tmp/shots   # 2D -> 3D -> 2D frames; the round trip must match
+python3 tests/interact.py http://localhost:5180 && python3 tests/features.py http://localhost:5180 /tmp/shots   # clicks, keys, tools
 # tests/embed.html: the built bundle on a plain page against the live server (?path=...&q=...)
 ```
 

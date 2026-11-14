@@ -119,3 +119,14 @@ export function tube(d: Drawing, pts: Pt[], r: number) {
   for (let i = 0; i + 1 < w.length; i++) path.add(new THREE.LineCurve3(w[i], w[i + 1]))
   return new THREE.TubeGeometry(path, Math.max(16, w.length * 6), Math.max(r, 0.5), 14, false)
 }
+
+// What a measured sheet pixel is worth, and where that scale comes from (shown with every measurement, like takeoff
+// tools that insist on confirming the scale first).
+export function measureScale(d: Drawing): { f: number; unit: string; areaUnit: string; source: string } {
+  if (d.mPerPx) return { f: d.mPerPx, unit: 'm', areaUnit: 'm²', source: d.kind === 'vector' ? 'scale: CAD coordinates in metres' : 'scale: from the sheet' }
+  if (d.units === 'svg') {
+    const f = Math.abs(d.fromPx([1, 0])[0] - d.fromPx([0, 0])[0])
+    return { f, unit: 'mm on paper', areaUnit: 'mm² on paper', source: 'drawing scale not given: paper millimetres' }
+  }
+  return { f: 1, unit: 'px', areaUnit: 'px²', source: 'no scale on this sheet: pixels' }
+}

@@ -6,7 +6,7 @@ import CameraControlsImpl from 'camera-controls'
 import { Building, Effects, Floors, Lighting, drawingUV, useBuilding, useLifted, type Lift } from './Model'
 import { Photo } from './Photo'
 import type { Answer, Drawing, Element, Loaded, Pt, Tier } from './types'
-import { anchor, bbox, outline, shapeOf, thickness, toShape, toWorld, tube } from './geom'
+import { anchor, bbox, measureScale, outline, ringArea, shapeOf, thickness, toShape, toWorld, tube } from './geom'
 
 export const ACCENT = '#ff7a00' // = the demo page's --accent
 const LOW = '#e0a100' // low-confidence detections
@@ -99,12 +99,14 @@ interface Props {
   focus: Focus
   fitAll: number
   insets: Insets
+  tools: { measure: boolean; mpts: Pt[]; mclosed: boolean; peek: boolean; hidden: string[]; cut: number; refit: number }
+  onMeasure: (pts: Pt[], closed: boolean) => void
   onSelect: (id: string | null) => void
   onHover: (id: string | null) => void
   overlay: RefObject<HTMLDivElement | null> // DOM layer over the canvas; Html labels portal here (fiber 9 + React 19)
 }
 
-export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode, photo, photoStatus, low, onSlow, focus, fitAll, insets, onSelect, onHover, overlay }: Props) {
+export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode, photo, photoStatus, low, onSlow, focus, fitAll, insets, tools, onMeasure, onSelect, onHover, overlay }: Props) {
   const drawing = loaded.drawing
   const max = Math.max(drawing.width, drawing.height)
   const L = max / 2500 // height step between flat layers, so they never z-fight
@@ -115,6 +117,8 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
   useEffect(() => { if (mode === '3d') setWant3d(true) }, [mode])
   const wallH = useMemo(() => (want3d ? wallHeight(loaded) : 0.035 * max), [loaded, want3d, max]) // reading walls is lazy work
   const els = answer?.status === 'answered' ? answer.elements : []
+  // peek (held Space / Original button) shows the untouched drawing; legend rows can switch groups off
+  const shown = tools.peek ? [] : els.filter((e) => !e.group || !tools.hidden.includes(e.group))
   const tier = answer?.tier ?? null
   const lift = useRef<Lift>({ v: 0 })
   // in 3D with nothing selected, frame the building (walls), not the whole paper with its title block
@@ -129,6 +133,34 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
   const lifted = useLifted(lift)
   const building = useBuilding(loaded, want3d)
 
+  // double-click zooms in towards the spot; measure clicks snap to the drawing's own corners (rooms, evidence, walls)
+  const controls = useThree((st) => st.controls) as unknown as CameraControlsImpl | null
+  const camera = useThree((st) => st.camera) as THREE.PerspectiveCamera, size = useThree((st) => st.size)
+  const zoomAt = (p: THREE.Vector3) => {
+    if (!controls) return
+    controls.moveTo(p.x, 0, p.z, true)
+    controls.dollyTo(Math.max(controls.minDistance, controls.distance * 0.45), true)
+  }
+  const snapPts = useMemo(() => {
+    if (!tools.measure) return [] as Pt[]
+    const pts: Pt[] = []
+    for (const r of loaded.context.rooms) pts.push(...r.polygon)
+    for (const e of els) pts.push(...e.polygon)
+    for (const e of loaded.plan) pts.push(...e.polygon)
+    if (!loaded.context.wallsDisjoint) for (const w of loaded.context.walls) pts.push(...w) // exact walls only (scan walls are lazy work)
+    return pts
+  }, [tools.measure, loaded, els])
+  const addPoint = (wp: THREE.Vector3) => {
+    let p: Pt = [wp.x + drawing.width / 2, wp.z + drawing.height / 2]
+    const wpp = controls ? (2 * controls.distance * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)) / size.height : 1
+    const r = 10 * wpp // 10 screen px
+    const first = tools.mpts[0]
+    if (!tools.mclosed && tools.mpts.length >= 3 && Math.hypot(p[0] - first[0], p[1] - first[1]) < r) { onMeasure(tools.mpts, true); return }
+    let best = r
+    for (const q of snapPts) { const d = Math.hypot(q[0] - p[0], q[1] - p[1]); if (d < best) { best = d; p = [q[0], q[1]] } }
+    onMeasure(tools.mclosed ? [p] : [...tools.mpts, p], false)
+  }
+
   useFrame((_, dt) => {
     const t = mode === '3d' ? 1 : 0, l = lift.current
     l.v = Math.abs(l.v - t) < 1e-3 ? t : THREE.MathUtils.damp(l.v, t, 3.2, dt)
@@ -137,22 +169,23 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
   return (
     <>
       <CameraControls makeDefault />
-      <CameraRig drawing={drawing} focus={focus} fitAll={fitAll} mode={mode} home={home} insets={insets} />
+      <CameraRig drawing={drawing} focus={focus} fitAll={fitAll} mode={mode} home={home} insets={insets} refit={tools.refit} />
       <Lighting drawing={drawing} active={lifted && !low} catcherY={2.5 * L} />
       {lifted && !photo && !low && <Effects wallH={wallH} />}
       {/* 3D only: if the frame rate stays low, drop AO, shadows and resolution (2D is cheap and never degrades) */}
       {lifted && !photo && <PerformanceMonitor flipflops={3} onDecline={() => onSlow(true)} onIncline={() => onSlow(false)} onFallback={() => onSlow(true)} />}
-      {lifted && photo && <Photo loaded={loaded} b={building} tex={tex} wallH={wallH} answer={answer} baseY={0.5 * L} status={photoStatus} />}
+      {lifted && photo && <Photo loaded={loaded} b={building} tex={tex} wallH={wallH * tools.cut} answer={answer} baseY={0.5 * L} status={photoStatus} />}
 
       {/* the original drawing: always visible */}
-      <mesh rotation-x={-Math.PI / 2} onClick={(e) => { e.stopPropagation(); if (e.delta <= CLICK_PX) onSelect(null) }}>
+      <mesh rotation-x={-Math.PI / 2} onClick={(e) => { e.stopPropagation(); if (e.delta > CLICK_PX) return; if (tools.measure) addPoint(e.point); else onSelect(null) }}
+        onDoubleClick={(e) => { if (!tools.measure) { e.stopPropagation(); zoomAt(e.point) } }}>
         <planeGeometry args={[drawing.width, drawing.height]} />
         <meshBasicMaterial map={tex} toneMapped={false} />
       </mesh>
 
-      {showPlan && !answer && loaded.plan.map((el) => <PlanMark key={el.id} el={el} drawing={drawing} y={L} />)}
+      {showPlan && !answer && !tools.peek && loaded.plan.map((el) => <PlanMark key={el.id} el={el} drawing={drawing} y={L} />)}
 
-      {dim && els.length > 0 && (
+      {dim && shown.length > 0 && (
         <mesh rotation-x={-Math.PI / 2} position-y={2 * L} renderOrder={2} raycast={() => null}>
           <planeGeometry args={[drawing.width, drawing.height]} />
           <meshBasicMaterial color="#f4f5f7" transparent opacity={0.66} depthWrite={false} toneMapped={false} /> {/* light veil: the rest fades back */}
@@ -160,13 +193,14 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
       )}
 
       {want3d && <Floors loaded={loaded} wallH={wallH} lift={lift} y={1.5 * L} />}
-      <Building b={building} tex={tex} wallH={wallH} lift={lift} y={0.5 * L} />
+      <Building b={building} tex={tex} wallH={wallH * tools.cut} lift={lift} y={0.5 * L} />
 
-      {els.map((el) => (
-        <Highlight key={el.id} el={el} drawing={drawing} tex={tex} hatch={hatch} tier={tier} measure={answer?.measure ?? 'other'} crowded={els.length > 12} L={L} wallH={wallH} lift={lift}
-          selected={el.id === selectedId} hovered={el.id === hoverId}
-          onSelect={onSelect} onHover={onHover} overlay={overlay} />
+      {shown.map((el) => (
+        <Highlight key={el.id} el={el} drawing={drawing} tex={tex} hatch={hatch} tier={tier} measure={answer?.measure ?? 'other'} crowded={shown.length > 12} L={L} wallH={wallH} lift={lift}
+          selected={el.id === selectedId} hovered={el.id === hoverId} interactive={!tools.measure}
+          onSelect={onSelect} onHover={onHover} onZoom={zoomAt} overlay={overlay} />
       ))}
+      {tools.mpts.length > 0 && <MeasureLayer drawing={drawing} pts={tools.mpts} closed={tools.mclosed} L={L} overlay={overlay} />}
     </>
   )
 }
@@ -195,11 +229,11 @@ function ribbon(d: Drawing, pts: Pt[], closed: boolean) {
   return g
 }
 
-function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, lift, selected, hovered, onSelect, onHover, overlay }: {
+function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, lift, selected, hovered, interactive, onSelect, onHover, onZoom, overlay }: {
   el: Element; drawing: Drawing; tex: THREE.Texture; hatch: THREE.Texture; tier: Tier | null; measure: Answer['measure']; crowded: boolean
   L: number; wallH: number; lift: RefObject<Lift>
-  selected: boolean; hovered: boolean; onSelect: (id: string) => void; onHover: (id: string | null) => void
-  overlay: RefObject<HTMLDivElement | null>
+  selected: boolean; hovered: boolean; interactive: boolean; onSelect: (id: string) => void; onHover: (id: string | null) => void
+  onZoom: (p: THREE.Vector3) => void; overlay: RefObject<HTMLDivElement | null>
 }) {
   const pts = outline(el)
   const open = el.geometry === 'polyline'
@@ -226,7 +260,8 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, 
   const dash = Math.max(drawing.width, drawing.height) / 160
   // count numbers always; per-item values only while there is room (else on hover / selection; the legend has totals)
   const tag = el.label ?? (crowded && !active ? null : el.valueText ?? null)
-  const events = {
+  const events = !interactive ? { raycast: () => null } : {
+    onDoubleClick: (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); onZoom(e.point) },
     onClick: (e: ThreeEvent<MouseEvent>) => { e.stopPropagation(); if (e.delta <= CLICK_PX) onSelect(el.id) },
     onPointerOver: (e: ThreeEvent<PointerEvent>) => { e.stopPropagation(); onHover(el.id); document.body.style.cursor = 'pointer' },
     onPointerOut: () => { onHover(null); document.body.style.cursor = '' },
@@ -298,9 +333,50 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, 
   )
 }
 
+// The measure tool's drawing: the line (closed into an area when finished), a dot per point, a length per segment.
+function MeasureLayer({ drawing, pts, closed, L, overlay }: { drawing: Drawing; pts: Pt[]; closed: boolean; L: number; overlay: RefObject<HTMLDivElement | null> }) {
+  const sc = measureScale(drawing)
+  const w = pts.map((p) => toWorld(drawing, p))
+  const line = (closed ? [...w, w[0]] : w).map(([x, z]) => new THREE.Vector3(x, 7 * L, z))
+  const fill = useMemo(() => (closed && pts.length >= 3 ? new THREE.ShapeGeometry(shapeOf(drawing, pts)) : null), [closed, pts, drawing])
+  useEffect(() => () => fill?.dispose(), [fill])
+  const segs = pts.map((p, i) => [p, pts[(i + 1) % pts.length]] as const).slice(0, closed ? pts.length : pts.length - 1)
+  const fmt = (v: number) => (sc.unit === 'px' ? Math.round(v).toString() : v.toFixed(2))
+  const portal = overlay as RefObject<HTMLElement>
+  return (
+    <group>
+      {fill && (
+        <mesh geometry={fill} rotation-x={-Math.PI / 2} position-y={6.5 * L} renderOrder={8} raycast={() => null}>
+          <meshBasicMaterial color="#2f6fde" transparent opacity={0.14} depthWrite={false} toneMapped={false} />
+        </mesh>
+      )}
+      {line.length >= 2 && <Line points={line} color="#2f6fde" lineWidth={2.5} raycast={() => null} />}
+      {w.map(([x, z], i) => (
+        <Html key={`p${i}`} portal={portal} position={[x, 7 * L, z]} center zIndexRange={[30, 0]} style={{ pointerEvents: 'none' }}><div className="dv-mdot" /></Html>
+      ))}
+      {segs.map(([a, b], i) => {
+        const [x, z] = toWorld(drawing, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2])
+        return (
+          <Html key={`s${i}`} portal={portal} position={[x, 7 * L, z]} center zIndexRange={[30, 0]} style={{ pointerEvents: 'none' }}>
+            <div className="dv-mlabel">{fmt(Math.hypot(b[0] - a[0], b[1] - a[1]) * sc.f)} {sc.unit === 'px' ? 'px' : sc.unit === 'm' ? 'm' : 'mm'}</div>
+          </Html>
+        )
+      })}
+    </group>
+  )
+}
+
+export function measureTotals(d: Drawing, pts: Pt[], closed: boolean) {
+  const sc = measureScale(d)
+  let len = 0
+  for (let i = 0; i + 1 < pts.length; i++) len += Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1])
+  if (closed && pts.length >= 3) len += Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1])
+  return { length: len * sc.f, area: closed && pts.length >= 3 ? Math.abs(ringArea(pts)) * sc.f * sc.f : null, sc }
+}
+
 // Camera: one perspective camera for both modes. Looking straight down, a flat sheet shows exactly as in a 2D viewer;
 // 3D tilts the same camera while the walls rise. Fits `focus` (sheet-pixel rect) smoothly; user input takes over.
-function CameraRig({ drawing, focus, fitAll, mode, home, insets }: { drawing: Drawing; focus: Focus; fitAll: number; mode: '2d' | '3d'; home: Focus; insets: Insets }) {
+function CameraRig({ drawing, focus, fitAll, mode, home, insets, refit }: { drawing: Drawing; focus: Focus; fitAll: number; mode: '2d' | '3d'; home: Focus; insets: Insets; refit: number }) {
   const controls = useThree((s) => s.controls) as unknown as CameraControlsImpl | null
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
   const size = useThree((s) => s.size)
@@ -351,7 +427,7 @@ function CameraRig({ drawing, focus, fitAll, mode, home, insets }: { drawing: Dr
     controls.moveTo(x, 0, z, anim)
     controls.dollyTo(dist, anim)
     controls.setFocalOffset((-(insets.l - insets.r) / 2) * wpp, ((insets.t - insets.b) / 2) * wpp, 0, anim)
-  }, [focus, fitAll, drawing, size.width, size.height, controls, mode, home, insets])
+  }, [focus, fitAll, drawing, size.width, size.height, controls, mode, home, insets, refit])
 
   useFrame(() => { // near/far follow the distance so the thin flat layers keep their depth order at every zoom
     if (!controls) return
