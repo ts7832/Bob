@@ -5,6 +5,7 @@ Made by `eval/score.py`; do not edit by hand. Newest run of each engine, best fi
 
 | Engine | Who | Accuracy | Answered | Accuracy when answered | Confidence gap | Cost per question | When | Note |
 |---|---|---|---|---|---|---|---|---|
+| drawqa-c26l+windowjudge+rival-r4 | tadek | **85.8%** | 100.0% | 85.8% | 1.8 pts | $0.00000 | 2026-11-14 18:45 | Aleks's engine; windows re-decided box by box with the rival map as second witness; then per question the more likely of that and rival r4; cross-fitted on the test plans |
 | drawqa-c26l+rival-r4 | tadek | **85.4%** | 100.0% | 85.4% | 1.5 pts | $0.00000 | 2026-11-14 18:06 | per question, the more likely answer of Aleks's engine and rival r4 |
 | drawqa-c26l+rival-r3 | tadek | **85.3%** | 100.0% | 85.3% | 3.1 pts | $0.00000 | 2026-11-14 17:38 | per question, the more likely answer of Aleks's engine and rival r3; agreement used as evidence |
 | drawqa-c26l | aleks | **85.0%** | 100.0% | 85.0% | 12.6 pts | $0.00000 | 2026-11-14 15:04 | Aleks's engine, detector c26l with test-time augmentation |
@@ -20,6 +21,7 @@ the confidence an engine states and how often it is right at that confidence (0 
 
 | Engine | balcony | bathroom | bedroom | door | floor | kitchen | sauna | shower_bath | sink | toilet | wc_room | window |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
+| drawqa-c26l+windowjudge+rival-r4 | 91.2% | 92.8% | 84.4% | 75.0% | 97.9% | 87.0% | 97.6% | 85.0% | 87.5% | 95.4% | 94.6% | 54.4% |
 | drawqa-c26l+rival-r4 | 91.2% | 92.8% | 84.4% | 75.0% | 97.9% | 88.2% | 97.6% | 85.0% | 87.5% | 95.4% | 94.6% | 50.2% |
 | drawqa-c26l+rival-r3 | 91.2% | 93.7% | 84.4% | 75.0% | 97.9% | 85.1% | 97.6% | 85.0% | 87.0% | 96.2% | 94.6% | 50.6% |
 | drawqa-c26l | 91.2% | 92.8% | 84.4% | 75.0% | 97.9% | 82.0% | 97.6% | 85.0% | 87.5% | 95.4% | 94.6% | 50.2% |
@@ -28,4 +30,4 @@ the confidence an engine states and how often it is right at that confidence (0 
 | rival-r3 | 57.4% | 86.5% | 77.9% | 69.3% | 86.3% | 85.7% | 91.5% | 80.2% | 81.6% | 92.1% | 96.4% | 42.3% |
 | rival-r4 | 57.4% | 88.3% | 39.0% | 19.3% | 84.2% | 95.0% | 67.3% | 71.8% | 47.3% | 64.2% | 67.0% | 16.2% |
 
-All runs: `scores/history.csv` (7 so far).
+All runs: `scores/history.csv` (8 so far).

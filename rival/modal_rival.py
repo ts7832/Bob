@@ -445,7 +445,8 @@ def predict(run: str, weights: str = "best"):
             k = round(r["sums"][c]) if ru["how"] == "sum" else count(r, c, ru["threshold"])
             k = max(0, k)
             pts = [[x * STRIDE, y * STRIDE, v] for v, x, y in r["peaks"][c] if v >= (ru["threshold"] or 2.0)]
-            out[n][kd] = dict(answer=k, confidence=ru["by_size"].get(min(k, 12) // 3, ru["val_accuracy"]), sum=round(r["sums"][c], 2), points=pts)
+            out[n][kd] = dict(answer=k, confidence=ru["by_size"].get(min(k, 12) // 3, ru["val_accuracy"]), sum=round(r["sums"][c], 2), points=pts,
+                              all_peaks=[[x * STRIDE, y * STRIDE, v] for v, x, y in r["peaks"][c]])   # every peak, for the box-level judge
     json.dump(dict(rule=rule, test=out), open(f"{D}/rival/runs/{run}/predictions.json", "w"))
     VOL.commit()
     return dict(rule=rule, test=out)
@@ -472,6 +473,7 @@ def main(stage: str = "download", run: str = "r1", epochs: int = 30, batch: int 
                 if a:
                     f.write(json.dumps(dict(id=q["id"], answer=a["answer"], confidence=a["confidence"], tier="detected",
                                             method=f"rival:{run} density map", evidence=a["points"], cost_usd=0.0)) + "\n")
+        json.dump({n: {kd: v["all_peaks"] for kd, v in d.items()} for n, d in r["test"].items()}, open(ROOT / "answers" / f"rival-{run}.peaks.json", "w"))
         for kd, ru in r["rule"].items():
             print(kd, ru)
         print("wrote", path)
