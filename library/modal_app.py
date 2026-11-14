@@ -532,10 +532,13 @@ def web():
         else:
             answer, unit = " · ".join(f"{v if v is not None else 'cannot determine'}" for v in vals), None
             how = "each part answered on its own"
-        ev = []
-        for k, (d, x) in enumerate(zip(done, rs)):
+        ev, seen = [], set()
+        for k, (d, x) in enumerate(zip(done, rs)):         # the engine's own ids: the blueprint view places items by them
             for e in x.get("evidence") or []:
-                ev.append(dict(e, id=f"p{k + 1}-{e.get('id')}", part=k + 1))
+                if e.get("id") in seen:
+                    continue
+                seen.add(e.get("id"))
+                ev.append(dict(e, part=k + 1))
         combined = dict(answer=answer, unit=unit, evidence=ev, source_type=rs[0].get("source_type"),
                         honesty=dict(tier=weakest, basis=f"weakest of the parts ({', '.join(tiers)}); {how}"),
                         confidence=min((x.get("confidence") or 0) for x in rs) if all(x.get("confidence") is not None for x in rs) else None,
