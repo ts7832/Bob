@@ -43,6 +43,16 @@ What the view shows:
   - PDF pages get no walls. The image path works on full A1/A2 sheets too (the filter is sized from the sheet's own hairlines; 67-138 megapixel PNGs are decoded downscaled).
   - Door openings come from the sources themselves, so walls already have gaps there.
 
+## How evidence is drawn
+
+- **Symbols** (doors, windows, WCs, sinks, showers, bathtubs, stairs, columns, fixtures): the drawn symbol itself glows in the answer colour, taken from the drawing (`src/ink.ts`). The box stays as a thin outline, and the tag shows the symbol's glyph and number beside the box, never over it.
+  - Scans, PDF pages and Swiss sheets: dark thin strokes inside the evidence box, with thick wall fill removed. Doors also follow the strokes connected to their opening (leaf and swing), across the wall only.
+  - BIM plans: the element's own SVG paths, exact.
+  - If a box holds no linework, it keeps the filled style. The glow is display only and never counts anything.
+- **Rooms, units, areas:** filled outline. **Lengths:** lines. Tier styles as below.
+- **The class of each item** comes from the sheet's own record for that evidence id (`fx75` → wc), the IFC class, the matching `/api/plan` box, or the id's prefix (`door21`). The answer card names it ("doors", or "2 showers, 1 bathtub").
+- **Possible double counts:** when a count cites two items with the same outline, the card says which ("items 1 & 21"), so a reviewer can check.
+
 ## Checking an answer (built-in tools)
 
 Modelled on takeoff and BIM viewers (Bluebeam markups list and measure, Autodesk Measure and isolate, xeokit section planes, Matterport dollhouse), aimed at Stoa's "verify in seconds":
@@ -114,4 +124,4 @@ python3 tests/interact.py http://localhost:5180 && python3 tests/features.py htt
 
 ## Files
 
-`src/index.tsx` public API · `src/adapter.ts` demo JSON to sheet pixels (image px / Swiss DXF metres, y-flip of `/api/sheet` / BIM SVG guid outlines) · `src/View.tsx` badge, detail card, tools · `src/Scene.tsx` three.js scene (camera, walls, lift) · `src/walls.ts` walls from scan images · `src/harness.ts` dev page (`?mode=3d`).
+`src/index.tsx` public API · `src/adapter.ts` demo JSON to sheet pixels (image px / Swiss DXF metres, y-flip of `/api/sheet` / BIM SVG guid outlines) · `src/View.tsx` badge, detail card, tools · `src/Scene.tsx` three.js scene (camera, walls, lift) · `src/walls.ts` walls from scan images · `src/ink.ts` symbol glow (drawn strokes per evidence item), class names and glyphs · `src/harness.ts` dev page (`?mode=3d`).

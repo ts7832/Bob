@@ -33,6 +33,9 @@ export interface Element {
   value?: string | null
   confidence?: number | null
   how?: string | null // detector | linework | read | inferred | outline | exact | guid
+  cls?: string | null // normalised class (door, window, wc, ...; ink.ts normCls): glyph and symbol style
+  markup?: string | null // BIM: the element's own SVG nodes, so its symbol can be drawn exactly
+  ext?: Pt[] | null // BIM: bounding ring of all the element's drawn paths (sheet px)
 }
 
 export interface Answer {
@@ -51,6 +54,7 @@ export interface Answer {
   groups: { name: string; color: string; count: number; value?: string | null }[] // legend, in backend order
   cited: number // evidence items in the answer, including ones not on this sheet
   citedIds: string[] // ids of all cited evidence (to explain a selection that is not on this sheet)
+  dupes?: string[] // count answers: evidence items with the same outline, as 'mark & mark' (possible double count)
 }
 
 // Geometry for the 3D lift (M3). Display only; never used to answer anything.
@@ -67,6 +71,7 @@ export interface Loaded {
   plan: Element[] // what the backend found on the sheet (detector boxes etc.), drawn faintly
   context: Context
   guids: Map<string, Element> // svg sheets: every element with a data-guid, for evidence lookup
+  classes: Map<string, string> // sheet room / opening / fixture id -> its class (evidence ids are the same ids)
 }
 
 // Raw responses from the demo server, typed only as far as the view reads them.
