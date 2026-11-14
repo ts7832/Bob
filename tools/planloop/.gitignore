@@ -1,0 +1,15 @@
+# outputs of the experiments: models, keys, renders
+fix*/
+fixkeys*/
+v2_*/
+gallery/
+stoa/
+*.png
+*.jpg
+*_tmp.json
+timings*.json
+fix_timings.json
+*.KEY.json
+*.ENGINE.json
+*.questions.json
+plan_rebuilds.html

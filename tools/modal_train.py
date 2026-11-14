@@ -270,6 +270,32 @@ def write_lists():
     return {t: sum(1 for _ in open(f"{D}/yolo/train_{t}.txt")) for t in ("c5k", "all")}
 
 
+def write_mixed_lists(extra: str, tag: str, max_train: int, max_val: int = 400):
+    """Training set 'all' plus another YOLO folder (e.g. /data/yolo_fpc: images/{train,val}/*.png + labels/, labelled
+    with CLASSES' indices). The extra share is capped so the scans keep their weight; the sample is fixed (seeded)."""
+    import random
+    out = {}
+    for split, cap in (("train", max_train), ("val", max_val)):
+        base = open(f"{D}/yolo/{split}_all.txt").read().split()
+        more = sorted(glob.glob(f"{extra}/images/{split}/*.png"))
+        more = [f for f in more if os.path.exists(f.replace("/images/", "/labels/")[:-4] + ".txt")]
+        if cap and len(more) > cap:
+            more = sorted(random.Random(0).sample(more, cap))
+        open(f"{D}/yolo/{split}_{tag}.txt", "w").write("\n".join(base + more) + "\n")
+        out[split] = dict(base=len(base), extra=len(more))
+    names = "names:\n" + "".join(f"  {i}: {c}\n" for i, c in enumerate(CLASSES))
+    open(f"{D}/yolo/data_{tag}.yaml", "w").write(f"path: {D}/yolo\ntrain: train_{tag}.txt\nval: val_{tag}.txt\n{names}")
+    return out
+
+
+@APP.function(image=image, volumes={D: VOL}, timeout=900)
+def mix_lists(extra: str, tag: str, max_train: int):
+    VOL.reload()
+    out = write_mixed_lists(extra, tag, max_train)
+    VOL.commit()
+    return out
+
+
 @APP.function(image=image, volumes={D: VOL}, timeout=2 * 3600, cpu=8, memory=16384)
 def convert(exclude: list, limit: int = 0):
     import shutil, collections
@@ -704,8 +730,14 @@ def train(run: str, model: str, epochs: int, imgsz: int, batch: int, fraction: f
     want |= set(glob.glob(f"{D}/yolo/*.txt")) | set(glob.glob(f"{D}/yolo/*.yaml"))
     for d in ("images/train", "images/val", "labels/train", "labels/val"):
         os.makedirs(f"{L}/{d}", exist_ok=True)
+
+    def copy(f):  # /data/yolo/... -> /tmp/yolo/...; a mixed set's /data/yolo_fpc/... -> /tmp/yolo_fpc/... (same rewrite)
+        if os.path.exists(f):
+            dst = L + f[len(f"{D}/yolo"):]
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copyfile(f, dst)
     with ThreadPoolExecutor(64) as ex:
-        list(ex.map(lambda f: shutil.copyfile(f, L + f[len(f"{D}/yolo"):]) if os.path.exists(f) else None, sorted(want)))
+        list(ex.map(copy, sorted(want)))
     for f in glob.glob(f"{L}/*.txt") + glob.glob(f"{L}/*.yaml"):
         txt = open(f).read().replace(f"{D}/yolo", L)
         open(f, "w").write(txt)
@@ -1062,8 +1094,11 @@ def space_stats():
 
 
 @APP.function(image=image, volumes={D: VOL}, timeout=24 * 3600)
-def pipeline(run: str, model: str, epochs: int, imgsz: int, batch: int, ex: list, swiss_ex: list, rebuild: bool = True):
-    """Rebuild the dataset with the current CLASSES, train, tune. Progress goes to runs/<run>/pipeline.json on the volume."""
+def pipeline(run: str, model: str, epochs: int, imgsz: int, batch: int, ex: list, swiss_ex: list, rebuild: bool = True,
+             extra: str = "", extra_max: int = 0):
+    """Rebuild the dataset with the current CLASSES, train, tune. Progress goes to runs/<run>/pipeline.json on the volume.
+    extra: another YOLO folder mixed into training (rebuild=False keeps /data/yolo as it is); tuning stays on 'all', the
+    sources the answer key scores, so the result compares with earlier runs."""
     log = {}
 
     def note(k, v):
@@ -1076,7 +1111,11 @@ def pipeline(run: str, model: str, epochs: int, imgsz: int, batch: int, ex: list
         note("convert", convert.remote(ex))
         note("convert_swiss", convert_swiss.remote(swiss_ex))
         note("convert_ifc", convert_ifc.remote())
-    note("train", train.remote(run, model, epochs, imgsz, batch, 1.0, 0.5, "all", False))
+    data = "all"
+    if extra:
+        data = "all_" + os.path.basename(extra.rstrip("/")).replace("yolo_", "")
+        note("mix", mix_lists.remote(extra, data, extra_max))
+    note("train", train.remote(run, model, epochs, imgsz, batch, 1.0, 0.5, data, False))
     note("tune", tune.remote(run, imgsz, True, "all"))
     return log
 
@@ -1133,8 +1172,13 @@ def main(stage: str = "smoke", run: str = "v1", epochs: int = 60, imgsz: int = 1
     if stage == "pipeline":  # e.g. --run d26l --model /data/runs/c26l/weights/best.pt --epochs 30
         swiss_ex = [os.path.basename(p)[:-4] for p in glob.glob(str(ROOT / "junction-dataset-preview/data/swiss_dwellings/*.dxf"))]
         # spawned, not awaited: progress and results are in runs/<run>/pipeline.json on the volume
-        print("spawned", pipeline.spawn(run, model, epochs, imgsz, batch, ex, swiss_ex, os.environ.get("DRAWQA_REBUILD", "1") == "1").object_id)
+        # DRAWQA_EXTRA=/data/yolo_fpc DRAWQA_EXTRA_MAX=12000 mixes another labelled set into training (use with DRAWQA_REBUILD=0)
+        print("spawned", pipeline.spawn(run, model, epochs, imgsz, batch, ex, swiss_ex, os.environ.get("DRAWQA_REBUILD", "1") == "1",
+                                        os.environ.get("DRAWQA_EXTRA", ""), int(os.environ.get("DRAWQA_EXTRA_MAX", 0))).object_id)
         return
+    if stage == "mix_lists":  # dry run of the mixing: how many images each split would get
+        print(json.dumps(mix_lists.remote(os.environ["DRAWQA_EXTRA"], "all_" + os.path.basename(os.environ["DRAWQA_EXTRA"].rstrip("/")).replace("yolo_", ""),
+                                          int(os.environ.get("DRAWQA_EXTRA_MAX", 0))), indent=1))
     if stage == "space_stats":
         print(json.dumps(space_stats.remote(), indent=None))
     if stage == "convert_ifc":
