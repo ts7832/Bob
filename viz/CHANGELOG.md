@@ -14,8 +14,24 @@ The drawing view (`viz/`): what exists, and what changed when. Newest first. Usa
 | Hide all highlights to see the original | yes | Original button (hold) / Space |
 | Breakdown answers (areas by type), baseboards, slabs, pipes | yes | optional evidence fields: README "Optional evidence fields" |
 | 3D lift with walls, windows, fixtures, room-aware floors; photo render | yes | 3D / Photo buttons, `view.setMode("3d")` |
+| Symbol-accurate highlights (the drawn door / WC / window glows), class glyphs, double-count note | yes | automatic for symbol classes; README "How evidence is drawn" |
 | Evidence that isn't on this sheet (BIM model-wide answers) | yes | says "N of M on this sheet"; selecting one says "Not on this drawing" |
 | Light theme matching the demo page | yes | default |
+
+## 2026-11-14 21:15: the drawn symbol lights up, not just its box (task B)
+- **Counts of doors, windows, WCs, sinks, showers, bathtubs, stairs, columns:** the symbol as drawn on the sheet glows in the answer colour.
+  - A door shows its leaf and swing, even though the detector box or opening polygon only covers the gap in the wall.
+  - A WC shows its bowl. A window shows its glazing lines.
+  - The box stays as a thin outline (dashed when detected).
+- **Same style on every sheet type:**
+  - Scans and PDF pages: strokes found in the image inside the box, with wall fill removed.
+  - Swiss DXF sheets: the same method on the CAD raster.
+  - BIM plans: the element's own SVG paths, so it is exact.
+- **Class glyphs:** each tag shows a small plan-symbol glyph next to its number and sits beside the box, so it never covers the symbol. The answer card names what is highlighted ("doors", or "2 showers, 1 bathtub"). The detail card has a "Symbol" row.
+- **Possible double counts:** a count whose evidence repeats an outline gets a note in the card. Example: the Swiss sample's 21 doors cite three pairs of identical door polygons (items 1 & 21, 11 & 19, 13 & 20). The dataset answer is also 21, so this may be intended, but now a reviewer can see it.
+- **Fix:** BIM evidence ids no longer get a stray `#2` suffix, so `view.select(guid)` from the page finds BIM items again.
+- **Fix:** BIM door boxes now cover the whole swing, also on rotated plans (Esplanades). SVG arcs are sampled instead of reduced to their end points.
+- How it works: README "How evidence is drawn".
 
 ## 2026-11-14 20:10: fix for a server crash on BIM plans
 - Opening a BIM plan in `ui/` crashed `tools/ui_server.py` with a segmentation fault (exit 139), every time on Esplanades.

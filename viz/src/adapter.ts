@@ -5,6 +5,7 @@
 import type { AskJSON, Answer, Context, Drawing, Element, Loaded, PlanJSON, Pt, RenderJSON, SheetJSON, VectorItem } from './types'
 import { wallsFromImage } from './walls'
 import { thickness } from './geom'
+import { normCls } from './ink'
 
 const MAX_PX = 4096 // long side of rasterised vector/svg sheets; safe texture size on any laptop GPU
 
@@ -21,6 +22,8 @@ let keySeq = 0
 const NOT_FIXTURE = new Set(['stairs', 'shaft'])
 const SCAN_FIXTURES = new Set(['wc', 'sink', 'bathtub', 'shower', 'sauna_stove', 'sauna_bench'])
 const BIM_FIXTURES = new Set(['IfcSanitaryTerminal', 'IfcFurnishingElement', 'IfcFurniture'])
+// IFC classes drawn as plan symbols: their own paths glow when they are evidence (ink.ts)
+const SYMBOL_IFC = /Door|Window|Sanitary|Furnish|Furniture|Stair|Column|FlowTerminal/
 // IFC classes that stand up as walls in the 3D view (IFC2x3 exports mostly use IfcWallStandardCase)
 const WALL_CLASSES = new Set(['IfcWall', 'IfcWallStandardCase', 'IfcWallElementedCase', 'IfcCurtainWall', 'IfcColumn'])
 
@@ -92,12 +95,18 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
       : { geometry: 'box' as const, polygon: boxPts(it.bbox!.map(Number), drawing.toPx) }),
   }))
 
+  // evidence ids are the sheet's own ids: their class names the symbol (fx75 -> wc)
+  const classes = new Map<string, string>()
+  for (const r of sheet?.rooms ?? []) classes.set(r.id, 'room')
+  for (const o of sheet?.openings ?? []) if (o.cls) classes.set(o.id, o.cls)
+  for (const f of sheet?.fixtures ?? []) if (f.cls) classes.set(f.id, f.cls)
+
   let cached: Pt[][] | null = null
   const context: Context = {
     get walls() { return lazyWalls ? (cached ??= lazyWalls()) : walls },
     wallsDisjoint: !!lazyWalls, rooms, openings, fixtures,
   }
-  return { drawing, plan: planEls, context, guids }
+  return { drawing, plan: planEls, context, guids, classes }
 }
 
 const UNITS: Record<string, string> = { m2: 'm²', m3: 'm³', m: 'm', ft2: 'ft²', sqft: 'ft²', sf: 'ft²', ft3: 'ft³', ft: 'ft', lf: 'ft', count: '' }
@@ -122,6 +131,8 @@ export function toAnswer(ask: AskJSON, loaded: Loaded, question?: string | null)
   for (const e of ev) if (e.group && !order.includes(e.group)) order.push(e.group)
   const colorOf = (g?: string | null) => g ? GROUP_COLORS[order.indexOf(g) % GROUP_COLORS.length] : GROUP_COLORS[0]
 
+  // class of an evidence item: the sheet's record for that id, else the id's own prefix (door21, win57, wc34)
+  const clsOf = (id?: string) => (id ? normCls(loaded.classes.get(id) ?? id.replace(/[\d#_-]+$/, '')) : null)
   const elements: Element[] = []
   const seen = new Map<string, number>()
   const uid = (id: string) => { const n = seen.get(id) ?? 0; seen.set(id, n + 1); return n ? `${id}#${n + 1}` : id }
@@ -133,23 +144,33 @@ export function toAnswer(ask: AskJSON, loaded: Loaded, question?: string | null)
       thicknessPx: e.thickness_m != null && mPerPx ? e.thickness_m / mPerPx : null,
       diameterPx: e.diameter_m != null && mPerPx ? e.diameter_m / mPerPx : null,
     }
-    const base = { id: uid(e.id ?? `ev${i}`), label, how: e.shape, ...extra }
+    const base = { id: uid(e.id ?? `ev${i}`), label, how: e.shape, ...extra, cls: clsOf(e.id) }
     if (e.shape === 'polygon' && e.pts?.length) {
       elements.push({ ...base, type: 'evidence', geometry: 'polygon', polygon: e.pts.map(toPx) })
     } else if (e.shape === 'polyline' && e.pts && e.pts.length >= 2) {
       elements.push({ ...base, type: 'evidence', geometry: 'polyline', polygon: e.pts.map(toPx) })
     } else if (e.shape === 'box' && e.bbox) {
       const polygon = boxPts(e.bbox, toPx)
-      elements.push({ ...base, type: 'evidence', geometry: 'box', polygon, confidence: confOf(loaded.plan, polygon) })
+      const m = planOf(loaded.plan, polygon)
+      elements.push({ ...base, type: 'evidence', geometry: 'box', polygon, confidence: m?.confidence ?? null, cls: base.cls ?? normCls(m?.type) })
     } else if (e.shape === 'guid' && e.id) {
       const g = loaded.guids.get(e.id)
-      if (g) elements.push({ ...g, id: uid(g.id), label, how: 'guid', ...extra })
+      if (g) elements.push({ ...g, id: base.id, label, how: 'guid', ...extra, cls: normCls(g.type) })
     }
   })
   const groups: Answer['groups'] = order.map((name) => {
     const b = ask.breakdown?.find((x) => x.group === name)
     return { name, color: colorOf(name), count: b?.count ?? elements.filter((el) => el.group === name).length, value: fmt(b?.value, b?.unit ?? ask.unit) }
   })
+  // count answers: two items with the same outline may be one thing counted twice; the reviewer should see that
+  const dupes: string[] = []
+  if (isCount && elements.length <= 400) {
+    const bs = elements.map((e) => bboxOf(e.polygon))
+    for (let i = 0; i < bs.length; i++) for (let j = i + 1; j < bs.length; j++) {
+      const a = bs[i], b = bs[j], tol = 0.02 * Math.max(a[2] - a[0], a[3] - a[1], 1e-9)
+      if (a.every((v, k) => Math.abs(v - b[k]) <= tol)) dupes.push(`${elements[i].label ?? i + 1} & ${elements[j].label ?? j + 1}`)
+    }
+  }
   const unit = ask.unit ? UNITS[ask.unit] ?? ask.unit : ''
   return {
     question: question ?? null,
@@ -159,7 +180,7 @@ export function toAnswer(ask: AskJSON, loaded: Loaded, question?: string | null)
     deterministic: ask.honesty?.deterministic ?? null, basis: ask.honesty?.basis ?? null,
     explanation: ask.error ?? ask.explanation ?? null, method: ask.method ?? null,
     styleWarning: !!ask.honesty?.style_warning,
-    elements: cannot ? [] : elements, cited: ev.length, citedIds: ev.map((e, i) => e.id ?? `ev${i}`),
+    elements: cannot ? [] : elements, dupes: cannot ? [] : dupes, cited: ev.length, citedIds: ev.map((e, i) => e.id ?? `ev${i}`),
   }
 }
 
@@ -170,10 +191,9 @@ const boxPts = (b: number[], f: (p: Pt) => Pt): Pt[] => {
   return [f([x0, y0]), f([x1, y0]), f([x1, y1]), f([x0, y1])]
 }
 
-// Evidence boxes carry no confidence; the same box in /api/plan does.
-function confOf(plan: Element[], poly: Pt[]) {
-  const m = plan.find((p) => p.geometry === 'box' && p.polygon.every((q, i) => Math.abs(q[0] - poly[i][0]) < 0.6 && Math.abs(q[1] - poly[i][1]) < 0.6))
-  return m?.confidence ?? null
+// Evidence boxes carry no confidence or class; the same box in /api/plan does.
+function planOf(plan: Element[], poly: Pt[]) {
+  return plan.find((p) => p.geometry === 'box' && p.polygon.every((q, i) => Math.abs(q[0] - poly[i][0]) < 0.6 && Math.abs(q[1] - poly[i][1]) < 0.6))
 }
 
 function loadImage(url: string) {
@@ -267,6 +287,7 @@ async function rasterSvg(text: string) {
 
   // Outline of every guid element straight from its path data (M/L/A only, no transforms in these files).
   const guids = new Map<string, Element>()
+  const ser = new XMLSerializer()
   doc.querySelectorAll('[data-guid]').forEach((n) => {
     const id = n.getAttribute('data-guid')!
     const rings: Pt[][] = []
@@ -277,14 +298,23 @@ async function rasterSvg(text: string) {
     })
     const pts = rings.flat()
     if (!pts.length) return
+    const type = n.getAttribute('class') ?? 'element'
     const best = rings.filter((r) => r.length >= 3).sort((a, b) => Math.abs(area(b)) - Math.abs(area(a)))[0]
-    const usePoly = !!best && Math.abs(area(best)) > 1e-6
+    // doors: the largest ring is the triangle closing the swing arc; the box of all paths is the whole symbol
+    const usePoly = !!best && Math.abs(area(best)) > 1e-6 && !/Door/.test(type)
+    const symbol = SYMBOL_IFC.test(type)
     const el: Element = {
-      id, type: n.getAttribute('class') ?? 'element', name: n.getAttribute('data-name'),
+      id, type, name: n.getAttribute('data-name'),
       geometry: usePoly ? 'polygon' : 'box', polygon: (usePoly ? best : bboxRing(pts)).map(toPx), how: 'guid',
+      markup: symbol ? ser.serializeToString(n) : null, ext: symbol ? bboxRing(pts).map(toPx) : null,
     }
     const prev = guids.get(id) // one guid can appear in several groups (body + annotation): keep the biggest outline
+    if (prev && symbol) { // ...but draw every group's paths, over the extent of all of them
+      el.markup = (prev.markup ?? '') + el.markup
+      el.ext = bboxRing([...(prev.ext ?? []), ...(el.ext ?? [])])
+    }
     if (!prev || Math.abs(area(el.polygon)) > Math.abs(area(prev.polygon))) guids.set(id, el)
+    else if (symbol) { prev.markup = el.markup; prev.ext = el.ext }
   })
 
   svg.setAttribute('width', String(width)); svg.setAttribute('height', String(height))
@@ -316,9 +346,11 @@ function pathRings(d: string): Pt[][] {
     if (C === 'Z') { if (cur.length) rings.push(cur); cur = []; x = sx; y = sy; continue }
     for (let i = 0; i + n <= nums.length; i += n) {
       const a = nums.slice(i, i + n)
+      const px = x, py = y
       if (C === 'H') x = rel ? x + a[0] : a[0]
       else if (C === 'V') y = rel ? y + a[0] : a[0]
       else { const ex = a[n - 2], ey = a[n - 1]; x = rel ? x + ex : ex; y = rel ? y + ey : ey }
+      if (C === 'A' && cur.length) cur.push(...arcPts(px, py, x, y, Math.max(a[0], a[1]), a[3], a[4])) // door swings bulge
       if (C === 'M' && i === 0) { if (cur.length) rings.push(cur); cur = []; sx = x; sy = y }
       cur.push([x, y]) // further pairs after M are line-tos, as in SVG
     }
@@ -327,10 +359,30 @@ function pathRings(d: string): Pt[][] {
   return rings
 }
 
+// Points inside a circular SVG arc (end points excluded), so a rotated door swing's outline covers its bulge.
+function arcPts(x0: number, y0: number, x1: number, y1: number, r: number, large: number, sweep: number): Pt[] {
+  const dx = x1 - x0, dy = y1 - y0, c = Math.hypot(dx, dy) / 2
+  if (!(c > 0) || !(r > 0)) return []
+  const R = Math.max(r, c), d = Math.sqrt(Math.max(R * R - c * c, 0)), sg = large === sweep ? -1 : 1
+  const cx = (x0 + x1) / 2 - (sg * d * dy) / (2 * c), cy = (y0 + y1) / 2 + (sg * d * dx) / (2 * c)
+  const t0 = Math.atan2(y0 - cy, x0 - cx)
+  let dt = Math.atan2(y1 - cy, x1 - cx) - t0
+  if (sweep && dt < 0) dt += 2 * Math.PI
+  if (!sweep && dt > 0) dt -= 2 * Math.PI
+  const out: Pt[] = []
+  for (let k = 1; k < 8; k++) out.push([cx + R * Math.cos(t0 + (dt * k) / 8), cy + R * Math.sin(t0 + (dt * k) / 8)])
+  return out
+}
+
 export function area(p: Pt[]) {
   let a = 0
   for (let i = 0; i < p.length; i++) { const [x1, y1] = p[i], [x2, y2] = p[(i + 1) % p.length]; a += x1 * y2 - x2 * y1 }
   return a / 2
+}
+
+const bboxOf = (pts: Pt[]) => {
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1])
+  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
 }
 
 const bboxRing = (pts: Pt[]): Pt[] => {

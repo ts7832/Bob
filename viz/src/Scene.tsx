@@ -6,6 +6,7 @@ import CameraControlsImpl from 'camera-controls'
 import { Building, Effects, Floors, Lighting, drawingUV, useBuilding, useLifted, type Lift } from './Model'
 import { Photo } from './Photo'
 import type { Answer, Drawing, Element, Loaded, Pt, Tier } from './types'
+import { GLYPH, SYMBOL, inkOf, type Cls } from './ink'
 import { anchor, bbox, measureScale, outline, ringArea, shapeOf, thickness, toShape, toWorld, tube } from './geom'
 
 export const ACCENT = '#ff7a00' // = the demo page's --accent
@@ -196,7 +197,7 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
       <Building b={building} tex={tex} wallH={wallH * tools.cut} lift={lift} y={0.5 * L} />
 
       {shown.map((el) => (
-        <Highlight key={el.id} el={el} drawing={drawing} tex={tex} hatch={hatch} tier={tier} measure={answer?.measure ?? 'other'} crowded={shown.length > 12} L={L} wallH={wallH} lift={lift}
+        <Highlight key={el.id} el={el} drawing={drawing} tex={tex} hatch={hatch} tier={tier} measure={answer?.measure ?? 'other'} crowded={shown.length > 12} glyphs={shown.length <= 24} L={L} wallH={wallH} lift={lift}
           selected={el.id === selectedId} hovered={el.id === hoverId} interactive={!tools.measure}
           onSelect={onSelect} onHover={onHover} onZoom={zoomAt} overlay={overlay} />
       ))}
@@ -229,8 +230,27 @@ function ribbon(d: Drawing, pts: Pt[], closed: boolean) {
   return g
 }
 
-function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, lift, selected, hovered, interactive, onSelect, onHover, onZoom, overlay }: {
-  el: Element; drawing: Drawing; tex: THREE.Texture; hatch: THREE.Texture; tier: Tier | null; measure: Answer['measure']; crowded: boolean
+// The drawn symbol of an evidence item (door leaf + swing, WC, window lines) in the answer colour with a soft glow,
+// as a texture over exactly the sheet area it came from. Built after the first frame; null = keep the plain box style.
+function useInk(d: Drawing, el: Element, on: boolean, color: string) {
+  const [ink, setInk] = useState<{ tex: THREE.Texture; w: number; h: number; x: number; z: number } | null>(null)
+  useEffect(() => {
+    if (!on) return
+    let live = true, t: THREE.Texture | null = null
+    inkOf(d, el, el.cls as Cls, color).then((r) => {
+      if (!live || !r) return
+      t = new THREE.CanvasTexture(r.canvas)
+      t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4
+      const [x, z] = toWorld(d, [(r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2])
+      setInk({ tex: t, w: r.x1 - r.x0, h: r.y1 - r.y0, x, z })
+    }).catch(() => {})
+    return () => { live = false; t?.dispose(); setInk(null) }
+  }, [d, el, on, color])
+  return ink
+}
+
+function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, glyphs, L, wallH, lift, selected, hovered, interactive, onSelect, onHover, onZoom, overlay }: {
+  el: Element; drawing: Drawing; tex: THREE.Texture; hatch: THREE.Texture; tier: Tier | null; measure: Answer['measure']; crowded: boolean; glyphs: boolean
   L: number; wallH: number; lift: RefObject<Lift>
   selected: boolean; hovered: boolean; interactive: boolean; onSelect: (id: string) => void; onHover: (id: string | null) => void
   onZoom: (p: THREE.Vector3) => void; overlay: RefObject<HTMLDivElement | null>
@@ -251,12 +271,24 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, 
     const w = pts.map((p) => toWorld(drawing, p))
     return (open ? w : [...w, w[0]]).map(([x, z]) => new THREE.Vector3(x, 0, z))
   }, [el, drawing])
-  const [ax, az] = open ? toWorld(drawing, pts[Math.floor(pts.length / 2)]) : toWorld(drawing, anchor(el))
   // honesty tier -> line style: read/measured solid, detected dashed (amber when unsure), estimated hatched
   const detected = tier === 'detected'
   const low = detected && el.confidence != null && el.confidence < LOW_CONF
   const color = low ? LOW : el.color ?? ACCENT
   const active = selected || hovered
+  // symbols (doors, WCs, windows, ...): the drawn linework glows; the box stays as a thin, crisp outline
+  const glyph = el.cls ? GLYPH[el.cls as Cls] : undefined
+  const ink = useInk(drawing, el, !open && !!el.cls && SYMBOL.has(el.cls as Cls), color)
+  const sym = !!ink
+  // label anchor; a glowing symbol's tag sits just off its box, on the side away from the drawn swing / linework
+  let [ax, az] = open ? toWorld(drawing, pts[Math.floor(pts.length / 2)]) : toWorld(drawing, anchor(el))
+  let side: 'up' | 'down' | null = null
+  if (ink) {
+    const b = bbox(pts), [bx, bz0] = toWorld(drawing, [b.cx, b.y0]), bz1 = bz0 + b.h
+    const inkUp = bz0 - (ink.z - ink.h / 2) > ink.z + ink.h / 2 - bz1 + 1e-6
+    side = inkUp ? 'down' : 'up'
+    ax = bx; az = inkUp ? bz1 : bz0
+  }
   const dash = Math.max(drawing.width, drawing.height) / 160
   // count numbers always; per-item values only while there is room (else on hover / selection; the legend has totals)
   const tag = el.label ?? (crowded && !active ? null : el.valueText ?? null)
@@ -293,7 +325,13 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, 
         <mesh geometry={geo} rotation-x={-Math.PI / 2} position-y={4 * L} renderOrder={5} raycast={() => null}>
           {tier === 'estimated'
             ? <meshBasicMaterial color={color} map={hatch} transparent opacity={active ? 0.55 : 0.35} depthWrite={false} toneMapped={false} />
-            : <meshBasicMaterial color={color} transparent opacity={active ? 0.32 : 0.14} depthWrite={false} toneMapped={false} />}
+            : <meshBasicMaterial color={color} transparent opacity={sym ? (active ? 0.12 : 0.04) : active ? 0.32 : 0.14} depthWrite={false} toneMapped={false} />}
+        </mesh>
+      )}
+      {ink && (
+        <mesh position={[ink.x, 4.5 * L, ink.z]} rotation-x={-Math.PI / 2} renderOrder={7} raycast={() => null}>
+          <planeGeometry args={[ink.w, ink.h]} />
+          <meshBasicMaterial map={ink.tex} transparent opacity={active ? 1 : 0.9} depthWrite={false} toneMapped={false} />
         </mesh>
       )}
       {vol && (
@@ -316,7 +354,7 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, 
         </group>
       )}
       <group ref={topRef}>
-        <Line points={line} color={color} lineWidth={active ? (linear ? 6 : 4) : linear ? 4.5 : 2.5} dashed={detected} dashSize={dash} gapSize={dash * 0.6}
+        <Line points={line} color={color} lineWidth={sym ? (active ? 3 : 1.5) : active ? (linear ? 6 : 4) : linear ? 4.5 : 2.5} dashed={detected} dashSize={dash} gapSize={dash * 0.6}
           {...(open ? events : { raycast: () => null })} />
       </group>
       <group ref={pinRef} position={[ax, 5 * L, az]} visible={false}>
@@ -325,7 +363,9 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, 
       {tag && (
         <group ref={tagRef} position={[ax, 6 * L, az]}>
           <Html portal={overlay as RefObject<HTMLElement>} center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
-            <div className={`dv-tag${active ? ' dv-tag-active' : ''}${low ? ' dv-tag-low' : ''}`} style={low ? undefined : { background: color }}>{tag}</div>
+            <div className={`dv-tag${active ? ' dv-tag-active' : ''}${low ? ' dv-tag-low' : ''}${side ? ` dv-tag-${side}` : ''}`} style={low ? undefined : { background: color }}>
+              {glyph && (glyphs || active) && <svg className="dv-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d={glyph} /></svg>}{tag}
+            </div>
           </Html>
         </group>
       )}

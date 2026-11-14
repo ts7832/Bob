@@ -5,6 +5,7 @@ import type { Store } from './store'
 import { Scene, focusOf, measureTotals, type Insets } from './Scene'
 import { Crop } from './Crop'
 import { bbox, outline } from './geom'
+import { CLS_NAME, GLYPH, SYMBOL, type Cls } from './ink'
 
 const TIER_TEXT: Record<string, string> = {
   read: 'Read from the sheet', measured: 'Measured from geometry', detected: 'Detected by a model',
@@ -179,6 +180,7 @@ function AnswerBadge({ answer, boxRef, selectedId, hidden, onStep, onToggle }: {
       <div className="dv-chips">
         {answer.tier && <span className={`dv-chip dv-tier-${answer.tier.replace(' ', '-')}`}>{TIER_TEXT[answer.tier] ?? answer.tier}</span>}
         {answer.deterministic === false && <span className="dv-chip">not deterministic</span>}
+        <KindChips els={answer.elements} />
       </div>
       {answer.basis && <p className="dv-basis">{answer.basis}</p>}
       {(answer.groups.length > 1 || answer.groups.some((g) => g.value)) && (
@@ -205,8 +207,26 @@ function AnswerBadge({ answer, boxRef, selectedId, hidden, onStep, onToggle }: {
       )}
       {answer.cited === 0 && <p className="dv-note">Nothing to highlight on the drawing for this answer.</p>}
       {answer.styleWarning && <p className="dv-warn">Unfamiliar drawing style: this count may be wrong.</p>}
+      {!!answer.dupes?.length && (
+        <p className="dv-warn">Same outline cited twice: items {answer.dupes.slice(0, 3).join(', ')}{answer.dupes.length > 3 ? ` and ${answer.dupes.length - 3} more` : ''}. Check whether one element was counted twice.</p>
+      )}
     </div>
   )
+}
+
+// What the highlighted symbols are (one chip per class, with counts when they differ: "2 showers, 1 bathtub")
+function KindChips({ els }: { els: Element[] }) {
+  const n = new Map<Cls, number>()
+  for (const e of els) if (e.cls && SYMBOL.has(e.cls as Cls)) n.set(e.cls as Cls, (n.get(e.cls as Cls) ?? 0) + 1)
+  if (!n.size) return null
+  return <>{[...n].map(([c, k]) => (
+    <span key={c} className="dv-chip dv-kind"><Glyph cls={c} />{n.size > 1 ? `${k} ` : ''}{CLS_NAME[c][n.size > 1 && k === 1 ? 0 : 1]}</span>
+  ))}</>
+}
+
+export const Glyph = ({ cls }: { cls?: string | null }) => {
+  const d = cls ? GLYPH[cls as Cls] : undefined
+  return d ? <svg className="dv-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d={d} /></svg> : null
 }
 
 const pct = (c?: number | null) => (c == null ? null : `${Math.round(c * 100)}%`)
@@ -229,6 +249,7 @@ function Detail({ drawing, el, onClose, boxRef }: { drawing: Drawing; el: Elemen
         {el.name && <><dt>Name</dt><dd>{el.name}</dd></>}
         {el.group && <><dt>Group</dt><dd><i className="dv-swatch" style={{ background: el.color }} />{el.group}</dd></>}
         {el.valueText && <><dt>Value</dt><dd>{el.valueText}</dd></>}
+        {el.cls && el.cls !== 'other' && <><dt>Symbol</dt><dd className="dv-kind"><Glyph cls={el.cls} />{CLS_NAME[el.cls as Cls]?.[0] ?? el.cls}</dd></>}
         <dt>Type</dt><dd>{el.type === 'evidence' ? HOW[el.how ?? ''] ?? 'evidence' : el.type}</dd>
         {pct(el.confidence) && <><dt>Confidence</dt><dd>{pct(el.confidence)}</dd></>}
         <dt>ID</dt><dd><code>{el.id}</code></dd>
