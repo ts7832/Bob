@@ -9,13 +9,13 @@ import { WebGLPathTracer, GradientEquirectTexture } from 'three-gpu-pathtracer'
 import type { Answer, Loaded } from './types'
 import type { BuildingGeo } from './Model'
 import { outline, shapeOf, tube } from './geom'
-import { planComposite } from './floors'
+import { floorTexture, planComposite } from './floors'
 import { buildFixtures, buildOne, fixtureMaterials } from './fixtures3d'
 import { SYMBOL, type Cls } from './ink'
 
 const BG = '#f4f5f7', ACCENT = '#ff7a00'
 
-function buildPhotoScene(loaded: Loaded, b: BuildingGeo, drawingTex: THREE.Texture, wallH: number, fixH: number, answer: Answer | null, baseY: number) {
+function buildPhotoScene(loaded: Loaded, b: BuildingGeo, drawingTex: THREE.Texture, wallH: number, fixH: number, answer: Answer | null, baseY: number, band: THREE.BufferGeometry | null) {
   const d = loaded.drawing, max = Math.max(d.width, d.height)
   const scene = new THREE.Scene()
   scene.background = new THREE.Color(BG)
@@ -44,15 +44,19 @@ function buildPhotoScene(loaded: Loaded, b: BuildingGeo, drawingTex: THREE.Textu
   group.scale.z = wallH
   const mats = {
     cap: new THREE.MeshStandardMaterial({ map: drawingTex, roughness: 0.9 }),
-    wall: new THREE.MeshStandardMaterial({ color: '#efebe4', roughness: 0.92 }),
+    wall: new THREE.MeshStandardMaterial({ color: '#efe8dd', roughness: 0.9 }), // same warm plaster as the 3D view
+    band: new THREE.MeshStandardMaterial({ map: (floorTexture('tile').clone() as THREE.Texture), roughness: 0.3, side: THREE.DoubleSide }),
     glass: new THREE.MeshPhysicalMaterial({ color: '#dfeef5', roughness: 0.02, transmission: 0.92, ior: 1.5, thickness: 2, transparent: true }),
     ceramic: new THREE.MeshStandardMaterial({ color: '#f7f7f5', roughness: 0.25 }),
+    frame: new THREE.MeshStandardMaterial({ color: '#f4f2ee', roughness: 0.5 }),
     glow: new THREE.MeshStandardMaterial({ color: ACCENT, emissive: ACCENT, emissiveIntensity: 1.1, transparent: true, opacity: 0.32, roughness: 0.6 }),
   }
   owned.push(...Object.values(mats))
   if (b.solid) { group.add(new THREE.Mesh(b.solid[0], mats.cap), new THREE.Mesh(b.solid[1], mats.wall)) }
   if (b.fixtures) group.add(new THREE.Mesh(b.fixtures, mats.ceramic))
   if (b.glass) group.add(new THREE.Mesh(b.glass, mats.glass))
+  if (b.frame) group.add(new THREE.Mesh(b.frame, mats.frame))
+  if (band) { (mats.band.map as THREE.Texture).wrapS = (mats.band.map as THREE.Texture).wrapT = THREE.RepeatWrapping; (mats.band.map as THREE.Texture).needsUpdate = true; group.add(new THREE.Mesh(band, mats.band)) }
   // fixtures and door leaves: the same models as the raster view (heights in sheet px, full storey even when walls are cut)
   const fix = new THREE.Group()
   fix.rotation.x = -Math.PI / 2
@@ -92,19 +96,20 @@ function buildPhotoScene(loaded: Loaded, b: BuildingGeo, drawingTex: THREE.Textu
   }
   scene.add(group, fix, ...lines)
 
-  const sun = new THREE.DirectionalLight('#fff6ea', 2.4)
+  const sun = new THREE.DirectionalLight('#ffe9cc', 2.5) // the 3D view's warm, low sun
   sun.position.set(-0.55 * max, 1.25 * max, -0.42 * max)
   scene.add(sun, sun.target)
   scene.updateMatrixWorld(true)
   return { scene, dispose: () => owned.forEach((o) => o.dispose()) }
 }
 
-export function Photo({ loaded, b, tex, wallH, fixH, answer, baseY, status }: {
+export function Photo({ loaded, b, tex, wallH, fixH, answer, baseY, status, band }: {
   loaded: Loaded; b: BuildingGeo; tex: THREE.Texture; wallH: number; fixH: number; answer: Answer | null; baseY: number
+  band: THREE.BufferGeometry | null // wet-room wall tiles
   status: RefObject<HTMLSpanElement | null> // sample counter, written directly (no React render per frame)
 }) {
   const gl = useThree((s) => s.gl), camera = useThree((s) => s.camera), controls = useThree((s) => s.controls) as unknown as THREE.EventDispatcher<{ update: object }> | null
-  const photo = useMemo(() => buildPhotoScene(loaded, b, tex, wallH, fixH, answer, baseY), [loaded, b, tex, wallH, fixH, answer, baseY])
+  const photo = useMemo(() => buildPhotoScene(loaded, b, tex, wallH, fixH, answer, baseY, band), [loaded, b, tex, wallH, fixH, answer, baseY, band])
   useEffect(() => photo.dispose, [photo])
   const pt = useMemo(() => {
     const p = new WebGLPathTracer(gl)
