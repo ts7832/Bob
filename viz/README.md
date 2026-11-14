@@ -27,7 +27,7 @@ The left 75% of the demo: the drawing, with the answer to a question shown on it
 | `view.clear()` / `view.reset()` | Remove the answer / fit the whole sheet. |
 | `view.select(id)` / `view.onSelect(cb)` | Select an evidence item (zooms to it, shows the crop) / get told when the user does. |
 | `view.onLoad(cb)` | Called with `{render, plan, sheet}` after a drawing loads (e.g. to build a legend without fetching twice). |
-| `view.setMode("2d" \| "3d")` | 3D lift (coming next; heights are illustrative only, never used for answers). |
+| `view.setMode("2d" \| "3d")` | Lifts the sheet into 3D and back (also a 2D/3D button in the view). Heights are illustrative only, never used for answers. |
 | `view.destroy()` | Unmounts. |
 
 What the view shows:
@@ -35,6 +35,12 @@ What the view shows:
 - **Counts.** The evidence is numbered on the drawing, using the backend's own labels when they are short.
 - **BIM answers.** These count the whole model, so the badge says e.g. "14 of 119 shown on this sheet". Nobody hunts for doors that are on another storey.
 - **Click.** Zooms to the item and shows the crop from the original, plus ID, position (in px, or metres on CAD sheets) and confidence.
+- **3D.** The same camera tilts while walls rise out of the drawing. The wall tops are the drawing itself, so at height 0 the view is identical to 2D, and going back is exact. Answer items grow translucent volumes and their numbers float on pins. A note on screen says heights are illustrative. Wall sources:
+  - Swiss sheets: the DXF `WALL` layer (exact).
+  - BIM plans: `IfcWall` / `IfcWallStandardCase` shapes in the SVG; height assumes a 1:100 sheet.
+  - Scans: walls found in the image (`src/walls.ts`). Dark pixels, a morphological opening that drops text and thin lines, then rectangles.
+  - PDF pages get no walls.
+  - Door openings come from the sources themselves, so walls already have gaps there.
 
 ## Serving
 
@@ -55,7 +61,8 @@ cd viz && npm install
 npx vite --port 5180          # harness: http://localhost:5180/ (replays fixtures), /?live=1 (real demo on :8765 via proxy)
 npx vite build                # -> dist/drawview.js
 npx tsc -p .                  # typecheck
-python3 tests/matrix.py http://localhost:5180 /tmp/shots    # every fixture x {plain, answer, selected, cannot}: screenshots + console errors
+python3 tests/matrix.py http://localhost:5180 /tmp/shots    # every fixture x {plain, answer, selected, cannot, 3D}: screenshots + console errors
+python3 tests/toggle.py 'http://localhost:5180/?d=colorful-11397&q=0' /tmp/shots   # 2D -> 3D -> 2D frames; the round trip must match
 # tests/embed.html: the built bundle on a plain page against the live server (?path=...&q=...)
 ```
 
@@ -63,4 +70,4 @@ python3 tests/matrix.py http://localhost:5180 /tmp/shots    # every fixture x {p
 
 ## Files
 
-`src/index.tsx` public API · `src/adapter.ts` demo JSON to sheet pixels (image px / Swiss DXF metres, y-flip of `/api/sheet` / BIM SVG guid outlines) · `src/View.tsx` badge, detail card, tools · `src/Scene.tsx` three.js scene · `src/harness.ts` dev page.
+`src/index.tsx` public API · `src/adapter.ts` demo JSON to sheet pixels (image px / Swiss DXF metres, y-flip of `/api/sheet` / BIM SVG guid outlines) · `src/View.tsx` badge, detail card, tools · `src/Scene.tsx` three.js scene (camera, walls, lift) · `src/walls.ts` walls from scan images · `src/harness.ts` dev page (`?mode=3d`).

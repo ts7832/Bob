@@ -3,6 +3,8 @@
 //   vector : Swiss DXF in metres, y already down in render items and ask evidence; /api/sheet polygons are y-up (y_flip)
 //   svg    : BIM plan in viewBox units; evidence is guids, outlines come from the svg paths
 import type { AskJSON, Answer, Context, Drawing, Element, Loaded, PlanJSON, Pt, RenderJSON, SheetJSON, VectorItem } from './types'
+import { wallsFromImage } from './walls'
+import { thickness } from './geom'
 
 const MAX_PX = 4096 // long side of rasterised vector/svg sheets; safe texture size on any laptop GPU
 
@@ -15,6 +17,8 @@ const STYLE: Record<string, { fill?: string; stroke?: string; w?: number; dash?:
 }
 
 let keySeq = 0
+// IFC classes that stand up as walls in the 3D view (IFC2x3 exports mostly use IfcWallStandardCase)
+const WALL_CLASSES = new Set(['IfcWall', 'IfcWallStandardCase', 'IfcWallElementedCase', 'IfcCurtainWall', 'IfcColumn'])
 
 export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: SheetJSON | null, imageUrl?: string): Promise<Loaded> {
   const key = `d${++keySeq}`
@@ -27,6 +31,10 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
     const width = render.width ?? img.naturalWidth, height = render.height ?? img.naturalHeight
     drawing = { key, kind: 'image', width, height, source: img, toPx: (p) => p, fromPx: (p) => p, units: 'px', mPerPx: sheet?.scale?.m_per_px ?? null, note: render.note }
     for (const w of sheet?.walls ?? []) if (w.polygon?.length) walls.push(w.polygon)
+    // scans without the segmentation model: display-only walls from the image (not for PDF pages: tables, text)
+    if (!walls.length && render.source_type === 'raster') {
+      try { walls.push(...wallsFromImage(img, width, height)) } catch { /* 3D just has no walls */ }
+    }
   } else if (render.type === 'vector') {
     const v = rasterVector(render)
     drawing = { key, kind: 'vector', ...v, units: 'm', note: render.note }
@@ -36,7 +44,10 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
     const s = await rasterSvg(render.svg!)
     drawing = { key, kind: 'svg', width: s.width, height: s.height, source: s.canvas, toPx: s.toPx, fromPx: s.fromPx, units: 'svg', mPerPx: null, note: render.note }
     guids = s.guids
-    for (const e of guids.values()) if (e.type === 'IfcWall' || e.type === 'IfcColumn') walls.push(e.polygon)
+    const ws = [...guids.values()].filter((e) => WALL_CLASSES.has(e.type)).map((e) => e.polygon)
+    // drop shapes far thicker than a typical wall (arcs reduced to end points can make big triangles)
+    const ts = ws.map(thickness), med = [...ts].sort((x, y) => x - y)[ts.length >> 1] ?? 0
+    ws.forEach((w, i) => { if (!med || ts[i] <= 4 * med) walls.push(w) })
   } else {
     throw new Error(render.note || 'No drawing to show for this file.')
   }

@@ -63,3 +63,7 @@
 }
 .dv-tag-low { background: var(--dv-low); color: #1a1a1a; }
 .dv-tag-active { transform: scale(1.2); outline: 2px solid #fff; }
+.dv-illustrative {
+  position: absolute; left: 14px; bottom: 14px; max-width: calc(100% - 380px); font-size: 11px; color: var(--dv-muted);
+  background: var(--dv-card); border: 1px solid var(--dv-line); border-radius: 99px; padding: 3px 10px; pointer-events: none;
+}

@@ -28,6 +28,7 @@ function syncUrl(sel?: string | null) {
   u.set('d', stem)
   if (qi >= 0) u.set('q', String(qi))
   if (sel) u.set('sel', sel)
+  if (P.get('mode')) u.set('mode', P.get('mode')!)
   history.replaceState(null, '', '?' + u)
 }
 
@@ -94,5 +95,6 @@ async function main() {
   await openStem(P.get('d') ?? index[0].stem)
   if (P.has('q')) await showAsk(Number(P.get('q')))
   if (P.get('sel')) view.select(P.get('sel'))
+  if (P.get('mode') === '3d') view.setMode('3d')
 }
 main()

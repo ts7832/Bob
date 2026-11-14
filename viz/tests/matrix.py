@@ -2,7 +2,7 @@
 
     python3 viz/tests/matrix.py BASE_URL OUT_DIR [--only STEM] [--size 1600x900]
 Per drawing: plain sheet, first question, first question with its first evidence selected, last probe (ceiling height,
-always "cannot determine"), plus any question whose evidence is guids. Exit code 1 if any page logged an error.
+always "cannot determine"), and the first question in 3D. Exit code 1 if any page logged an error.
 """
 import argparse, json, os, sys
 from urllib.parse import urlencode
@@ -30,6 +30,7 @@ for f in json.load(open(os.path.join(FX, "index.json"))):
         i, e = first_ev
         cases.append((f"{s[:24]}_2sel", dict(d=s, q=i, sel=e.get("id"))))
     cases.append((f"{s[:24]}_3cannot", dict(d=s, q=len(asks) - 1)))
+    cases.append((f"{s[:24]}_4q0_3d", dict(d=s, q=0, mode="3d")))
 
 bad = 0
 with sync_playwright() as p:
@@ -43,7 +44,7 @@ with sync_playwright() as p:
         page.on("pageerror", lambda e: errs.append(f"pageerror: {e}"))
         page.goto(f"{a.base}/?{urlencode(q)}")
         page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(1800)
+        page.wait_for_timeout(3000 if q.get('mode') == '3d' else 1800)
         out = os.path.join(a.out, name + ".png")
         page.screenshot(path=out)
         info = page.evaluate("""() => ({

@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useRef, type RefObject } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
-import { Html, Line, MapControls, OrthographicCamera } from '@react-three/drei'
+import { CameraControls, Html, Line } from '@react-three/drei'
+import CameraControlsImpl from 'camera-controls'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { Answer, Drawing, Element, Loaded, Tier } from './types'
-import { anchor, bbox, outline, shapeOf, toWorld } from './geom'
+import { anchor, bbox, outline, shapeOf, shapesFromRings, thickness, toWorld } from './geom'
 
 export const ACCENT = '#ff6a00'
 const LOW = '#e0a100' // low-confidence detections
 const LOW_CONF = 0.6
+const ACTION = CameraControlsImpl.ACTION
+const TILT = { azimuth: -0.42, polar: 0.92 } // 3D view: about 53° from straight down, turned a little
 
 // Colours per element type for the faint "found on this sheet" layer (same palette as demo/index.html).
 const KIND_COLOR: Record<string, string> = {
@@ -18,8 +22,9 @@ const KIND_COLOR: Record<string, string> = {
   other_room: '#94a3b8', wall: '#374151', apartment: '#d64545', floor: '#111827',
 }
 
-// Shape geometry whose UVs sample the drawing texture at the same spot, so a highlight
-// re-shows the original drawing undimmed instead of painting over it.
+type Lift = { v: number } // 0 = the flat sheet, 1 = full 3D. Animated; read in useFrame, never used for answers.
+
+// UVs that sample the drawing texture at the same spot, so a highlight or a wall top shows the original drawing.
 function drawingUV(geo: THREE.BufferGeometry, d: Drawing) {
   const pos = geo.attributes.position, uv = geo.attributes.uv
   for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + d.width / 2) / d.width, (pos.getY(i) + d.height / 2) / d.height)
@@ -70,7 +75,19 @@ function useHatch(d: Drawing) {
   return tex
 }
 
-// min: smallest view box as a fraction of the sheet's long side, so there is always context to verify against
+// Illustrative wall height in sheet px: 2.6 m when the sheet has a scale (BIM: assumed 1:100), else 10x the median wall thickness.
+function wallHeight(l: Loaded) {
+  const d = l.drawing, max = Math.max(d.width, d.height)
+  if (d.mPerPx) return 2.6 / d.mPerPx
+  if (d.units === 'svg') { // BIM plan SVGs are in paper millimetres: assume a 1:100 sheet, 2.6 m = 26 mm
+    const pxPerUnit = 1 / Math.abs(d.fromPx([1, 0])[0] - d.fromPx([0, 0])[0])
+    return THREE.MathUtils.clamp(26 * pxPerUnit, 0.02 * max, 0.14 * max)
+  }
+  const t = l.context.walls.map(thickness).filter((v) => v > 0).sort((a, b) => a - b)
+  if (t.length) return THREE.MathUtils.clamp(10 * t[t.length >> 1], 0.02 * max, 0.14 * max)
+  return 0.035 * max
+}
+
 export type Focus = { x0: number; y0: number; x1: number; y1: number; min: number } | null
 
 interface Props {
@@ -80,6 +97,7 @@ interface Props {
   hoverId: string | null
   dim: boolean
   showPlan: boolean
+  mode: '2d' | '3d'
   focus: Focus
   fitAll: number
   onSelect: (id: string | null) => void
@@ -87,18 +105,28 @@ interface Props {
   overlay: RefObject<HTMLDivElement | null> // DOM layer over the canvas; Html labels portal here (fiber 9 + React 19)
 }
 
-export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, focus, fitAll, onSelect, onHover, overlay }: Props) {
+export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode, focus, fitAll, onSelect, onHover, overlay }: Props) {
   const drawing = loaded.drawing
+  const max = Math.max(drawing.width, drawing.height)
+  const L = max / 2500 // height step between flat layers, so they never z-fight
   const tex = useDrawingTexture(drawing)
   const hatch = useHatch(drawing)
+  const wallH = useMemo(() => wallHeight(loaded), [loaded])
   const els = answer?.status === 'answered' ? answer.elements : []
   const tier = answer?.tier ?? null
+  const lift = useRef<Lift>({ v: 0 })
+
+  useFrame((_, dt) => {
+    const t = mode === '3d' ? 1 : 0, l = lift.current
+    l.v = Math.abs(l.v - t) < 1e-3 ? t : THREE.MathUtils.damp(l.v, t, 3.2, dt)
+  })
 
   return (
     <>
-      <OrthographicCamera makeDefault position={[0, 5000, 0]} up={[0, 0, -1]} near={1} far={20000} />
-      <MapControls makeDefault enableRotate={false} enableDamping={false} zoomToCursor minZoom={0.01} maxZoom={40} />
-      <CameraRig drawing={drawing} focus={focus} fitAll={fitAll} />
+      <CameraControls makeDefault />
+      <CameraRig drawing={drawing} focus={focus} fitAll={fitAll} mode={mode} />
+      <hemisphereLight args={['#ffffff', '#9d968c', 1.4]} />
+      <directionalLight position={[-0.5 * max, 1.1 * max, -0.35 * max]} intensity={2.4} />
 
       {/* the original drawing: always visible */}
       <mesh rotation-x={-Math.PI / 2} onClick={(e) => { e.stopPropagation(); onSelect(null) }}>
@@ -106,17 +134,19 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, focu
         <meshBasicMaterial map={tex} toneMapped={false} />
       </mesh>
 
-      {showPlan && !els.length && loaded.plan.map((el) => <PlanMark key={el.id} el={el} drawing={drawing} />)}
+      {showPlan && !els.length && loaded.plan.map((el) => <PlanMark key={el.id} el={el} drawing={drawing} y={L} />)}
 
       {dim && els.length > 0 && (
-        <mesh rotation-x={-Math.PI / 2} position-y={0.1} raycast={() => null}>
+        <mesh rotation-x={-Math.PI / 2} position-y={2 * L} raycast={() => null}>
           <planeGeometry args={[drawing.width, drawing.height]} />
           <meshBasicMaterial color="#0b1020" transparent opacity={0.55} depthWrite={false} toneMapped={false} />
         </mesh>
       )}
 
+      <Walls loaded={loaded} tex={tex} wallH={wallH} lift={lift} y={0.5 * L} />
+
       {els.map((el) => (
-        <Highlight key={el.id} el={el} drawing={drawing} tex={tex} hatch={hatch} tier={tier}
+        <Highlight key={el.id} el={el} drawing={drawing} tex={tex} hatch={hatch} tier={tier} L={L} wallH={wallH} lift={lift}
           selected={el.id === selectedId} hovered={el.id === hoverId}
           onSelect={onSelect} onHover={onHover} overlay={overlay} />
       ))}
@@ -124,28 +154,78 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, focu
   )
 }
 
-function PlanMark({ el, drawing }: { el: Element; drawing: Drawing }) {
+function PlanMark({ el, drawing, y }: { el: Element; drawing: Drawing; y: number }) {
   const pts = useMemo(() => {
     const w = el.polygon.map((p) => toWorld(drawing, p))
-    return [...w, w[0]].map(([x, z]) => new THREE.Vector3(x, 0.05, z))
-  }, [el, drawing])
+    return [...w, w[0]].map(([x, z]) => new THREE.Vector3(x, y, z))
+  }, [el, drawing, y])
   const dashed = el.type === 'floor' || el.type === 'apartment'
   const dash = Math.max(drawing.width, drawing.height) / 120
   return <Line points={pts} color={KIND_COLOR[el.type] ?? '#475569'} lineWidth={1.5} transparent opacity={0.75}
     dashed={dashed} dashSize={dash} gapSize={dash * 0.6} raycast={() => null} />
 }
 
-function Highlight({ el, drawing, tex, hatch, tier, selected, hovered, onSelect, onHover, overlay }: {
+// Walls extruded straight up out of the sheet. Their tops carry the drawing texture, so at height 0 they are
+// pixel-identical to the flat drawing and the lift is one continuous motion. Display only.
+function Walls({ loaded, tex, wallH, lift, y }: { loaded: Loaded; tex: THREE.Texture; wallH: number; lift: RefObject<Lift>; y: number }) {
+  const d = loaded.drawing
+  const geos = useMemo(() => mergeWalls(shapesFromRings(d, loaded.context.walls).map((s) =>
+    drawingUV(new THREE.ExtrudeGeometry(s, { depth: 1, bevelEnabled: false, curveSegments: 4 }), d))), [loaded])
+  useEffect(() => () => geos.forEach((g) => g.dispose()), [geos])
+  const mats = useMemo(() => [
+    new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }), // caps (ExtrudeGeometry group 0): the drawing
+    new THREE.MeshStandardMaterial({ color: '#ece7df', roughness: 0.85 }), // sides (group 1)
+  ], [tex])
+  useEffect(() => () => mats.forEach((m) => m.dispose()), [mats])
+  const group = useRef<THREE.Group>(null)
+  useFrame(() => {
+    const g = group.current, v = lift.current?.v ?? 0
+    if (!g) return
+    g.visible = v > 0.002
+    g.scale.z = Math.max(v, 0.001) * wallH
+  })
+  if (!geos.length) return null
+  return (
+    <group ref={group} rotation-x={-Math.PI / 2} position-y={y} visible={false}>
+      <mesh geometry={geos[0]} material={mats[0]} raycast={() => null} />
+      <mesh geometry={geos[1]} material={mats[1]} raycast={() => null} />
+    </group>
+  )
+}
+
+// All wall tops in one geometry and all sides in another: two draw calls however many walls a sheet has.
+function mergeWalls(geos: THREE.BufferGeometry[]): THREE.BufferGeometry[] {
+  if (!geos.length) return []
+  const part = (g: THREE.BufferGeometry, mi: number) => {
+    const out = new THREE.BufferGeometry()
+    for (const name of ['position', 'normal', 'uv'] as const) {
+      const at = g.getAttribute(name) as THREE.BufferAttribute, n = at.itemSize
+      const arr: number[] = []
+      const src = at.array as Float32Array
+      for (const gr of g.groups) if (gr.materialIndex === mi) for (let i = gr.start * n; i < (gr.start + gr.count) * n; i++) arr.push(src[i])
+      out.setAttribute(name, new THREE.Float32BufferAttribute(arr, n))
+    }
+    return out
+  }
+  const caps = mergeGeometries(geos.map((g) => part(g, 0))), sides = mergeGeometries(geos.map((g) => part(g, 1)))
+  geos.forEach((g) => g.dispose())
+  return [caps, sides]
+}
+
+function Highlight({ el, drawing, tex, hatch, tier, L, wallH, lift, selected, hovered, onSelect, onHover, overlay }: {
   el: Element; drawing: Drawing; tex: THREE.Texture; hatch: THREE.Texture; tier: Tier | null
+  L: number; wallH: number; lift: RefObject<Lift>
   selected: boolean; hovered: boolean; onSelect: (id: string) => void; onHover: (id: string | null) => void
   overlay: RefObject<HTMLDivElement | null>
 }) {
   const pts = outline(el)
-  const geo = useMemo(() => drawingUV(new THREE.ShapeGeometry(shapeOf(drawing, pts)), drawing), [el, drawing])
-  useEffect(() => () => geo.dispose(), [geo])
+  const shape = useMemo(() => shapeOf(drawing, pts), [el, drawing])
+  const geo = useMemo(() => drawingUV(new THREE.ShapeGeometry(shape), drawing), [shape])
+  const vol = useMemo(() => new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false, curveSegments: 4 }), [shape])
+  useEffect(() => () => { geo.dispose(); vol.dispose() }, [geo, vol])
   const line = useMemo(() => {
     const w = pts.map((p) => toWorld(drawing, p))
-    return [...w, w[0]].map(([x, z]) => new THREE.Vector3(x, 0.4, z))
+    return [...w, w[0]].map(([x, z]) => new THREE.Vector3(x, 0, z))
   }, [el, drawing])
   const [ax, az] = toWorld(drawing, anchor(el))
   // honesty tier -> line style: read/measured solid, detected dashed (amber when unsure), estimated hatched
@@ -155,77 +235,106 @@ function Highlight({ el, drawing, tex, hatch, tier, selected, hovered, onSelect,
   const active = selected || hovered
   const dash = Math.max(drawing.width, drawing.height) / 160
 
+  // 3D: a translucent volume rises over the item, its outline rides on top, the tag floats above on a pin
+  const volRef = useRef<THREE.Mesh>(null), topRef = useRef<THREE.Group>(null), tagRef = useRef<THREE.Group>(null), pinRef = useRef<THREE.Group>(null)
+  useFrame(() => {
+    const v = lift.current?.v ?? 0, top = v * wallH * 0.45
+    if (volRef.current) { volRef.current.visible = v > 0.01; volRef.current.scale.z = Math.max(top, 0.001) }
+    if (topRef.current) topRef.current.position.y = 5 * L + top
+    if (tagRef.current) tagRef.current.position.y = 6 * L + v * wallH * 1.25
+    if (pinRef.current) { pinRef.current.visible = v > 0.01; pinRef.current.scale.y = Math.max(v * wallH * 1.25, 0.001) }
+  })
+
   return (
     <group>
-      <mesh geometry={geo} rotation-x={-Math.PI / 2} position-y={0.2}
+      <mesh geometry={geo} rotation-x={-Math.PI / 2} position-y={3 * L}
         onClick={(e) => { e.stopPropagation(); onSelect(el.id) }}
         onPointerOver={(e) => { e.stopPropagation(); onHover(el.id); document.body.style.cursor = 'pointer' }}
         onPointerOut={() => { onHover(null); document.body.style.cursor = '' }}>
         <meshBasicMaterial map={tex} toneMapped={false} />
       </mesh>
-      <mesh geometry={geo} rotation-x={-Math.PI / 2} position-y={0.3} raycast={() => null}>
+      <mesh geometry={geo} rotation-x={-Math.PI / 2} position-y={4 * L} raycast={() => null}>
         {tier === 'estimated'
           ? <meshBasicMaterial color={color} map={hatch} transparent opacity={active ? 0.55 : 0.35} depthWrite={false} toneMapped={false} />
           : <meshBasicMaterial color={color} transparent opacity={active ? 0.32 : 0.14} depthWrite={false} toneMapped={false} />}
       </mesh>
-      <Line points={line} color={color} lineWidth={active ? 4 : 2.5} dashed={detected} dashSize={dash} gapSize={dash * 0.6} raycast={() => null} />
+      <mesh ref={volRef} geometry={vol} rotation-x={-Math.PI / 2} position-y={4 * L} visible={false} raycast={() => null}>
+        <meshBasicMaterial color={color} transparent opacity={active ? 0.38 : 0.2} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
+      </mesh>
+      <group ref={topRef}>
+        <Line points={line} color={color} lineWidth={active ? 4 : 2.5} dashed={detected} dashSize={dash} gapSize={dash * 0.6} raycast={() => null} />
+      </group>
+      <group ref={pinRef} position={[ax, 5 * L, az]} visible={false}>
+        <Line points={[[0, 0, 0], [0, 1, 0]]} color={color} lineWidth={1.5} transparent opacity={0.8} raycast={() => null} />
+      </group>
       {el.label && (
-        <Html portal={overlay as RefObject<HTMLElement>} position={[ax, 1, az]} center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
-          <div className={`dv-tag${active ? ' dv-tag-active' : ''}${low ? ' dv-tag-low' : ''}`}>{el.label}</div>
-        </Html>
+        <group ref={tagRef} position={[ax, 6 * L, az]}>
+          <Html portal={overlay as RefObject<HTMLElement>} center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
+            <div className={`dv-tag${active ? ' dv-tag-active' : ''}${low ? ' dv-tag-low' : ''}`}>{el.label}</div>
+          </Html>
+        </group>
       )}
     </group>
   )
 }
 
-// Fits the camera to `focus` (sheet-pixel rect) with a smooth ease; user input cancels it.
-function CameraRig({ drawing, focus, fitAll }: { drawing: Drawing; focus: Focus; fitAll: number }) {
-  const { camera, size, controls } = useThree() as unknown as {
-    camera: THREE.OrthographicCamera; size: { width: number; height: number }; controls: any
-  }
-  const goal = useRef<{ x: number; z: number; zoom: number } | null>(null)
+// Camera: one perspective camera for both modes. Looking straight down, a flat sheet shows exactly as in a 2D viewer;
+// 3D tilts the same camera while the walls rise. Fits `focus` (sheet-pixel rect) smoothly; user input takes over.
+function CameraRig({ drawing, focus, fitAll, mode }: { drawing: Drawing; focus: Focus; fitAll: number; mode: '2d' | '3d' }) {
+  const controls = useThree((s) => s.controls) as unknown as CameraControlsImpl | null
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
+  const size = useThree((s) => s.size)
   const first = useRef(true)
   const lastFitAll = useRef(fitAll)
+  const max = Math.max(drawing.width, drawing.height)
 
-  useEffect(() => {
-    if (!controls) return // controls attach a frame late; fitting before that gets overridden
+  useEffect(() => { // input mapping and angle limits per mode
+    if (!controls) return
+    controls.dollyToCursor = true
+    controls.smoothTime = 0.45
+    controls.draggingSmoothTime = 0.08
+    controls.minDistance = max * 0.02
+    controls.maxDistance = max * 12
+    const b = controls.mouseButtons, t = controls.touches
+    if (mode === '2d') {
+      b.left = ACTION.TRUCK; b.right = ACTION.TRUCK; b.middle = ACTION.DOLLY; b.wheel = ACTION.DOLLY
+      t.one = ACTION.TOUCH_TRUCK; t.two = ACTION.TOUCH_DOLLY_TRUCK; t.three = ACTION.TOUCH_TRUCK
+      controls.minPolarAngle = 0; controls.maxPolarAngle = 0
+      controls.minAzimuthAngle = 0; controls.maxAzimuthAngle = 0
+      controls.rotateTo(0, 0, !first.current)
+    } else {
+      b.left = ACTION.ROTATE; b.right = ACTION.TRUCK; b.middle = ACTION.DOLLY; b.wheel = ACTION.DOLLY
+      t.one = ACTION.TOUCH_ROTATE; t.two = ACTION.TOUCH_DOLLY_TRUCK; t.three = ACTION.TOUCH_TRUCK
+      controls.minPolarAngle = 0; controls.maxPolarAngle = 1.3
+      controls.minAzimuthAngle = -Infinity; controls.maxAzimuthAngle = Infinity
+      controls.rotateTo(TILT.azimuth, TILT.polar, !first.current)
+    }
+  }, [controls, mode, max])
+
+  useEffect(() => { // fit the focus rect (or the whole sheet)
+    if (!controls) return
     const all = fitAll !== lastFitAll.current
     lastFitAll.current = fitAll
     const f = all ? null : focus
     const r = f ?? { x0: 0, y0: 0, x1: drawing.width, y1: drawing.height }
     // keep some drawing around small elements so there's context to verify against
-    const pad = f ? 1.5 : 1.06, min = f ? Math.max(drawing.width, drawing.height) * f.min : 0
+    const pad = f ? 1.5 : 1.06, min = f ? max * f.min : 0
     const w = Math.max((r.x1 - r.x0) * pad, min), h = Math.max((r.y1 - r.y0) * pad, min)
     const [x, z] = toWorld(drawing, [(r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2])
-    const zoom = Math.min(size.width / w, size.height / h)
-    goal.current = { x, z, zoom }
-    if (first.current) { // jump on first frame, animate afterwards
-      first.current = false
-      camera.position.set(x, 5000, z); camera.zoom = zoom; camera.updateProjectionMatrix()
-      controls.target.set(x, 0, z); controls.update()
-      goal.current = null
-    }
+    const vf = THREE.MathUtils.degToRad(camera.fov), hf = 2 * Math.atan(Math.tan(vf / 2) * (size.width / size.height))
+    const dist = Math.max(h / 2 / Math.tan(vf / 2), w / 2 / Math.tan(hf / 2)) * (mode === '3d' ? 1.1 : 1)
+    const anim = !first.current
+    first.current = false
+    controls.moveTo(x, 0, z, anim)
+    controls.dollyTo(dist, anim)
   }, [focus, fitAll, drawing, size.width, size.height, controls])
 
-  useEffect(() => {
+  useFrame(() => { // near/far follow the distance so the thin flat layers keep their depth order at every zoom
     if (!controls) return
-    const stop = () => { goal.current = null }
-    controls.addEventListener('start', stop)
-    return () => controls.removeEventListener('start', stop)
-  }, [controls])
-
-  useFrame((_, dt) => {
-    const g = goal.current
-    if (!g) return
-    const k = 1 - Math.exp(-dt * 7)
-    camera.position.x += (g.x - camera.position.x) * k
-    camera.position.z += (g.z - camera.position.z) * k
-    camera.zoom += (g.zoom - camera.zoom) * k
-    camera.updateProjectionMatrix()
-    controls?.target.set(camera.position.x, 0, camera.position.z)
-    controls?.update()
-    const eps = Math.max(drawing.width, drawing.height) / 4000
-    if (Math.abs(g.zoom - camera.zoom) / g.zoom < 0.002 && Math.abs(g.x - camera.position.x) < eps && Math.abs(g.z - camera.position.z) < eps) goal.current = null
+    const d = controls.distance, near = Math.max(0.5, d / 200), far = d * 6 + max * 3
+    if (Math.abs(camera.near - near) / near > 0.15 || Math.abs(camera.far - far) / far > 0.15) {
+      camera.near = near; camera.far = far; camera.updateProjectionMatrix()
+    }
   })
   return null
 }
