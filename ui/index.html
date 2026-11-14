@@ -72,6 +72,29 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
 .evlist button{border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:6px;padding:2px 7px;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;cursor:pointer}
 .evlist button.on{border-color:var(--accent);background:var(--accent);color:var(--accent-fg)}
 .error{color:var(--bad);background:var(--soft);border-radius:8px;padding:8px 10px;margin-top:8px;font-size:13px}
+.small{font-size:12px}
+.formula{margin:10px 0 0;font-size:13px;line-height:2;font-variant-numeric:tabular-nums}
+.term{border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:6px;padding:0 6px;font:inherit;cursor:pointer;line-height:1.6}
+.term small{color:var(--muted);margin-left:4px;font-size:11px}
+.term:hover{border-color:var(--accent)}
+.term.out{text-decoration:line-through;opacity:.5}
+.corrected{margin-top:8px;padding:6px 10px;border-left:3px solid var(--accent);background:var(--soft);border-radius:6px;font-size:13px}
+button.link{border:0;background:none;color:var(--accent);cursor:pointer;font:inherit;font-size:12px;padding:0 4px;text-decoration:underline}
+.actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.actions button,.review button{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;cursor:pointer}
+.actions button:hover,.review button:hover{border-color:var(--accent)}
+.review button.on{background:var(--fg);color:var(--panel);border-color:var(--fg)}
+.review button:disabled{opacity:.4;cursor:default}
+#playline{font-size:12px;margin-top:6px;min-height:1em}
+.review{margin-top:8px;padding:8px 10px;border:1px solid var(--detected);border-radius:8px;font-size:13px}
+.review .row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.looked{margin-top:12px;padding:10px 12px;background:var(--soft);border-radius:8px;font-size:13px}
+.looked h3{font-size:12px;color:var(--muted);margin:0 0 4px;font-weight:600}
+.looked ul{margin:0;padding-left:18px}
+.evlist button.unsure{border-color:var(--detected);border-style:dashed}
+.evlist button.out{text-decoration:line-through;opacity:.45}
+.evlist button .x{margin-left:5px;color:var(--muted);font-size:10px}
+.evlist button .x:hover{color:var(--bad)}
 .muted{color:var(--muted)}
 .hist{display:flex;flex-direction:column;gap:6px}
 .hist .h{font-size:13px;border-left:3px solid var(--line);padding:2px 0 2px 8px;cursor:pointer}
@@ -221,6 +244,11 @@ async function openDrawing(d, div) {
   setStatus(d.page > 1 ? `<div class="error">These questions are about page ${d.page} of this PDF. The system reads page 1 only, so expect “cannot determine” until multi-page sets are supported (issue #8).</div>` : "");
   renderChips();
   renderHistory();
+  // the sheet's own data (room names, areas, detector confidence by id) and render info, for formulas, review and export
+  const q = encodeURIComponent(d.path);
+  d.sheetP = getJSON("/api/sheet?path=" + q).catch(() => null);
+  d.renderP = getJSON("/api/render?path=" + q).catch(() => null);
+  d.tablesP = getJSON("/api/tables?path=" + q).catch(() => null);
   if (view) {
     try { await view.open(d.path); }
     catch (e) { setStatus(`<div class="error">The drawing view could not open this file: ${esc(e.message)}</div>`); }
@@ -290,14 +318,14 @@ async function ask() {
   res._seconds = (performance.now() - t0) / 1000;
   lastAnswer = res;
   if (view) view.showAnswer(res, question);
-  renderAnswer(res, question);
+  await renderAnswer(res, question);
   const h = history.get(current.path) || [];
   h.unshift({ question, res });
   history.set(current.path, h.slice(0, 12));
   renderHistory();
 }
 
-function renderAnswer(res, question) {
+async function renderAnswer(res, question) {
   const tier = res.honesty?.tier || (res.answer == null ? "cannot determine" : null);
   const [tierText, tierCls] = TIER[tier] || [tier || "no tier", ""];
   const cannot = res.answer === null || res.answer === undefined;
@@ -309,15 +337,28 @@ function renderAnswer(res, question) {
   } else if (res.dataset_answer !== undefined) {
     check = `<div class="check"><span class="muted">Dataset label: ${esc(fmt(res.dataset_answer, res.unit))}</span><small>Written by people; some labels are wrong.</small></div>`;
   }
-  const ev = res.evidence || [];
-  const evHtml = ev.length ? `<div class="ev"><h3>Evidence used (${ev.length}) · click to show it on the drawing</h3><div class="evlist">${
-    ev.slice(0, 300).map((e, i) => `<button data-id="${esc(e.id ?? "ev" + i)}" title="${esc(e.shape || "")}">${esc(e.label && String(e.label).length < 14 ? e.label : e.id ?? i + 1)}</button>`).join("")
+  const sheet = current.sheetP ? await current.sheetP : null;
+  work = buildWork(res, question, sheet);
+  const ev = work.items;
+  const evHtml = ev.length ? `<div class="ev"><h3>Evidence used (${ev.length}) · click to show it on the drawing${work.correctable ? " · ✕ to leave one out" : ""}</h3><div class="evlist">${
+    ev.slice(0, 300).map((it) => `<button data-id="${esc(it.id)}" title="${esc(itemTitle(it))}"${it.conf != null && it.conf < LOW_CONF ? ' class="unsure"' : ""}>${esc(it.mark)}${work.correctable ? `<span class="x" data-x="${esc(it.id)}" title="leave this one out">✕</span>` : ""}</button>`).join("")
   }${ev.length > 300 ? `<span class="muted">+${ev.length - 300} more</span>` : ""}</div></div>` : "";
   const read = res.question_read ? `${res.question_read.by}${res.question_read.model ? " (" + res.question_read.model + ")" : ""}` : "";
+  const unsure = ev.filter((it) => it.conf != null && it.conf < LOW_CONF);
+  const actions = (ev.length || !cannot) ? `<div class="actions">
+      ${ev.length ? `<button id="replaybtn">▶ Show me</button>` : ""}
+      ${unsure.length ? `<button id="reviewbtn">Review ${unsure.length} uncertain</button>` : ""}
+      <button id="exportbtn">Export card</button>
+    </div><div id="playline" class="muted"></div><div id="reviewbox"></div>` : `<div class="actions"><button id="exportbtn">Export card</button></div>`;
+  const looked = cannot ? await lookedHtml(res, sheet) : "";
   $("answer").innerHTML = `<div class="card">
     <div class="value ${cannot ? "cannot" : ""}">${cannot ? "Cannot determine from this drawing" : esc(fmt(res.answer, res.unit))}</div>
     <div class="q">${esc(question)}</div>
     <span class="pill ${tierCls}">${esc(tierText)}</span>${res.honesty?.deterministic === false ? ` <span class="muted" style="font-size:12px">not deterministic</span>` : ""}
+    <div id="formula">${formulaHtml()}</div>
+    <div id="corrected"></div>
+    ${actions}
+    ${looked}
     <dl>
       ${res.honesty?.basis ? `<dt>How</dt><dd>${esc(res.honesty.basis)}</dd>` : ""}
       ${res.explanation && res.explanation !== res.honesty?.basis ? `<dt>Explanation</dt><dd>${esc(res.explanation)}</dd>` : ""}
@@ -330,7 +371,286 @@ function renderAnswer(res, question) {
     ${check}
     ${evHtml}
   </div>`;
-  $("answer").querySelectorAll(".evlist button").forEach((b) => b.onclick = () => { if (view) view.select(b.dataset.id); markEvidence(b.dataset.id); });
+  wireAnswer();
+}
+
+// ------------------------------------------------------------------ evidence, formula, correction, replay, review, export
+const LOW_CONF = 0.6;   // same threshold as the drawing view's amber "unsure" marks
+let work = null;        // the answer on screen: {res, question, items, excluded:Set, added, correctable, kind, ...}
+
+function sheetIndex(sheet) {
+  const ix = new Map();
+  if (!sheet) return ix;
+  for (const k of ["rooms", "openings", "fixtures", "elements", "floors", "walls", "units_list"])
+    for (const x of sheet[k] || []) if (x && x.id) ix.set(x.id, x);
+  return ix;
+}
+
+function buildWork(res, question, sheet) {
+  const ix = sheetIndex(sheet);
+  const items = (res.evidence || []).map((e, i) => {
+    const s = ix.get(e.id) || {};
+    const area = s.area_m2 ?? s.area ?? null;
+    return { id: e.id ?? "ev" + i, idx: i, mark: e.label && String(e.label).length < 14 ? String(e.label) : String(i + 1),
+             shape: e.shape, bbox: e.bbox, pts: e.pts, conf: s.conf ?? null, kind: s.cls || s.type || null,
+             name: s.name || null, number: s.number || null, area: typeof area === "number" ? area : null };
+  });
+  const [val, unit] = parseNum(res.answer, res.unit);
+  const isCount = res.unit === "count" || (Number.isInteger(val) && !unit);
+  const isArea = /^(m2|sqft|ft2|sf)$/i.test(unit || "");
+  // A correction is only meaningful when the marks ARE the answer: one mark per counted item, or one area per room summed
+  const areaSum = items.reduce((s, it) => s + (it.area ?? 0), 0);
+  const termsMatch = isArea && items.length > 0 && items.every((it) => it.area != null) && Math.abs(areaSum - val) <= Math.max(0.02, 0.01 * Math.abs(val));
+  const countMatch = isCount && items.length > 0 && items.length === val;
+  return { res, question, items, excluded: new Set(), added: 0, val, unit, isCount, isArea, termsMatch, countMatch,
+           correctable: countMatch || termsMatch, timer: null, reviewAt: -1 };
+}
+
+function itemTitle(it) {
+  return [it.kind, it.number && it.name ? `${it.number} ${it.name}` : it.name || it.number, it.area != null ? `${it.area} ${UNIT[work?.unit] || ""}` : "",
+          it.conf != null ? `confidence ${Math.round(it.conf * 100)}%` : "", it.id].filter(Boolean).join(" · ");
+}
+
+const round2 = (v) => Math.round(v * 100) / 100;
+
+// 1. The answer written out as its working, each term linked to its mark on the drawing
+function formulaHtml() {
+  if (!work || !work.items.length) return "";
+  const u = UNIT[work.unit] ?? work.unit ?? "";
+  if (work.termsMatch) {
+    const terms = work.items.map((it) => `<button class="term${work.excluded.has(it.id) ? " out" : ""}" data-id="${esc(it.id)}" title="${esc(itemTitle(it))}">${esc(String(it.area))}<small>${esc(it.number || it.name || it.mark)}</small></button>`);
+    return `<div class="formula"><b>${esc(String(work.val))} ${esc(u)}</b> = ${terms.join(" + ")}</div>`;
+  }
+  if (work.countMatch) {
+    const byKind = {};
+    work.items.forEach((it) => { const k = it.kind || "marked item"; byKind[k] = (byKind[k] || 0) + 1; });
+    const kinds = Object.entries(byKind);
+    const parts = kinds.length > 1 ? " = " + kinds.map(([k, n]) => `${n} ${esc(k.replace(/_/g, " "))}`).join(" + ") : ` ${esc((kinds[0][0]).replace(/_/g, " "))}${kinds[0][1] === 1 ? "" : "s"}`;
+    return `<div class="formula"><b>${esc(String(work.val))}</b>${parts} · each one numbered on the drawing</div>`;
+  }
+  if (work.isArea && work.items.some((it) => it.area != null)) {
+    const shown = work.items.filter((it) => it.area != null);
+    return `<div class="formula muted">Areas used: ${shown.map((it) => `<button class="term" data-id="${esc(it.id)}">${esc(String(it.area))}<small>${esc(it.number || it.name || it.mark)}</small></button>`).join(" ")}</div>`;
+  }
+  return "";
+}
+
+// 3. A person leaves out a wrong mark (or adds one the system missed) and the total updates
+function correctedValue() {
+  if (work.termsMatch) return round2(work.items.filter((it) => !work.excluded.has(it.id)).reduce((s, it) => s + it.area, 0));
+  return work.val - work.excluded.size + work.added;
+}
+function renderCorrected() {
+  const box = $("corrected");
+  if (!box || !work.correctable) return;
+  const n = work.excluded.size, a = work.added;
+  if (!n && !a) { box.innerHTML = work.countMatch ? `<div class="muted small">Missed one? <button class="link" id="addone">+ add one you see</button></div>` : ""; }
+  else {
+    const u = UNIT[work.unit] ?? work.unit ?? "";
+    box.innerHTML = `<div class="corrected"><b>Your check: ${esc(String(work.val))} → ${esc(String(correctedValue()))} ${esc(u)}</b>
+      <span class="muted">(${n ? `${n} left out by you` : ""}${n && a ? ", " : ""}${a ? `${a} added by you` : ""})</span>
+      ${work.countMatch ? `<button class="link" id="addone">+ add one</button>` : ""} <button class="link" id="undoall">undo</button></div>`;
+  }
+  $("addone") && ($("addone").onclick = () => { work.added++; renderCorrected(); });
+  $("undoall") && ($("undoall").onclick = () => { work.excluded.clear(); work.added = 0; refreshMarks(); });
+}
+function toggleExclude(id) {
+  work.excluded.has(id) ? work.excluded.delete(id) : work.excluded.add(id);
+  refreshMarks();
+}
+function refreshMarks() {
+  $("answer").querySelectorAll(".evlist button").forEach((b) => b.classList.toggle("out", work.excluded.has(b.dataset.id)));
+  $("formula").innerHTML = formulaHtml();
+  wireTerms();
+  renderCorrected();
+}
+
+function selectEvidence(id) { if (view) view.select(id); markEvidence(id); }
+function wireTerms() { $("answer").querySelectorAll("#formula .term").forEach((b) => b.onclick = () => selectEvidence(b.dataset.id)); }
+
+// 2. "Show me": step through the marks one by one while a counter ticks up
+function stopReplay(msg) {
+  if (work?.timer) { clearInterval(work.timer); work.timer = null; }
+  if ($("replaybtn")) $("replaybtn").textContent = "▶ Show me";
+  if (msg !== undefined && $("playline")) $("playline").textContent = msg;
+}
+function replay() {
+  if (work.timer) return stopReplay("");
+  const list = work.items.filter((it) => !work.excluded.has(it.id));
+  if (!list.length) return;
+  const step = Math.max(180, Math.min(800, 12000 / list.length));   // whole run in about 12 s at most
+  let i = 0;
+  $("replaybtn").textContent = "■ Stop";
+  const tick = () => {
+    if (i >= list.length) {
+      stopReplay(`${list.length} ${list.length === 1 ? "item" : "items"} shown${work.isCount ? ` = ${list.length + work.added}${work.added ? ` with ${work.added} added by you` : ""}` : ""}.`);
+      if (view) { view.select(null); view.reset(); }
+      markEvidence(null);
+      return;
+    }
+    const it = list[i++];
+    selectEvidence(it.id);
+    $("playline").textContent = `${work.isCount ? "Counting" : "Showing"} ${i} / ${list.length}: ${itemTitle(it)}`;
+  };
+  tick();
+  work.timer = setInterval(tick, step);
+}
+
+// 4. Only the marks the system is unsure of, one at a time: keep or leave out
+function review(dir = 0) {
+  const unsure = work.items.filter((it) => it.conf != null && it.conf < LOW_CONF);
+  if (!unsure.length) return;
+  stopReplay("");
+  work.reviewAt = Math.max(0, Math.min(unsure.length - 1, work.reviewAt + dir));
+  const it = unsure[work.reviewAt];
+  selectEvidence(it.id);
+  const out = work.excluded.has(it.id);
+  $("reviewbox").innerHTML = `<div class="review"><b>Uncertain ${work.reviewAt + 1} of ${unsure.length}</b>: mark ${esc(it.mark)}, ${esc(itemTitle(it))}
+    <div class="row"><button id="rvkeep"${out ? "" : ' class="on"'}>Keep</button><button id="rvout"${out ? ' class="on"' : ""}>Leave out</button>
+    <button id="rvprev"${work.reviewAt === 0 ? " disabled" : ""}>‹ Prev</button><button id="rvnext"${work.reviewAt === unsure.length - 1 ? " disabled" : ""}>Next ›</button>
+    <button id="rvdone">Done</button></div></div>`;
+  $("rvkeep").onclick = () => { work.excluded.delete(it.id); refreshMarks(); review(0); };
+  $("rvout").onclick = () => { work.excluded.add(it.id); refreshMarks(); review(0); };
+  $("rvprev").onclick = () => review(-1);
+  $("rvnext").onclick = () => review(1);
+  $("rvdone").onclick = () => { $("reviewbox").innerHTML = ""; work.reviewAt = -1; };
+}
+
+// 11. A refusal shows where it looked and what it found there, so "cannot determine" is itself checkable
+async function lookedHtml(res, sheet) {
+  const tables = current.tablesP ? await current.tablesP : null;
+  const li = [];
+  const intent = res.intent || {};
+  const read = res.question_read || {};
+  li.push(`<li><b>Question read as</b>: ${esc(intent.intent || "not recognised")}${intent.cls ? ` (${esc(intent.cls)})` : ""}${read.by ? ` · by ${esc(read.by)}` : ""}</li>`);
+  if (sheet) {
+    const rooms = sheet.rooms || [];
+    const named = rooms.filter((r) => r.name);
+    const names = [...new Set(named.map((r) => r.name))];
+    li.push(`<li><b>Rooms</b>: ${rooms.length}${named.length ? `, ${named.length} with printed names (${esc(names.slice(0, 6).join(", "))}${names.length > 6 ? ", …" : ""})` : ", none with a printed name"}</li>`);
+    const kinds = {};
+    for (const x of [...(sheet.openings || []), ...(sheet.fixtures || []), ...(sheet.elements || [])]) { const k = x.cls || x.type || "item"; kinds[k] = (kinds[k] || 0) + 1; }
+    const kl = Object.entries(kinds).sort((a, b) => b[1] - a[1]);
+    li.push(`<li><b>Drawn items found</b>: ${kl.length ? esc(kl.slice(0, 6).map(([k, n]) => `${n} ${k.replace(/_/g, " ")}`).join(", ")) : "none"}</li>`);
+    const sc = sheet.scale && (sheet.scale.source || sheet.scale.note);
+    li.push(`<li><b>Scale</b>: ${esc(sc || (sheet.units === "m" ? "drawing units are metres" : "not found"))}</li>`);
+  }
+  if (Array.isArray(tables)) li.push(`<li><b>Tables</b>: ${tables.length ? esc(tables.slice(0, 4).map((t) => (t.title || "untitled").slice(0, 40)).join("; ")) : "none"}</li>`);
+  return `<div class="looked"><h3>Where it looked</h3><ul>${li.join("")}</ul><div class="muted small">None of these gives the answer, so it says so instead of guessing.</div></div>`;
+}
+
+// 14. One image a person can keep or put on a slide: the drawing with the marks, the answer, how it was obtained, the cost
+async function exportCard() {
+  const btn = $("exportbtn"); btn.disabled = true; btn.textContent = "Exporting…";
+  try {
+    const W = 1600, DH = 900, TH = 420;
+    const c = document.createElement("canvas"); c.width = W; c.height = DH + TH;
+    const g = c.getContext("2d");
+    g.fillStyle = "#ffffff"; g.fillRect(0, 0, W, DH + TH);
+    await drawSheetPart(g, W, DH);
+    g.fillStyle = "#f4f4f1"; g.fillRect(0, DH, W, TH);
+    const res = work.res, tier = res.honesty?.tier || (res.answer == null ? "cannot determine" : "");
+    let y = DH + 56;
+    g.fillStyle = "#ff6a00"; g.font = "700 40px system-ui, sans-serif"; g.fillText("DrawQA", 40, y);
+    g.fillStyle = "#6a6a64"; g.font = "20px system-ui, sans-serif"; g.fillText(fileName(current.path), 220, y - 4);
+    y += 60;
+    g.fillStyle = "#1c1c1a"; g.font = "700 46px system-ui, sans-serif";
+    const changed = work.correctable && (work.excluded.size || work.added);
+    const valueText = res.answer == null ? "Cannot determine" : fmt(res.answer, res.unit) + (changed ? `  →  ${correctedValue()} after human check` : "");
+    g.fillText(valueText, 40, y);
+    y += 42; g.font = "24px system-ui, sans-serif"; g.fillStyle = "#3a3a36";
+    y = wrap(g, work.question, 40, y, W - 80, 30, 2);
+    const tierColor = { read: "#1f7a3f", measured: "#1d5fa8", detected: "#a86400", estimated: "#7a3fa8", "cannot determine": "#9b2c2c" }[tier] || "#6a6a64";
+    y += 14; g.fillStyle = tierColor; g.font = "700 24px system-ui, sans-serif"; g.fillText((TIER[tier] || [tier])[0], 40, y);
+    g.fillStyle = "#3a3a36"; g.font = "20px system-ui, sans-serif";
+    y += 34; y = wrap(g, res.honesty?.basis || res.explanation || "", 40, y, W - 80, 26, 3);
+    const cost = res.cost ? `Cost ${res.cost.usd === null ? "≥ " + usd(res.cost.usd_known) : usd(res.cost.usd)} · ${res.cost.text}` : "";
+    g.fillStyle = "#6a6a64"; g.font = "18px system-ui, sans-serif";
+    g.fillText([`${work.items.length} evidence mark${work.items.length === 1 ? "" : "s"}`, cost, new Date().toLocaleString()].filter(Boolean).join("   ·   "), 40, DH + TH - 28);
+    const a = document.createElement("a");
+    a.href = c.toDataURL("image/png");
+    a.download = `drawqa-${fileName(current.path).replace(/\.[^.]+$/, "")}-answer.png`;
+    a.click();
+  } catch (e) {
+    $("playline").textContent = "Export failed: " + e.message;
+  } finally { btn.disabled = false; btn.textContent = "Export card"; }
+}
+
+function wrap(g, text, x, y, maxW, lh, maxLines) {
+  const words = String(text).split(/\s+/); let line = "", n = 0;
+  for (const w of words) {
+    const t = line ? line + " " + w : w;
+    if (g.measureText(t).width > maxW && line) {
+      g.fillText(n === maxLines - 1 ? line + " …" : line, x, y); y += lh; line = w; n++;
+      if (n >= maxLines) return y;
+    } else line = t;
+  }
+  if (line) { g.fillText(line, x, y); y += lh; }
+  return y;
+}
+
+// Sheet part of the card: the real page image cropped to the marks (scans, PDF pages), or the plan drawn from its
+// own geometry (CAD and BIM sheets, whose evidence is in drawing units), with the marks numbered on top.
+async function drawSheetPart(g, W, H) {
+  const render = current.renderP ? await current.renderP : null;
+  const sheet = current.sheetP ? await current.sheetP : null;
+  const items = work.items;
+  const ptsOf = (it) => it.pts || (it.bbox ? [[it.bbox[0], it.bbox[1]], [it.bbox[2], it.bbox[1]], [it.bbox[2], it.bbox[3]], [it.bbox[0], it.bbox[3]]] : null);
+  const marks = items.map((it) => ({ it, pts: ptsOf(it) })).filter((m) => m.pts && m.pts.length);
+  if (render && render.type === "image" && render.url) {
+    const img = await new Promise((ok, bad) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => bad(new Error("could not load the page image")); im.src = render.url; });
+    const sx = img.naturalWidth / (render.width || img.naturalWidth), sy = img.naturalHeight / (render.height || img.naturalHeight);
+    let box = [0, 0, render.width || img.naturalWidth, render.height || img.naturalHeight];
+    if (marks.length) {
+      const xs = marks.flatMap((m) => m.pts.map((p) => p[0])), ys = marks.flatMap((m) => m.pts.map((p) => p[1]));
+      const pad = Math.max(60, 0.15 * Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)));
+      box = [Math.max(0, Math.min(...xs) - pad), Math.max(0, Math.min(...ys) - pad), Math.min(box[2], Math.max(...xs) + pad), Math.min(box[3], Math.max(...ys) + pad)];
+    }
+    const k = Math.min(W / (box[2] - box[0]), H / (box[3] - box[1]));
+    const ox = (W - (box[2] - box[0]) * k) / 2, oy = (H - (box[3] - box[1]) * k) / 2;
+    g.drawImage(img, box[0] * sx, box[1] * sy, (box[2] - box[0]) * sx, (box[3] - box[1]) * sy, ox, oy, (box[2] - box[0]) * k, (box[3] - box[1]) * k);
+    drawMarks(g, marks, (p) => [ox + (p[0] - box[0]) * k, oy + (p[1] - box[1]) * k]);
+    return;
+  }
+  // geometry: room outlines of the sheet (y up when y_flip; evidence is already y down) as context, marks on top
+  const flip = sheet && sheet.y_flip ? (p) => [p[0], -p[1]] : (p) => p;
+  const ctx = (sheet?.rooms || []).map((r) => (r.polygon || []).map(flip)).filter((p) => p.length > 2);
+  const all = [...ctx.flat(), ...marks.flatMap((m) => m.pts)];
+  if (!all.length) { g.fillStyle = "#6a6a64"; g.font = "24px system-ui"; g.fillText("No drawing geometry to show for this answer.", 40, H / 2); return; }
+  const xs = all.map((p) => p[0]), ys = all.map((p) => p[1]);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+  const k = 0.92 * Math.min(W / (x1 - x0 || 1), H / (y1 - y0 || 1));
+  const ox = (W - (x1 - x0) * k) / 2, oy = (H - (y1 - y0) * k) / 2;
+  const T = (p) => [ox + (p[0] - x0) * k, oy + (p[1] - y0) * k];
+  g.strokeStyle = "#9a9a94"; g.lineWidth = 1.5;
+  for (const poly of ctx) { g.beginPath(); poly.forEach((p, i) => { const [x, y] = T(p); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.stroke(); }
+  drawMarks(g, marks, T);
+}
+
+function drawMarks(g, marks, T) {
+  for (const { it, pts } of marks) {
+    const out = work.excluded.has(it.id), unsure = it.conf != null && it.conf < LOW_CONF;
+    g.beginPath(); pts.forEach((p, i) => { const [x, y] = T(p); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath();
+    g.fillStyle = out ? "rgba(120,120,120,0.10)" : "rgba(255,106,0,0.16)"; g.fill();
+    g.setLineDash(out ? [6, 6] : unsure ? [10, 6] : []);
+    g.strokeStyle = out ? "#8a8a84" : unsure ? "#e0a100" : "#ff6a00"; g.lineWidth = 3; g.stroke(); g.setLineDash([]);
+    const [cx, cy] = T(pts.reduce((a, p) => [a[0] + p[0] / pts.length, a[1] + p[1] / pts.length], [0, 0]));
+    g.font = "700 18px system-ui"; const label = it.mark; const w = g.measureText(label).width + 10;
+    g.fillStyle = out ? "#8a8a84" : "#ff6a00"; g.fillRect(cx - w / 2, cy - 12, w, 24);
+    g.fillStyle = "#fff"; g.fillText(label, cx - w / 2 + 5, cy + 6);
+  }
+}
+
+function wireAnswer() {
+  $("answer").querySelectorAll(".evlist button").forEach((b) => b.onclick = (e) => {
+    if (e.target.dataset.x) { e.stopPropagation(); return toggleExclude(e.target.dataset.x); }
+    selectEvidence(b.dataset.id);
+  });
+  wireTerms();
+  renderCorrected();
+  $("replaybtn") && ($("replaybtn").onclick = replay);
+  $("reviewbtn") && ($("reviewbtn").onclick = () => { work.reviewAt = -1; review(1); });
+  $("exportbtn") && ($("exportbtn").onclick = exportCard);
 }
 
 // Measured by tools/ui_cost.py while the answer was computed: dollars, model calls and the drawing's running total
