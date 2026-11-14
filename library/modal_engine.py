@@ -94,6 +94,26 @@ def _audit(r, question, seconds, generic):
     return dict(question=question, seconds=seconds, language_model_used=by != "pattern", steps=steps)
 
 
+def _watch_model_calls():
+    """Record every Claude call the engine makes (model, tokens) for the audit trail. Returns the (cleared) list."""
+    try:
+        from anthropic.resources.messages import Messages
+    except Exception:
+        return []
+    if not getattr(Messages.create, "_bob", False):
+        orig, calls = Messages.create, []
+
+        def create(self, *a, **kw):
+            m = orig(self, *a, **kw)
+            u = getattr(m, "usage", None)
+            calls.append({"model": kw.get("model") or getattr(m, "model", "?"), "in": getattr(u, "input_tokens", 0) or 0, "out": getattr(u, "output_tokens", 0) or 0})
+            return m
+        create._bob, create._bob_calls = True, calls
+        Messages.create = create
+    Messages.create._bob_calls.clear()
+    return Messages.create._bob_calls
+
+
 def json_intent(r):
     i = r.get("intent") or {}
     return ", ".join(f"{k}={v}" for k, v in i.items() if v not in (None, "", [])) or "unknown"
@@ -112,6 +132,7 @@ def solve_full(sheet_id: int, file_name: str, question: str):
         path = f"/tmp/sheet{sheet_id}{os.path.splitext(file_name)[1] or '.pdf'}"
         shutil.copy(f"/lib/library/files/{sheet_id}/original", path)
         generic = True
+    calls = _watch_model_calls()
     t0 = time.time()
     try:
         r = solve(path, question, generic=generic, llm=os.environ.get("BOB_LLM") == "1")
@@ -120,6 +141,13 @@ def solve_full(sheet_id: int, file_name: str, question: str):
     sec = round(time.time() - t0, 3)
     r = {k: v for k, v in r.items() if k != "cost"}
     r["audit"] = _audit(r, question, sec, generic)
+    if calls:
+        tin, tout = sum(c["in"] for c in calls), sum(c["out"] for c in calls)
+        r["audit"]["language_model_used"] = True
+        r["audit"]["model_calls"] = list(calls)
+        r["audit"]["steps"].insert(2, dict(stage="Language model", actor=", ".join(sorted({c["model"] for c in calls})),
+                                           detail=f"{len(calls)} call(s), {tin} tokens in, {tout} tokens out. Used because no known question pattern "
+                                                  f"matched; it turned the wording into tool calls, the numbers are computed by code."))
     return dict(result=r, seconds=sec)
 
 
