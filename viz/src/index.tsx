@@ -75,11 +75,14 @@ export function mount(el: HTMLElement, opts: MountOptions = {}): DrawViewHandle 
       store.set({ loading: true, error: null, answer: null, selectedId: null })
       try {
         const q = encodeURIComponent(path)
-        const [render, plan, sheet] = await Promise.all([
-          getJSON(`/api/render?path=${q}`),
-          getJSON(`/api/plan?path=${q}`).catch(() => null), // overlay and 3D context are optional
-          getJSON(`/api/sheet?path=${q}`).catch(() => null),
-        ])
+        // one after the other, never in parallel: /api/plan and /api/sheet both build the same sheet on the server, and
+        // two threads opening the same IFC model at once crash ifcopenshell (segfault, seen 19:50 on main). In sequence the
+        // second request is served from the server's cache, so it is not slower.
+        const render = await getJSON(`/api/render?path=${q}`)
+        if (s !== seq) return
+        const plan = await getJSON(`/api/plan?path=${q}`).catch(() => null) // overlay and 3D context are optional
+        if (s !== seq) return
+        const sheet = await getJSON(`/api/sheet?path=${q}`).catch(() => null)
         if (s !== seq) return
         const loaded = await prepare(render, plan, sheet, render.url ? base + render.url : undefined)
         if (s !== seq) return
