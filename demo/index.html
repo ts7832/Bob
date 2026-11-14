@@ -227,16 +227,25 @@ function showPlan(p, d) {
 }
 
 // Room names printed on an image, read by a vision model (an open list: whatever the drawing says, in any language).
+let lastItems = [];
 function namesCard(p) {
   if (!p.can_read_names) return "";
+  if (p.items) lastItems = p.items;
   const n = p.names;
+  // self-check: a name printed on the drawing whose position is inside no room the detector typed
+  const typedRooms = lastItems.filter(i => (KINDS[i.type] || [])[2] === "Rooms" && i.how === "detector" && i.bbox);
+  const untyped = r => { const cx = (r.bbox[0] + r.bbox[2]) / 2, cy = (r.bbox[1] + r.bbox[3]) / 2;
+    return !typedRooms.some(i => cx >= i.bbox[0] && cx <= i.bbox[2] && cy >= i.bbox[1] && cy <= i.bbox[3]); };
   if (!n) return `<div class="card" id="namescard"><div class="meta">The detector only knows a fixed list of room types. The names printed on the drawing can be read by a vision model.</div>
     <button class="ask" id="readnames" style="background:#7c3aed">Read room names and areas</button><div class="meta" style="margin-top:6px">Runs on a cloud GPU: 10 to 40 seconds when the service is warm, about 11 minutes when it has to start up first.</div></div>`;
   if (n.error) return `<div class="card" id="namescard"><div class="warn">${esc(n.error)}</div></div>`;
-  const rows = n.rooms.map(r => `<div class="frow" style="cursor:default"><i style="border-color:#7c3aed;background:#7c3aed22"></i><span>${esc(r.label)}</span><b style="min-width:70px">${r.area == null ? "" : r.area + " m²"}</b></div>`).join("");
+  const miss = n.rooms.filter(untyped);
+  const rows = n.rooms.map(r => `<div class="frow" style="cursor:default" title="${untyped(r) ? "The detector marked no room here; this room is known only from its printed name." : "The detector also marked a room here."}"><i style="border-color:#7c3aed;background:${untyped(r) ? "#7c3aed" : "#7c3aed22"}"></i><span>${esc(r.label)}${r.type ? ` <small style="color:var(--muted)">· ${esc(r.type)}?</small>` : ""}</span><b style="min-width:70px">${r.area == null ? "" : r.area + " m²"}</b></div>`).join("");
   const total = n.rooms.reduce((s, r) => s + (r.area || 0), 0), withArea = n.rooms.filter(r => r.area != null).length;
   return `<div class="card" id="namescard"><div class="fgroup" style="margin-top:0">Names printed on the drawing (${n.rooms.length})</div>${rows || '<div class="meta">No room name was found.</div>'}
     ${withArea ? `<div class="meta" style="margin-top:8px">${withArea} printed area(s), ${Math.round(total * 100) / 100} m² in total.</div>` : ""}
+    ${miss.length ? `<div class="warn" style="margin-top:8px"><b>Self-check:</b> ${miss.length} of ${n.rooms.length} named rooms were not marked by the detector (filled squares): ${esc(miss.map(r => r.label).join(", "))}.</div>` : n.rooms.length ? `<div class="meta" style="margin-top:8px"><b>Self-check:</b> every named room was also marked by the detector.</div>` : ""}
+    <div class="meta" style="margin-top:6px">The grey word after a name is the model's guess at what the name means. On our test it was wrong for about 1 in 6 Finnish abbreviations, so nothing is counted from it.</div>
     <div class="meta" style="margin-top:6px"><b>READ</b> · not deterministic · read by a vision model (${esc((n.model || "").split("/").pop())}); it can misread a letter or a digit, so each name is boxed on the drawing for checking.${n.truncated ? " The list was cut off and may be incomplete." : ""}</div></div>`;
 }
 

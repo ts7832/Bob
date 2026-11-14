@@ -36,6 +36,15 @@ PROMPT = ("List every room or space name printed on this floor plan, in whatever
           'and title-block text. Output a JSON list like [{"bbox_2d": [x1, y1, x2, y2], "label": "...", "area": 25.0}] where '
           "bbox_2d is the box around the printed name and area is the room area printed next to it as a number, or null "
           "if none is printed.")
+# The same reading, plus what each name MEANS: the model, not a list of rules, says that OLOHUONE is a living room,
+# KHH+PH a utility room with a shower, H a general room. Any language, any abbreviation.
+PROMPT_TYPED = ("List every room or space name printed on this floor plan, in whatever language it is written, exactly as "
+                "printed. Skip dimensions, notes, appliance and fixture labels, floor titles and title-block text. "
+                'Output a JSON list like [{"bbox_2d": [x1, y1, x2, y2], "label": "OLOHUONE", "area": 25.0, "type": "living room"}] '
+                "where bbox_2d is the box around the printed name, area is the room area printed next to it as a number or "
+                "null if none is printed, and type is what kind of room the name means, in plain English (for example living "
+                "room, bedroom, kitchen, bathroom, toilet, sauna, hallway, storage, walk-in closet, utility room, technical "
+                "room, garage, balcony, terrace, room). Use the drawing's language and what is drawn in the room to decide.")
 
 
 def parse_rooms(text, w, h):
@@ -54,6 +63,7 @@ def parse_rooms(text, w, h):
         label = str(d.get("label", "")).strip()
         if label:
             out.append(dict(label=label, area=float(area) if isinstance(area, (int, float)) else None,
+                            type=(str(d["type"]).strip().lower() or None) if d.get("type") else None,
                             bbox=[round(b[0] * w / 1000, 1), round(b[1] * h / 1000, 1), round(b[2] * w / 1000, 1), round(b[3] * h / 1000, 1)]))
     return out
 
@@ -72,12 +82,10 @@ class Reader:
             VOL.commit()
         self.llm = LLM(model=dst, max_model_len=8192, limit_mm_per_prompt={"image": 1}, gpu_memory_utilization=0.93)
 
-    @modal.method()
-    def read(self, png: bytes, long_side: int = 1792):
-        import base64, io, time
+    def _chat(self, png, prompt, long_side, max_tokens, system=SYSTEM):
+        import base64, io
         from PIL import Image
         from vllm import SamplingParams
-        t0 = time.time()
         im = Image.open(io.BytesIO(png)).convert("RGB")
         w, h = im.size
         s = long_side / max(im.size)
@@ -86,8 +94,23 @@ class Reader:
         buf = io.BytesIO()
         im.save(buf, "PNG")
         url = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
-        conv = [{"role": "system", "content": SYSTEM},
-                {"role": "user", "content": [{"type": "image_url", "image_url": {"url": url}}, {"type": "text", "text": PROMPT}]}]
-        o = self.llm.chat([conv], SamplingParams(temperature=0, max_tokens=3000))[0].outputs[0]
-        return dict(model=self.model, seconds=round(time.time() - t0, 1), truncated=o.finish_reason == "length",
-                    rooms=parse_rooms(o.text, w, h))
+        conv = [{"role": "system", "content": system},
+                {"role": "user", "content": [{"type": "image_url", "image_url": {"url": url}}, {"type": "text", "text": prompt}]}]
+        o = self.llm.chat([conv], SamplingParams(temperature=0, max_tokens=max_tokens))[0].outputs[0]
+        return o.text, o.finish_reason == "length", (w, h)
+
+    @modal.method()
+    def read(self, png: bytes, long_side: int = 1792, typed: bool = True):
+        """Room names, printed areas and (typed=True) what kind of room each name means."""
+        import time
+        t0 = time.time()
+        text, cut, (w, h) = self._chat(png, PROMPT_TYPED if typed else PROMPT, long_side, 3500)
+        return dict(model=self.model, seconds=round(time.time() - t0, 1), truncated=cut, rooms=parse_rooms(text, w, h))
+
+    @modal.method()
+    def ask(self, png: bytes, prompt: str, long_side: int = 1792, max_tokens: int = 1500, system: str = SYSTEM):
+        """Any question about an image, answered as text: for trying a new prompt without deploying again."""
+        import time
+        t0 = time.time()
+        text, cut, size = self._chat(png, prompt, long_side, max_tokens, system)
+        return dict(model=self.model, seconds=round(time.time() - t0, 1), truncated=cut, text=text, size=size)
