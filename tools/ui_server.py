@@ -40,8 +40,12 @@ def gold_drawings(data_root):
             if q["status"] not in ("verified", "exact"):
                 continue
             key = (q["path"], int(q.get("page") or 1))
-            g = groups.setdefault(key, dict(path=q["path"], page=key[1], generic=bool(q.get("generic")),
-                                            abs_path=os.path.join(data_root, q["path"]), topic=q.get("topic"), questions=[]))
+            extra = q["path"].startswith("extra/")  # a sheet outside the dataset, kept in gold/extra/ (git-ignored)
+            abs_path = os.path.join(REPO, "gold", "extra", q["path"][6:]) if extra else os.path.join(data_root, q["path"])
+            if extra and not os.path.isfile(abs_path):
+                continue  # this machine does not have it; tools/gold_eval.py reports it as not scored
+            g = groups.setdefault(key, dict(path=q["path"], page=key[1], generic=bool(q.get("generic")) or extra,
+                                            abs_path=abs_path, topic=q.get("topic"), questions=[]))
             g["generic"] = g["generic"] or bool(q.get("generic"))
             g["questions"].append(dict(id=q["id"], question=q["question"], answer=q["answer"], unit=q["unit"], type=q["type"],
                                        expected_tier=q.get("expected_tier"), status=q["status"], evidence_note=q.get("evidence_note")))
