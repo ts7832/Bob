@@ -34,7 +34,7 @@ UNITS = {
     "m": ("length", 1.0), "mm": ("length", 0.001), "cm": ("length", 0.01), "ft": ("length", 0.3048), "in": ("length", 0.0254),
     "m3": ("volume", 1.0), "ft3": ("volume", 0.028316846592),
 }
-ALIASES = {"m²": "m2", "sq m": "m2", "sqm": "m2", "ft²": "ft2", "sq ft": "ft2", "sqft": "ft2", "SF": "ft2",
+ALIASES = {"m²": "m2", "sq m": "m2", "sqm": "m2", "ft²": "ft2", "sq ft": "ft2", "sqft": "ft2", "SF": "ft2", "sf": "ft2",
            "m³": "m3", "ft³": "ft3", "cu ft": "ft3", "\"": "in", "'": "ft", None: None}
 
 
