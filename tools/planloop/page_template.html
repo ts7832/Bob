@@ -1,0 +1,131 @@
+<title>Claude Plan Rebuilds</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&display=swap">
+<style>
+/* Layout: a drafting-sheet column; each plan is one row of three panels (input, detector, Claude) with its facts below. */
+:root {
+  --paper: #f6f8fb; --sheet: #ffffff; --ink: #14202e; --muted: #5b6878; --line: #d8dee7; --accent: #1d5fbf;
+  --good: #15803d; --good-bg: #e8f5ec; --bad: #b42318; --bad-bg: #fbeceb; --same-bg: #eef1f5;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #0e1319; --sheet: #161d26; --ink: #e5ebf2; --muted: #9aa7b6; --line: #2a3441; --accent: #6fa3f0;
+  --good: #5fcf8a; --good-bg: #13291c; --bad: #f08a80; --bad-bg: #2e1715; --same-bg: #1d2530; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #0e1319; --sheet: #161d26; --ink: #e5ebf2; --muted: #9aa7b6; --line: #2a3441; --accent: #6fa3f0;
+  --good: #5fcf8a; --good-bg: #13291c; --bad: #f08a80; --bad-bg: #2e1715; --same-bg: #1d2530; color-scheme: dark }
+body { background: var(--paper); color: var(--ink); font: 15px/1.55 var(--body); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 28px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 40px; }
+h1, h2 { font-family: var(--display); font-weight: 600; letter-spacing: .01em; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.1; }
+h2 { font-size: 26px; }
+h3 { margin: 0; font-size: 15px; }
+p { margin: 0; max-width: 68ch; }
+.mono { font-family: var(--mono); font-size: 13px; }
+.eyebrow { font: 600 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.intro { display: grid; gap: 14px; }
+.lede { color: var(--muted); font-size: 16px; }
+.totals { display: flex; flex-wrap: wrap; gap: 12px; }
+.total { background: var(--sheet); border: 1px solid var(--line); padding: 12px 16px; border-radius: 6px; display: grid; gap: 2px; min-width: 0; }
+.total b { font: 600 24px var(--mono); font-variant-numeric: tabular-nums; }
+.total span { color: var(--muted); font-size: 13px; }
+.total.hi b { color: var(--good); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--muted); align-items: center; }
+.sw { display: inline-flex; align-items: center; gap: 6px; }
+.sw i { width: 14px; height: 14px; border-radius: 2px; display: inline-block; }
+.sw i.box { background: transparent; border: 3px solid; }
+section { display: grid; gap: 18px; }
+.sechead { display: grid; gap: 8px; border-top: 2px solid var(--ink); padding-top: 14px; }
+.case { background: var(--sheet); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: grid; gap: 14px; }
+.casehead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; }
+.score { font: 600 14px var(--mono); padding: 2px 10px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+.score.up { color: var(--good); background: var(--good-bg); }
+.score.down { color: var(--bad); background: var(--bad-bg); }
+.score.same { color: var(--muted); background: var(--same-bg); }
+.cost { color: var(--muted); margin-left: auto; }
+.row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.panel { margin: 0; display: grid; gap: 6px; min-width: 0; }
+.zoom { padding: 0; border: 1px solid var(--line); border-radius: 4px; background: #fff; cursor: zoom-in; display: block; }
+.zoom:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.zoom img { display: block; width: 100%; height: auto; border-radius: 3px; }
+figcaption { display: grid; gap: 1px; font-size: 13px; }
+.ptitle { font-weight: 600; }
+.pmeta { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.pmeta b { color: var(--ink); }
+.facts { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 16px; }
+.counts { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 13px; }
+.counts li { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dashed var(--line); padding-block: 2px; }
+.counts .k { color: var(--muted); }
+.counts .v { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.qs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.qs li { padding: 6px 10px; border-radius: 4px; display: grid; gap: 2px; }
+.qs li.gain { background: var(--good-bg); } .qs li.gain b { color: var(--good); }
+.qs li.loss { background: var(--bad-bg); } .qs li.loss b { color: var(--bad); }
+.qs .mono { color: var(--muted); font-size: 12px; }
+.quiet { color: var(--muted); font-size: 13px; }
+.notes { color: var(--muted); font-size: 13px; display: grid; gap: 6px; }
+#lightbox { position: fixed; inset: 0; z-index: 20; background: rgba(8, 12, 18, .86); display: grid; place-items: center; cursor: zoom-out;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+#lightbox img { max-width: 100%; max-height: 92vh; background: #fff; border-radius: 4px; }
+@media (max-width: 860px) { .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .facts { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 560px) { .row3 { grid-template-columns: minmax(0, 1fr); } .cost { margin-left: 0; } }
+@media (prefers-reduced-motion: no-preference) { .zoom { transition: border-color .15s; } .zoom:hover { border-color: var(--accent); } }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <span class="eyebrow">DrawQA · Junction 2026 · test of 14 Nov</span>
+    <h1>Claude Plan Rebuilds</h1>
+    <p class="lede">What Claude makes of a scanned floor plan, drawn over the original. Our engine answers the dataset's questions from each version, so every picture carries a score: questions answered right, counts exact.</p>
+    <div class="totals">
+      <div class="total"><b>%%TOT_D%%/%%TOT_N%%</b><span>detector alone, 10 fresh plans</span></div>
+      <div class="total hi"><b>%%TOT_C%%/%%TOT_N%%</b><span>detector, then Claude Opus reviews</span></div>
+      <div class="total"><b>~50 s</b><span>and ~57k tokens per plan (Opus, low effort)</span></div>
+    </div>
+    <div class="legend" aria-label="Legend">
+      <span class="sw"><i style="background:#3b82f6"></i>bedroom</span><span class="sw"><i style="background:#10b981"></i>living room</span>
+      <span class="sw"><i style="background:#f59e0b"></i>kitchen</span><span class="sw"><i style="background:#06b6d4"></i>bathroom</span>
+      <span class="sw"><i style="background:#8b5cf6"></i>WC room</span><span class="sw"><i style="background:#ef4444"></i>sauna</span>
+      <span class="sw"><i style="background:#ec4899"></i>entry</span><span class="sw"><i style="background:#22c55e"></i>balcony</span>
+      <span class="sw"><i class="box" style="border-color:#2563eb"></i>door</span><span class="sw"><i class="box" style="border-color:#0d9488"></i>window</span>
+      <span class="sw"><i class="box" style="border-color:#9333ea"></i>fixture: WC, S sink, SH shower, BT bathtub, ST stove, B sauna bench</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="sechead"><span class="eyebrow">Combined</span><h2>Detector first, then Claude reviews</h2>
+      <p>The detector and wall model build the sheet. Claude Opus (low effort) checks it tile by tile against the scan. It may type and name rooms, remove false boxes and fix types, but may add a door, window or fixture only when it is unmistakably in the main plan. The plans were picked at random and are new to this test.</p></div>
+    %%REVIEW%%
+  </section>
+
+  <section>
+    <div class="sechead"><span class="eyebrow">From scratch</span><h2>Seven Claude runs on one plan</h2>
+      <p>Each model gets only the image and our format, builds the plan itself, then checks and fixes it in a loop. Plan arch-6001, 9 questions. The detector's sheet gets 7 of them right in about 3 seconds.</p></div>
+    <div class="grid4">%%SCRATCH%%</div>
+  </section>
+
+  <section>
+    <div class="sechead"><span class="eyebrow">From scratch</span><h2>A larger house, with the scale read off the drawing</h2>
+      <p>Opus at default effort read the scale from the overall dimension lines: %%SCALE1000%%. Its room areas match the printed ones within about 0.5 m².</p></div>
+    <div class="row3">%%P1000%%</div>
+  </section>
+
+  <footer class="notes">
+    <p>Scores: our unchanged engine answers each dataset question from the sheet shown; counts must be exact. One run per plan and setting, so a difference of one or two answers is within run-to-run variation.</p>
+    <p>Claude worked blind: the answer key was outside its folder. Every model's sheet goes through the same converter function as the detector's output.</p>
+  </footer>
+</div>
+<div id="lightbox" hidden><img alt=""></div>
+<script>
+(() => {
+  const box = document.getElementById("lightbox"), big = box.querySelector("img");
+  document.querySelectorAll(".zoom").forEach(b => b.addEventListener("click", () => {
+    const i = b.querySelector("img"); big.src = i.src; big.alt = i.alt; box.hidden = false; }));
+  box.addEventListener("click", () => { box.hidden = true; });
+  document.addEventListener("keydown", ev => { if (ev.key === "Escape") box.hidden = true; });
+})();
+</script>
