@@ -14,6 +14,7 @@ const TIER_TEXT: Record<string, string> = {
 export function View({ store }: { store: Store }) {
   const s = useSyncExternalStore(store.subscribe, store.get)
   const overlay = useRef<HTMLDivElement>(null)
+  const photoStatus = useRef<HTMLSpanElement>(null)
   const { loaded, answer, selectedId } = s
   const selected = answer?.elements.find((e) => e.id === selectedId) ?? null
   const focus = useMemo(
@@ -25,11 +26,11 @@ export function View({ store }: { store: Store }) {
   return (
     <div className="dv-view">
       {loaded && (
-        <Canvas flat dpr={[1, 2]} camera={{ fov: 30, near: 1, far: 1e6, position: [0, 1e4, 0] }} onPointerMissed={() => select(null)}>
+        <Canvas flat shadows="percentage" dpr={[1, 2]} camera={{ fov: 30, near: 1, far: 1e6, position: [0, 1e4, 0] }} onPointerMissed={() => select(null)}>
           <color attach="background" args={['#1a1f2b']} />
           <Suspense fallback={null}>
             <Scene key={loaded.drawing.key} loaded={loaded} answer={answer} selectedId={selectedId} hoverId={s.hoverId}
-              dim={s.dim} showPlan={s.showPlan} mode={s.mode} focus={focus} fitAll={s.fitAll}
+              dim={s.dim} showPlan={s.showPlan} mode={s.mode} photo={s.photo && s.mode === '3d'} photoStatus={photoStatus} focus={focus} fitAll={s.fitAll}
               onSelect={select} onHover={(id) => store.set({ hoverId: id })} overlay={overlay} />
           </Suspense>
         </Canvas>
@@ -48,13 +49,16 @@ export function View({ store }: { store: Store }) {
             <button className={s.showPlan ? 'dv-on' : ''} onClick={() => store.set({ showPlan: !s.showPlan })}>Found plan</button>
           )}
           <button onClick={() => store.set({ selectedId: null, fitAll: s.fitAll + 1 })}>Fit sheet</button>
-          <button className={s.mode === '3d' ? 'dv-on' : ''} onClick={() => store.set({ mode: s.mode === '3d' ? '2d' : '3d' })}>
+          {s.mode === '3d' && (
+            <button className={s.photo ? 'dv-on' : ''} title="Path-traced render: refines while the camera rests" onClick={() => store.set({ photo: !s.photo })}>Photo</button>
+          )}
+          <button className={s.mode === '3d' ? 'dv-on' : ''} onClick={() => store.set({ mode: s.mode === '3d' ? '2d' : '3d', photo: false })}>
             {s.mode === '3d' ? '2D' : '3D'}
           </button>
         </div>
       )}
       {loaded && s.mode === '3d' && (
-        <div className="dv-illustrative">3D for orientation only: wall heights are illustrative, answers come from the drawing</div>
+        <div className="dv-illustrative">3D for orientation only: wall heights are illustrative, answers come from the drawing{s.photo && <> · <span ref={photoStatus}>Path tracing…</span></>}</div>
       )}
 
       {s.loading && <div className="dv-status">Loading drawing…</div>}

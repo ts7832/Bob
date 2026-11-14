@@ -6,6 +6,7 @@ export interface State {
   selectedId: string | null
   hoverId: string | null
   mode: '2d' | '3d'
+  photo: boolean // path-traced photo mode (3D only)
   dim: boolean
   showPlan: boolean
   fitAll: number // bumped by reset(): fit the whole sheet
@@ -15,7 +16,7 @@ export interface State {
 
 // Minimal external store: the public API writes, React reads through useSyncExternalStore.
 export class Store {
-  state: State = { loaded: null, answer: null, selectedId: null, hoverId: null, mode: '2d', dim: true, showPlan: true, fitAll: 0, loading: false, error: null }
+  state: State = { loaded: null, answer: null, selectedId: null, hoverId: null, mode: '2d', photo: false, dim: true, showPlan: true, fitAll: 0, loading: false, error: null }
   private subs = new Set<() => void>()
   selectHandlers = new Set<(el: Element | null) => void>()
 

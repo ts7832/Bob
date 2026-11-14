@@ -90,3 +90,23 @@ export const thickness = (r: Pt[]) => {
   for (let i = 0; i < r.length; i++) { const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length]; per += Math.hypot(x2 - x1, y2 - y1) }
   return per > 0 ? (2 * Math.abs(ringArea(r))) / per : 0
 }
+
+// Oriented box of a roughly rectangular outline: axis along its longest edge (robust for rectangles, where PCA is not).
+export function obb(pts: Pt[]) {
+  let best = 0, ux = 1, uy = 0
+  for (let i = 0; i < pts.length; i++) {
+    const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length], l = Math.hypot(x2 - x1, y2 - y1)
+    if (l > best) { best = l; ux = (x2 - x1) / l; uy = (y2 - y1) / l }
+  }
+  const vx = -uy, vy = ux
+  let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity
+  for (const [x, y] of pts) { const u = x * ux + y * uy, v = x * vx + y * vy; u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v) }
+  const cu = (u0 + u1) / 2, cv = (v0 + v1) / 2
+  return { cx: cu * ux + cv * vx, cy: cu * uy + cv * vy, ux, uy, vx, vy, len: u1 - u0, dep: v1 - v0 }
+}
+
+// Corners of an oriented box, optionally with its depth scaled (glass pane) or shrunk on all sides (bevelled fixtures).
+export function obbRect(o: ReturnType<typeof obb>, depScale = 1, shrink = 0): Pt[] {
+  const hl = Math.max(o.len / 2 - shrink, 0.5), hd = Math.max((o.dep * depScale) / 2 - shrink, 0.5)
+  return [[-hl, -hd], [hl, -hd], [hl, hd], [-hl, hd]].map(([a, b]) => [o.cx + a * o.ux + b * o.vx, o.cy + a * o.uy + b * o.vy] as Pt)
+}

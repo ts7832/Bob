@@ -48,7 +48,9 @@ export interface Answer {
 // Geometry for the 3D lift (M3). Display only; never used to answer anything.
 export interface Context {
   walls: Pt[][]
-  rooms: { id: string; name?: string | null; polygon: Pt[] }[]
+  rooms: { id: string; name?: string | null; type?: string | null; polygon: Pt[] }[]
+  openings: { cls: 'door' | 'window'; polygon: Pt[] }[] // window/door rectangles in the wall line: sills, glass, lintels
+  fixtures: { cls: string; polygon: Pt[] }[] // wc, washbasin, bathtub, kitchen_unit, ... shown as low volumes
 }
 
 export interface Loaded {
@@ -82,7 +84,9 @@ export interface SheetJSON {
   units?: string
   y_flip?: boolean
   scale?: { m_per_px?: number | null }
-  rooms?: { id: string; name?: string | null; number?: string | null; polygon?: Pt[]; bbox?: number[] }[]
+  rooms?: { id: string; name?: string | null; number?: string | null; cls?: string | null; polygon?: Pt[]; bbox?: number[] }[]
+  openings?: { id: string; cls: string; polygon?: Pt[]; bbox?: number[] }[]
+  fixtures?: { id: string; cls: string; bbox?: number[] }[]
   walls?: { id: string; polygon?: Pt[] }[]
 }
 

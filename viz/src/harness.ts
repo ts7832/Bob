@@ -96,5 +96,6 @@ async function main() {
   if (P.has('q')) await showAsk(Number(P.get('q')))
   if (P.get('sel')) view.select(P.get('sel'))
   if (P.get('mode') === '3d') view.setMode('3d')
+  if (P.has('photo')) setTimeout(() => (document.querySelector('.dv-tools button[title^="Path"]') as HTMLButtonElement | null)?.click(), 1500)
 }
 main()

@@ -17,6 +17,10 @@ const STYLE: Record<string, { fill?: string; stroke?: string; w?: number; dash?:
 }
 
 let keySeq = 0
+// What becomes a low ceramic/furniture volume in 3D, per source (display only)
+const NOT_FIXTURE = new Set(['stairs', 'shaft'])
+const SCAN_FIXTURES = new Set(['wc', 'sink', 'bathtub', 'shower', 'sauna_stove', 'sauna_bench'])
+const BIM_FIXTURES = new Set(['IfcSanitaryTerminal', 'IfcFurnishingElement', 'IfcFurniture'])
 // IFC classes that stand up as walls in the 3D view (IFC2x3 exports mostly use IfcWallStandardCase)
 const WALL_CLASSES = new Set(['IfcWall', 'IfcWallStandardCase', 'IfcWallElementedCase', 'IfcCurtainWall', 'IfcColumn'])
 
@@ -54,12 +58,29 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
 
   // Sheet geometry in the sheet's own frame: metres with y up on vector sheets, so flip y back into the render frame.
   const flip = sheet?.y_flip ? (p: Pt): Pt => [p[0], -p[1]] : (p: Pt) => p
+  const openings: Context['openings'] = [], fixtures: Context['fixtures'] = []
+  if (drawing.kind === 'vector') {
+    for (const o of sheet?.openings ?? []) if (o.cls === 'door' && o.polygon?.length) openings.push({ cls: 'door', polygon: o.polygon.map((p) => drawing.toPx(flip(p))) })
+    for (const it of render.items ?? []) if (it.k === 'poly' && it.layer === 'WINDOW' && it.closed && it.pts.length >= 4) openings.push({ cls: 'window', polygon: it.pts.map(drawing.toPx) })
+    for (const f of sheet?.fixtures ?? []) if (f.bbox && !NOT_FIXTURE.has(f.cls)) fixtures.push({ cls: f.cls, polygon: boxPts(f.bbox, (p) => drawing.toPx(flip(p))) })
+  } else if (drawing.kind === 'svg') {
+    for (const e of guids.values()) {
+      if (e.type === 'IfcWindow') openings.push({ cls: 'window', polygon: e.polygon })
+      else if (BIM_FIXTURES.has(e.type)) fixtures.push({ cls: e.type, polygon: e.polygon })
+    }
+  } else {
+    for (const it of plan?.items ?? []) {
+      if (!it.bbox) continue
+      if (it.type === 'window') openings.push({ cls: 'window', polygon: boxPts(it.bbox, drawing.toPx) })
+      else if (SCAN_FIXTURES.has(it.type)) fixtures.push({ cls: it.type, polygon: boxPts(it.bbox, drawing.toPx) })
+    }
+  }
   const rooms: Context['rooms'] = []
   for (const r of sheet?.rooms ?? []) {
     const poly = r.polygon?.length ? r.polygon.map((p) => drawing.toPx(flip(p))) : r.bbox ? boxPts(r.bbox.map(Number), (p) => drawing.toPx(flip(p))) : null
-    if (poly) rooms.push({ id: r.id, name: r.name ?? null, polygon: poly })
+    if (poly) rooms.push({ id: r.id, name: r.name ?? null, type: r.cls ?? null, polygon: poly })
   }
-  if (drawing.kind === 'svg') for (const e of guids.values()) if (e.type === 'IfcSpace') rooms.push({ id: e.id, name: e.name, polygon: e.polygon })
+  if (drawing.kind === 'svg') for (const e of guids.values()) if (e.type === 'IfcSpace') rooms.push({ id: e.id, name: e.name, type: 'IfcSpace', polygon: e.polygon })
 
   const planEls: Element[] = (plan?.items ?? []).map((it, i) => ({
     id: `plan${i}`, type: it.type, how: it.how ?? null, confidence: it.conf ?? null,
@@ -68,7 +89,7 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
       : { geometry: 'box' as const, polygon: boxPts(it.bbox!.map(Number), drawing.toPx) }),
   }))
 
-  return { drawing, plan: planEls, context: { walls, rooms }, guids }
+  return { drawing, plan: planEls, context: { walls, rooms, openings, fixtures }, guids }
 }
 
 const UNITS: Record<string, string> = { m2: 'm²', m3: 'm³', m: 'm', ft2: 'ft²', ft3: 'ft³', ft: 'ft', count: '' }

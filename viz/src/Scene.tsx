@@ -3,15 +3,16 @@ import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
 import { CameraControls, Html, Line } from '@react-three/drei'
 import CameraControlsImpl from 'camera-controls'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { Building, Effects, Floors, Lighting, drawingUV, useBuilding, useLifted, type Lift } from './Model'
+import { Photo } from './Photo'
 import type { Answer, Drawing, Element, Loaded, Tier } from './types'
-import { anchor, bbox, outline, shapeOf, shapesFromRings, thickness, toWorld } from './geom'
+import { anchor, bbox, outline, shapeOf, thickness, toWorld } from './geom'
 
 export const ACCENT = '#ff6a00'
 const LOW = '#e0a100' // low-confidence detections
 const LOW_CONF = 0.6
 const ACTION = CameraControlsImpl.ACTION
-const TILT = { azimuth: -0.42, polar: 0.92 } // 3D view: about 53° from straight down, turned a little
+const TILT = { azimuth: -0.45, polar: 0.8 } // 3D view: about 53° from straight down, turned a little
 
 // Colours per element type for the faint "found on this sheet" layer (same palette as demo/index.html).
 const KIND_COLOR: Record<string, string> = {
@@ -20,16 +21,6 @@ const KIND_COLOR: Record<string, string> = {
   wc_room: '#a855f7', balcony: '#84cc16', sauna_room: '#ef4444', living_room: '#f97316', dining: '#d97706', room: '#6366f1',
   entry: '#0ea5e9', storage: '#78716c', utility: '#14b8a6', dressing_room: '#ec4899', terrace: '#65a30d', garage: '#475569',
   other_room: '#94a3b8', wall: '#374151', apartment: '#d64545', floor: '#111827',
-}
-
-type Lift = { v: number } // 0 = the flat sheet, 1 = full 3D. Animated; read in useFrame, never used for answers.
-
-// UVs that sample the drawing texture at the same spot, so a highlight or a wall top shows the original drawing.
-function drawingUV(geo: THREE.BufferGeometry, d: Drawing) {
-  const pos = geo.attributes.position, uv = geo.attributes.uv
-  for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + d.width / 2) / d.width, (pos.getY(i) + d.height / 2) / d.height)
-  uv.needsUpdate = true
-  return geo
 }
 
 const MAX_TEX = 4096 // full-size sheets render up to ~6600 px; the GPU gets a downscaled copy, crops still read the original
@@ -98,6 +89,8 @@ interface Props {
   dim: boolean
   showPlan: boolean
   mode: '2d' | '3d'
+  photo: boolean
+  photoStatus: RefObject<HTMLSpanElement | null>
   focus: Focus
   fitAll: number
   onSelect: (id: string | null) => void
@@ -105,7 +98,7 @@ interface Props {
   overlay: RefObject<HTMLDivElement | null> // DOM layer over the canvas; Html labels portal here (fiber 9 + React 19)
 }
 
-export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode, focus, fitAll, onSelect, onHover, overlay }: Props) {
+export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode, photo, photoStatus, focus, fitAll, onSelect, onHover, overlay }: Props) {
   const drawing = loaded.drawing
   const max = Math.max(drawing.width, drawing.height)
   const L = max / 2500 // height step between flat layers, so they never z-fight
@@ -115,6 +108,8 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
   const els = answer?.status === 'answered' ? answer.elements : []
   const tier = answer?.tier ?? null
   const lift = useRef<Lift>({ v: 0 })
+  const lifted = useLifted(lift)
+  const building = useBuilding(loaded)
 
   useFrame((_, dt) => {
     const t = mode === '3d' ? 1 : 0, l = lift.current
@@ -125,8 +120,9 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
     <>
       <CameraControls makeDefault />
       <CameraRig drawing={drawing} focus={focus} fitAll={fitAll} mode={mode} />
-      <hemisphereLight args={['#ffffff', '#9d968c', 1.4]} />
-      <directionalLight position={[-0.5 * max, 1.1 * max, -0.35 * max]} intensity={2.4} />
+      <Lighting drawing={drawing} active={lifted} catcherY={2.5 * L} />
+      {lifted && !photo && <Effects wallH={wallH} />}
+      {lifted && photo && <Photo loaded={loaded} b={building} tex={tex} wallH={wallH} answer={answer} baseY={0.5 * L} status={photoStatus} />}
 
       {/* the original drawing: always visible */}
       <mesh rotation-x={-Math.PI / 2} onClick={(e) => { e.stopPropagation(); onSelect(null) }}>
@@ -137,13 +133,14 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
       {showPlan && !els.length && loaded.plan.map((el) => <PlanMark key={el.id} el={el} drawing={drawing} y={L} />)}
 
       {dim && els.length > 0 && (
-        <mesh rotation-x={-Math.PI / 2} position-y={2 * L} raycast={() => null}>
+        <mesh rotation-x={-Math.PI / 2} position-y={2 * L} renderOrder={2} raycast={() => null}>
           <planeGeometry args={[drawing.width, drawing.height]} />
           <meshBasicMaterial color="#0b1020" transparent opacity={0.55} depthWrite={false} toneMapped={false} />
         </mesh>
       )}
 
-      <Walls loaded={loaded} tex={tex} wallH={wallH} lift={lift} y={0.5 * L} />
+      <Floors loaded={loaded} wallH={wallH} lift={lift} y={1.5 * L} />
+      <Building b={building} tex={tex} wallH={wallH} lift={lift} y={0.5 * L} />
 
       {els.map((el) => (
         <Highlight key={el.id} el={el} drawing={drawing} tex={tex} hatch={hatch} tier={tier} L={L} wallH={wallH} lift={lift}
@@ -163,53 +160,6 @@ function PlanMark({ el, drawing, y }: { el: Element; drawing: Drawing; y: number
   const dash = Math.max(drawing.width, drawing.height) / 120
   return <Line points={pts} color={KIND_COLOR[el.type] ?? '#475569'} lineWidth={1.5} transparent opacity={0.75}
     dashed={dashed} dashSize={dash} gapSize={dash * 0.6} raycast={() => null} />
-}
-
-// Walls extruded straight up out of the sheet. Their tops carry the drawing texture, so at height 0 they are
-// pixel-identical to the flat drawing and the lift is one continuous motion. Display only.
-function Walls({ loaded, tex, wallH, lift, y }: { loaded: Loaded; tex: THREE.Texture; wallH: number; lift: RefObject<Lift>; y: number }) {
-  const d = loaded.drawing
-  const geos = useMemo(() => mergeWalls(shapesFromRings(d, loaded.context.walls).map((s) =>
-    drawingUV(new THREE.ExtrudeGeometry(s, { depth: 1, bevelEnabled: false, curveSegments: 4 }), d))), [loaded])
-  useEffect(() => () => geos.forEach((g) => g.dispose()), [geos])
-  const mats = useMemo(() => [
-    new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }), // caps (ExtrudeGeometry group 0): the drawing
-    new THREE.MeshStandardMaterial({ color: '#ece7df', roughness: 0.85 }), // sides (group 1)
-  ], [tex])
-  useEffect(() => () => mats.forEach((m) => m.dispose()), [mats])
-  const group = useRef<THREE.Group>(null)
-  useFrame(() => {
-    const g = group.current, v = lift.current?.v ?? 0
-    if (!g) return
-    g.visible = v > 0.002
-    g.scale.z = Math.max(v, 0.001) * wallH
-  })
-  if (!geos.length) return null
-  return (
-    <group ref={group} rotation-x={-Math.PI / 2} position-y={y} visible={false}>
-      <mesh geometry={geos[0]} material={mats[0]} raycast={() => null} />
-      <mesh geometry={geos[1]} material={mats[1]} raycast={() => null} />
-    </group>
-  )
-}
-
-// All wall tops in one geometry and all sides in another: two draw calls however many walls a sheet has.
-function mergeWalls(geos: THREE.BufferGeometry[]): THREE.BufferGeometry[] {
-  if (!geos.length) return []
-  const part = (g: THREE.BufferGeometry, mi: number) => {
-    const out = new THREE.BufferGeometry()
-    for (const name of ['position', 'normal', 'uv'] as const) {
-      const at = g.getAttribute(name) as THREE.BufferAttribute, n = at.itemSize
-      const arr: number[] = []
-      const src = at.array as Float32Array
-      for (const gr of g.groups) if (gr.materialIndex === mi) for (let i = gr.start * n; i < (gr.start + gr.count) * n; i++) arr.push(src[i])
-      out.setAttribute(name, new THREE.Float32BufferAttribute(arr, n))
-    }
-    return out
-  }
-  const caps = mergeGeometries(geos.map((g) => part(g, 0))), sides = mergeGeometries(geos.map((g) => part(g, 1)))
-  geos.forEach((g) => g.dispose())
-  return [caps, sides]
 }
 
 function Highlight({ el, drawing, tex, hatch, tier, L, wallH, lift, selected, hovered, onSelect, onHover, overlay }: {
@@ -253,12 +203,12 @@ function Highlight({ el, drawing, tex, hatch, tier, L, wallH, lift, selected, ho
         onPointerOut={() => { onHover(null); document.body.style.cursor = '' }}>
         <meshBasicMaterial map={tex} toneMapped={false} />
       </mesh>
-      <mesh geometry={geo} rotation-x={-Math.PI / 2} position-y={4 * L} raycast={() => null}>
+      <mesh geometry={geo} rotation-x={-Math.PI / 2} position-y={4 * L} renderOrder={5} raycast={() => null}>
         {tier === 'estimated'
           ? <meshBasicMaterial color={color} map={hatch} transparent opacity={active ? 0.55 : 0.35} depthWrite={false} toneMapped={false} />
           : <meshBasicMaterial color={color} transparent opacity={active ? 0.32 : 0.14} depthWrite={false} toneMapped={false} />}
       </mesh>
-      <mesh ref={volRef} geometry={vol} rotation-x={-Math.PI / 2} position-y={4 * L} visible={false} raycast={() => null}>
+      <mesh ref={volRef} geometry={vol} rotation-x={-Math.PI / 2} position-y={4 * L} visible={false} renderOrder={6} raycast={() => null}>
         <meshBasicMaterial color={color} transparent opacity={active ? 0.38 : 0.2} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
       </mesh>
       <group ref={topRef}>
