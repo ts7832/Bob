@@ -92,16 +92,25 @@ tr.tot td{border-bottom:0;font-weight:600}
 .pick button.on{background:var(--paper);color:var(--ink)}
 .clock{position:absolute;right:18px;top:-30px;font:17px var(--pix)}
 
-/* ask window: while it is in use a snake of red pixel squares runs round the whole window, in steps like an old game; it stops on blur */
+/* ask window while in use (clicked or focused); two looks to choose from, both like a selected chip */
 .field{position:relative;flex:1;display:flex;min-width:0}
 .field input{flex:1}
-.snake{position:absolute;left:-9px;top:-9px;width:calc(100% + 18px);height:calc(100% + 18px);z-index:2;pointer-events:none;overflow:visible;opacity:0;transition:opacity .15s}
-.snake .trail{fill:none;stroke:var(--ink);stroke-width:1;stroke-dasharray:1 3;opacity:.45}
-.snake .body rect{fill:var(--snake,#e10600);shape-rendering:crispEdges}
-.snake .body rect.food{fill:var(--ink)}
-.snakepick{left:22px;right:auto}
-.askwin.on .snake{opacity:1}
-.askwin.on input{outline:0;border-color:var(--ink)}
+.askwin{transition:background .12s,color .12s,box-shadow .12s}
+.askwin input,.askwin .ask button,.askwin .scope span{transition:background .12s,color .12s,border-color .12s}
+/* X invert: the whole window turns black, like a selected filter chip */
+[data-ask="invert"] .askwin.on{background:var(--ink);color:var(--paper)}
+[data-ask="invert"] .askwin.on .tb{background:var(--paper);color:var(--ink)}
+[data-ask="invert"] .askwin.on .tb span,[data-ask="invert"] .askwin.on .tb i{background:var(--paper)}
+[data-ask="invert"] .askwin.on input{background:var(--ink);color:var(--paper);border-color:var(--paper);outline:0;caret-color:var(--paper)}
+[data-ask="invert"] .askwin.on .ask button{background:var(--paper);color:var(--ink)}
+[data-ask="invert"] .askwin.on .scope span{border-color:var(--paper)}
+[data-ask="invert"] .askwin.on .scope .on{background:var(--paper);color:var(--ink)}
+/* Y bold outline: same colours, the frame turns heavy black */
+[data-ask="bold"] .askwin.on{outline:3px solid var(--ink);outline-offset:0;box-shadow:7px 7px 0 var(--ink)}
+[data-ask="bold"] .askwin.on .tb{background:var(--ink);color:var(--paper)}
+[data-ask="bold"] .askwin.on .tb span,[data-ask="bold"] .askwin.on .tb i{background:transparent}
+[data-ask="bold"] .askwin.on input{border-width:2px;outline:0}
+.askpick{left:22px;right:auto}
 
 /* ===== 1  LISA OS: bone desktop with a dot screen, every panel a window, bitmap type, pink accent ===== */
 [data-concept="1"]{--desk:#dedede;--acc:var(--pink)}
@@ -183,7 +192,7 @@ tr.tot td{border-bottom:0;font-weight:600}
     </div>
   </div>
   <div class="right">
-    <div class="win askwin"><svg class="snake"><rect class="trail" x="2.5" y="2.5"/><g class="body"></g></svg><div class="tb"><span>Ask</span><i>⌘K</i></div><div class="body">
+    <div class="win askwin"><div class="tb"><span>Ask</span><i>⌘K</i></div><div class="body">
       <div class="ask"><span class="field"><input value="How many toilet rooms are on this floor?"></span><button>ASK</button></div>
       <div class="scope"><span class="on">This blueprint</span><span>Whole project · 5</span></div></div></div>
     <div class="win"><div class="tb"><span>Answer</span><i>0.00 s</i></div><div class="body">
@@ -221,88 +230,21 @@ const pick = document.getElementById("pick");
 const set = (n) => { H.dataset.concept = n; [...pick.children].forEach((b, i) => b.classList.toggle("on", i + 1 == n)); history.replaceState(0, "", "?c=" + n); };
 names.forEach((t, i) => { const b = document.createElement("button"); b.textContent = (i + 1) + " " + t; b.onclick = () => set(i + 1); pick.appendChild(b); });
 set(new URLSearchParams(location.search).get("c") || 5);
-const askwin = document.querySelector(".askwin"), svg = askwin.querySelector(".snake"), body = svg.querySelector(".body");
-const TICK = 40;                                 // one frame every 40 ms, in steps like an old phone game
-let SW = 0, SH = 0, per = 0, k = 0, timer = 0;
-const at = (d) => {                              // point d px along the outline, clockwise from the top-left corner
-  d = ((d % per) + per) % per;
-  if (d < SW) return [d, 0]; d -= SW;
-  if (d < SH) return [SW, d]; d -= SH;
-  if (d < SW) return [SW - d, SH]; d -= SW;
-  return [0, SH - d];
-};
-const sizeSnake = () => {
-  const r = svg.getBoundingClientRect();
-  SW = Math.round(r.width) - 8; SH = Math.round(r.height) - 8; per = 2 * (SW + SH);
-  const t = svg.querySelector(".trail");
-  t.setAttribute("x", 4); t.setAttribute("y", 4); t.setAttribute("width", SW); t.setAttribute("height", SH);
-};
-const ease = (x) => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
-let food = null, grow = 0;
-// each style turns frame number k into squares: [distance along the outline, size, opacity]
-const STYLES = {
-  inchworm(k) {                                  // head shoots ahead while the tail waits, then the tail catches up
-    const T = 34, D = 150, c = Math.floor(k / T), p = (k % T) / T, n = 16, gap0 = 8.5;
-    const head = c * D + D * ease(Math.min(1, p * 2)), tail = c * D + D * ease(Math.max(0, p * 2 - 1)) - n * gap0;
-    return Array.from({ length: n }, (_, i) => [head - (head - tail) * i / (n - 1), 8, 1]);
-  },
-  wave(k) {                                      // a pulse runs down the body: bunched and stretched in turn
-    const n = 26, head = k * 6;
-    return Array.from({ length: n }, (_, i) => [head - i * 9 + 7 * Math.sin(k * .32 - i * .55), 8, 1]);
-  },
-  comet(k) {                                     // big head, shrinking squares, gaps widening towards the tail
-    const n = 30, head = k * 9;
-    return Array.from({ length: n }, (_, i) => [head - Math.pow(i, 1.45) * 4.2, Math.max(2.5, 10 - i * .26), Math.max(.18, 1 - i / 32)]);
-  },
-  nokia(k) {                                     // chunky blocks, eats the blinking dot and gets longer
-    if (!food) food = Math.random() * per;
-    const head = k * 9, n = Math.min(70, 22 + grow);
-    if (((head - food) % per + per) % per < 9) { grow += 4; food = (head + per * (.3 + Math.random() * .5)) % per; }
-    const out = Array.from({ length: n }, (_, i) => [head - i * 9, 8, 1]);
-    if (k % 6 < 4) out.push([food, 8, 1, "food"]);
-    return out;
-  },
-  packets(k) {                                   // three short trains, each breathing like an inchworm, out of step
-    const out = [];
-    for (let g = 0; g < 3; g++) {
-      const T = 26, D = 90, kk = k + g * 9, c = Math.floor(kk / T), p = (kk % T) / T, n = 7;
-      const base = g * per / 3, head = base + c * D + D * ease(Math.min(1, p * 2)), tail = base + c * D + D * ease(Math.max(0, p * 2 - 1)) - n * 9;
-      for (let i = 0; i < n; i++) out.push([head - (head - tail) * i / (n - 1), 8, 1]);
-    }
-    return out;
-  },
-};
-let STYLE = QS.get("snake") || "inchworm";
-const draw = () => {
-  const sq = STYLES[STYLE](k++);
-  while (body.children.length < sq.length) body.appendChild(document.createElementNS("http://www.w3.org/2000/svg", "rect"));
-  [...body.children].forEach((q, i) => {
-    const s = sq[i];
-    if (!s) { q.setAttribute("width", 0); return; }
-    const [x, y] = at(Math.round(s[0])), z = s[1];
-    q.setAttribute("x", (x + 4 - z / 2).toFixed(1)); q.setAttribute("y", (y + 4 - z / 2).toFixed(1));
-    q.setAttribute("width", z); q.setAttribute("height", z); q.setAttribute("opacity", s[2]);
-    q.setAttribute("class", s[3] || "");
-  });
-};
+const askwin = document.querySelector(".askwin");
 // on while anything in the Ask window is clicked or focused (typing, the scope buttons, ASK); off when you click elsewhere
-const snakeOn = (on) => {
-  askwin.classList.toggle("on", on);
-  clearInterval(timer); timer = 0;
-  if (on) { sizeSnake(); k = 0; grow = 0; food = null; draw(); timer = setInterval(draw, TICK); }
-};
-document.addEventListener("pointerdown", (e) => { if (!e.target.closest(".snakepick")) snakeOn(askwin.contains(e.target)); });
-// style chooser for the mock-up (bottom left): picking a style starts the snake so it can be compared
-const sp = document.createElement("div"); sp.className = "pick snakepick";
-for (const [key, label] of [["inchworm", "A Inchworm"], ["wave", "B Wave"], ["comet", "C Comet"], ["nokia", "D Nokia"], ["packets", "E Packets"]]) {
-  const b = document.createElement("button"); b.textContent = label; b.classList.toggle("on", key === STYLE);
-  b.onclick = () => { STYLE = key; [...sp.children].forEach((x) => x.classList.toggle("on", x === b)); snakeOn(true); };
-  sp.appendChild(b);
+const askOn = (on) => askwin.classList.toggle("on", on);
+document.addEventListener("pointerdown", (e) => { if (!e.target.closest(".askpick")) askOn(askwin.contains(e.target)); });
+askwin.addEventListener("focusin", () => askOn(true));
+// chooser for the mock-up (bottom left): picking a look switches the Ask window on so it can be compared
+H.dataset.ask = QS.get("ask") || "invert";
+const ap = document.createElement("div"); ap.className = "pick askpick";
+for (const [key, label] of [["invert", "X Whole box black"], ["bold", "Y Bold outline"]]) {
+  const b = document.createElement("button"); b.textContent = label; b.classList.toggle("on", key === H.dataset.ask);
+  b.onclick = () => { H.dataset.ask = key; [...ap.children].forEach((x) => x.classList.toggle("on", x === b)); askOn(true); };
+  ap.appendChild(b);
 }
-document.body.appendChild(sp);
-askwin.addEventListener("focusin", () => { if (!timer) snakeOn(true); });
-addEventListener("resize", () => { if (timer) sizeSnake(); });
-if (QS.get("focus")) setTimeout(() => snakeOn(true), 300);   // for screenshots
+document.body.appendChild(ap);
+if (QS.get("focus")) setTimeout(() => askOn(true), 300);   // for screenshots
 document.addEventListener("keydown", (e) => { if (e.key >= "1" && e.key <= "5" && document.activeElement.tagName !== "INPUT") set(+e.key); });
 </script>
 </body>
