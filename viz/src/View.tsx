@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as RPointerEvent, type RefObject } from 'react'
 import { Canvas } from '@react-three/fiber'
 import type { Answer, Drawing, Element } from './types'
 import type { Store } from './store'
@@ -6,6 +6,7 @@ import { Scene, focusOf, measureTotals, type Insets } from './Scene'
 import { Crop } from './Crop'
 import { bbox, outline } from './geom'
 import { CLS_NAME, GLYPH, SYMBOL, type Cls } from './ink'
+import { canClean, cleanClasses, SYMBOL_COLOR } from './clean'
 
 const TIER_TEXT: Record<string, string> = {
   read: 'Read from the sheet', measured: 'Measured from geometry', detected: 'Detected by a model',
@@ -24,6 +25,7 @@ export function View({ store }: { store: Store }) {
     [selected, answer],
   )
   const select = (id: string | null) => store.set({ selectedId: id })
+  const cleanOk = useMemo(() => (loaded ? canClean(loaded) : false), [loaded])
   const low = s.quality === 'low' || (s.quality === 'auto' && s.slow)
   // Room the cards take, so zoom-to-answer frames the evidence in the free part of the view (not under a card)
   const [insets, setInsets] = useState<Insets>({ l: 0, t: 0, r: 0, b: 48 })
@@ -68,6 +70,7 @@ export function View({ store }: { store: Store }) {
         e.preventDefault(); step(e.key === 'ArrowRight' ? 1 : -1)
       } else if (e.key === 'f' || e.key === 'F') store.set({ refit: st.refit + 1 })
       else if (e.key === 'm' || e.key === 'M') store.set({ measure: !st.measure, mpts: [], mclosed: false })
+      else if ((e.key === 'c' || e.key === 'C') && st.mode === '2d' && canClean(st.loaded)) store.set({ clean: !st.clean })
       else if (e.key === ' ' && !e.repeat) { e.preventDefault(); store.set({ peek: true }) }
     }
     const up = (e: KeyboardEvent) => { if (e.key === ' ' && store.get().peek) store.set({ peek: false }) }
@@ -91,7 +94,7 @@ export function View({ store }: { store: Store }) {
           <Suspense fallback={null}>
             <Scene key={loaded.drawing.key} loaded={loaded} answer={answer} selectedId={selectedId} hoverId={s.hoverId}
               dim={s.dim} showPlan={s.showPlan} mode={s.mode} photo={s.photo && s.mode === '3d'} photoStatus={photoStatus} focus={focus} fitAll={s.fitAll} insets={insets}
-              tools={{ measure: s.measure, mpts: s.mpts, mclosed: s.mclosed, peek: s.peek, hidden: s.hidden, cut: s.cut, refit: s.refit }}
+              tools={{ measure: s.measure, mpts: s.mpts, mclosed: s.mclosed, peek: s.peek, hidden: s.hidden, cut: s.cut, refit: s.refit, clean: s.clean && cleanOk, swipe: s.swipe }}
               onMeasure={(mpts, mclosed) => store.set({ mpts, mclosed })}
               low={low} onSlow={(slow) => { if (store.get().slow !== slow) store.set({ slow }) }}
               onSelect={select} onHover={(id) => store.set({ hoverId: id })} overlay={overlay} />
@@ -121,6 +124,10 @@ export function View({ store }: { store: Store }) {
             <button className={s.showPlan ? 'dv-on' : ''} onClick={() => store.set({ showPlan: !s.showPlan })}>Found plan</button>
           )}
           <button title="Clear the selection and frame the sheet (the building in 3D)" onClick={() => store.set({ selectedId: null, fitAll: s.fitAll + 1 })}>Reset view</button>
+          {cleanOk && s.mode === '2d' && (
+            <button className={s.clean ? 'dv-on' : ''} title="The plan redrawn from what was detected, next to the original: drag the divider to compare (C)"
+              onClick={() => store.set({ clean: !s.clean })}>Clean view</button>
+          )}
           <button className={s.measure ? 'dv-on' : ''} title="Measure lengths and areas on the drawing (M)" onClick={() => store.set({ measure: !s.measure, mpts: [], mclosed: false })}>Measure</button>
           <button title="Hold to see the original drawing without any highlights (or hold Space)"
             onPointerDown={() => store.set({ peek: true })} onPointerUp={() => store.set({ peek: false })} onPointerLeave={() => s.peek && store.set({ peek: false })}>Original</button>
@@ -141,11 +148,36 @@ export function View({ store }: { store: Store }) {
         <div className="dv-illustrative">3D for orientation only: wall heights are illustrative, answers come from the drawing{s.photo && <> · <span ref={photoStatus}>Path tracing…</span></>}</div>
       )}
 
+      {loaded && cleanOk && s.clean && s.mode === '2d' && !s.peek && <Swipe value={s.swipe} host={viewRef} classes={cleanClasses(loaded)} onChange={(swipe) => store.set({ swipe })} />}
       {loaded && s.measure && <MeasureReadout drawing={loaded.drawing} pts={s.mpts} closed={s.mclosed} />}
       {s.peek && <div className="dv-peek">Original drawing</div>}
       {s.loading && <div className="dv-status">Loading drawing…</div>}
       {s.error && <div className="dv-status dv-error">{s.error}</div>}
       {!loaded && !s.loading && !s.error && <div className="dv-status">Open a drawing to see it here.</div>}
+    </div>
+  )
+}
+
+// Swipe divider of the clean view: redrawn plan on the left, the untouched original on the right.
+function Swipe({ value, host, classes, onChange }: { value: number; host: RefObject<HTMLDivElement | null>; classes: Cls[]; onChange: (v: number) => void }) {
+  const move = (e: RPointerEvent) => {
+    const r = host.current?.getBoundingClientRect()
+    if (r) onChange(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)))
+  }
+  return (
+    <div className="dv-swipe" style={{ left: `${value * 100}%` }}>
+      <div className="dv-swipe-line" />
+      <div className="dv-swipe-handle" role="slider" aria-label="Clean view divider" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value * 100)} tabIndex={0}
+        onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); e.stopPropagation() }}
+        onPointerMove={(e) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) move(e) }}
+        onKeyDown={(e) => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); onChange(Math.min(1, Math.max(0, value + (e.key === 'ArrowLeft' ? -0.05 : 0.05)))) } }}>‹ ›</div>
+      <div className="dv-swipe-l" title="Walls, rooms and symbols as the system detected or read them (scans: walls found in the image). Check them against the original.">
+        <b>Redrawn from detections</b>
+        {classes.length > 0 && <span className="dv-swipe-key">{classes.map((c) => (
+          <span key={c} style={{ color: SYMBOL_COLOR[c] }}><Glyph cls={c} />{CLS_NAME[c][1]}</span>
+        ))}</span>}
+      </div>
+      <div className="dv-swipe-r">Original</div>
     </div>
   )
 }

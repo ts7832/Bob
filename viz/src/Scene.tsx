@@ -7,6 +7,7 @@ import { Building, Effects, Floors, Lighting, drawingUV, useBuilding, useLifted,
 import { Photo } from './Photo'
 import type { Answer, Drawing, Element, Loaded, Pt, Tier } from './types'
 import { GLYPH, SYMBOL, inkOf, type Cls } from './ink'
+import { buildClean } from './clean'
 import { anchor, bbox, measureScale, outline, ringArea, shapeOf, thickness, toShape, toWorld, tube } from './geom'
 
 export const ACCENT = '#ff7a00' // = the demo page's --accent
@@ -100,7 +101,7 @@ interface Props {
   focus: Focus
   fitAll: number
   insets: Insets
-  tools: { measure: boolean; mpts: Pt[]; mclosed: boolean; peek: boolean; hidden: string[]; cut: number; refit: number }
+  tools: { measure: boolean; mpts: Pt[]; mclosed: boolean; peek: boolean; hidden: string[]; cut: number; refit: number; clean: boolean; swipe: number }
   onMeasure: (pts: Pt[], closed: boolean) => void
   onSelect: (id: string | null) => void
   onHover: (id: string | null) => void
@@ -184,7 +185,10 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
         <meshBasicMaterial map={tex} toneMapped={false} />
       </mesh>
 
-      {showPlan && !answer && !tools.peek && loaded.plan.map((el) => <PlanMark key={el.id} el={el} drawing={drawing} y={L} />)}
+      {/* clean view (2D): the plan redrawn from detections, left of the swipe divider; the original stays on the right */}
+      <CleanLayer loaded={loaded} on={tools.clean && mode === '2d' && !tools.peek} swipe={tools.swipe} y={0.8 * L} />
+
+      {showPlan && !answer && !tools.peek && !tools.clean && loaded.plan.map((el) => <PlanMark key={el.id} el={el} drawing={drawing} y={L} />)}
 
       {dim && shown.length > 0 && (
         <mesh rotation-x={-Math.PI / 2} position-y={2 * L} renderOrder={2} raycast={() => null}>
@@ -203,6 +207,42 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
       ))}
       {tools.mpts.length > 0 && <MeasureLayer drawing={drawing} pts={tools.mpts} closed={tools.mclosed} L={L} overlay={overlay} />}
     </>
+  )
+}
+
+function CleanLayer({ loaded, on, swipe, y }: { loaded: Loaded; on: boolean; swipe: number; y: number }) {
+  const d = loaded.drawing
+  const [tex, setTex] = useState<THREE.Texture | null>(null)
+  const [want, setWant] = useState(on) // built on first use, kept while the drawing stays open
+  useEffect(() => { if (on) setWant(true) }, [on])
+  useEffect(() => {
+    if (!want) return
+    let live = true, t: THREE.Texture | null = null
+    buildClean(loaded).then((c) => {
+      if (!live || !c) return
+      t = new THREE.CanvasTexture(c)
+      t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8
+      setTex(t)
+    }).catch(() => {})
+    return () => { live = false; t?.dispose(); setTex(null) }
+  }, [loaded, want])
+  const gl = useThree((s) => s.gl)
+  useEffect(() => { gl.localClippingEnabled = true }, [gl])
+  // keep x <= the ground point under the divider (camera looks straight down in 2D, so that is a vertical screen line)
+  const clip = useMemo(() => new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0), [])
+  const tmp = useMemo(() => ({ ray: new THREE.Raycaster(), ground: new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit: new THREE.Vector3(), ndc: new THREE.Vector2() }), [])
+  useFrame(({ camera }) => {
+    if (!on) return
+    tmp.ndc.set(2 * swipe - 1, 0)
+    tmp.ray.setFromCamera(tmp.ndc, camera)
+    if (tmp.ray.ray.intersectPlane(tmp.ground, tmp.hit)) clip.constant = tmp.hit.x
+  })
+  if (!tex || !on) return null
+  return (
+    <mesh rotation-x={-Math.PI / 2} position-y={y} renderOrder={1} raycast={() => null}>
+      <planeGeometry args={[d.width, d.height]} />
+      <meshBasicMaterial map={tex} toneMapped={false} clippingPlanes={[clip]} />
+    </mesh>
   )
 }
 

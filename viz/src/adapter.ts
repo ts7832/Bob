@@ -84,7 +84,7 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
   const rooms: Context['rooms'] = []
   for (const r of sheet?.rooms ?? []) {
     const poly = r.polygon?.length ? r.polygon.map((p) => drawing.toPx(flip(p))) : r.bbox ? boxPts(r.bbox.map(Number), (p) => drawing.toPx(flip(p))) : null
-    if (poly) rooms.push({ id: r.id, name: r.name ?? null, type: r.cls ?? null, polygon: poly })
+    if (poly) rooms.push({ id: r.id, name: r.name ?? null, type: r.cls ?? null, polygon: poly, number: r.number ?? null, area: r.area_m2 ?? null, areaSource: r.area_source ?? null })
   }
   if (drawing.kind === 'svg') for (const e of guids.values()) if (e.type === 'IfcSpace') rooms.push({ id: e.id, name: e.name, type: 'IfcSpace', polygon: e.polygon })
 

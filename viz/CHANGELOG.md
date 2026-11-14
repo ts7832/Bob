@@ -15,8 +15,19 @@ The drawing view (`viz/`): what exists, and what changed when. Newest first. Usa
 | Breakdown answers (areas by type), baseboards, slabs, pipes | yes | optional evidence fields: README "Optional evidence fields" |
 | 3D lift with walls, windows, fixtures, room-aware floors; photo render | yes | 3D / Photo buttons, `view.setMode("3d")` |
 | Symbol-accurate highlights (the drawn door / WC / window glows), class glyphs, double-count note | yes | automatic for symbol classes; README "How evidence is drawn" |
+| Clean view: plan redrawn from detections, swipe compare with the original | yes | Clean view button / C, `view.setClean(on, swipe)` |
 | Evidence that isn't on this sheet (BIM model-wide answers) | yes | says "N of M on this sheet"; selecting one says "Not on this drawing" |
 | Light theme matching the demo page | yes | default |
+
+## 2026-11-14 22:30: clean view, the plan redrawn from what was detected (task C)
+- **Clean view** button (or **C**) in 2D: the plan redrawn from the system's own data, left of a swipe divider. The original drawing stays untouched on the right. Drag the divider to compare any spot.
+- **What is redrawn:**
+  - walls: exact on Swiss and BIM sheets, found in the image on scans;
+  - rooms, tinted by kind (living, wet, kitchen/corridor, storage, balcony), with their name, number and area as the backend has them;
+  - one symbol set: doors and windows cut into the walls, fixtures as boxes with their glyph. BIM symbols are drawn from their own paths.
+- **Labels:** "Redrawn from detections" with a symbol key. Answers are drawn on top of both sides.
+- **Where it is hidden:** in 3D, and on sheets with nothing detected (the judges' PDF sheets), so it never shows an empty redraw.
+- **API:** `view.setClean(on, swipe?)` (swipe = divider position 0..1). Harness: `?clean=0.5`. Test: `tests/clean.py`.
 
 ## 2026-11-14 21:15: the drawn symbol lights up, not just its box (task B)
 - **Counts of doors, windows, WCs, sinks, showers, bathtubs, stairs, columns:** the symbol as drawn on the sheet glows in the answer colour.

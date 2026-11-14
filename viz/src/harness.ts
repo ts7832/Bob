@@ -159,6 +159,7 @@ async function main() {
   if (P.get('synthetic')) await synthetic(P.get('synthetic')!)
   if (P.get('sel')) view.select(P.get('sel'))
   if (P.get('mode') === '3d') view.setMode('3d')
+  if (P.has('clean')) view.setClean(true, Number(P.get('clean') || 0.5)) // ?clean=0.5: clean view, divider position
   if (P.has('photo')) setTimeout(() => (document.querySelector('.dv-tools button[title^="Path"]') as HTMLButtonElement | null)?.click(), 1500)
 }
 main()
