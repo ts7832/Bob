@@ -9,7 +9,9 @@ Model: DRAWQA_READER_MODEL (default Qwen/Qwen3-VL-32B-Instruct, already on the v
 Measured 2026-11-14 on two preview scans (before "skip appliance labels" was added to the prompt): on a hand-lettered
 plan all 15 room names and all 15 printed areas were found (one name with a dropped letter); on a rotated plan all
 room names were found, 4 of 19 texts had a wrong letter, and 7 were not room names (5 appliance labels, 2 floor
-titles). About 35 s per drawing on an A100-80GB, plus about 2.5 minutes to load the model when it is cold.
+titles). 13 to 35 s per drawing on an A100-80GB once loaded. Cold start of the deployed service: about 11 minutes
+(first live call 2026-11-14: 62 GB of weights read off the volume at ~70 s per shard), so warm it up before a demo;
+it stays loaded for 10 minutes after the last call (scaledown_window).
 """
 import json, os, re
 

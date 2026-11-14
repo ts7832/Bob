@@ -157,6 +157,16 @@ def _poly_pts(g):
     return [float(x) for x, _ in pts], [float(y) for _, y in pts]
 
 
+def _in_poly(px, py, X, Y):
+    """Point in polygon (ray casting); X, Y = the polygon's corner coordinates."""
+    inside, n = False, len(X)
+    for i in range(n):
+        x0, y0, x1, y1 = X[i], Y[i], X[(i + 1) % n], Y[(i + 1) % n]
+        if (y0 > py) != (y1 > py) and px < x0 + (py - y0) * (x1 - x0) / (y1 - y0):
+            inside = not inside
+    return inside
+
+
 def _parse_one(args):
     """One plan -> image copy + YOLO label file. Returns (name, class counts, parse errors) or None."""
     import re, shutil, sys
@@ -185,6 +195,7 @@ def _parse_one(args):
             boxes.append((CLASSES.index(cls), x0, y0, x1, y1))
 
     is_wc = lambda lab: re.fullmatch(r"(INV\.?)? ?WC.*", lab) is not None
+    sauna_marks, undecided = [], []
     for g in dom.getElementsByTagName("g"):
         cls_attr, gid = g.getAttribute("class"), g.getAttribute("id")
         toks = cls_attr.split()
@@ -201,6 +212,8 @@ def _parse_one(args):
                     continue
                 _, _, X, Y = svg_utils.get_icon(g)
                 add(cls, list(X), list(Y), pad=1.0)
+                if cls in ("sauna_stove", "sauna_bench") and len(X):
+                    sauna_marks.append(((min(X) + max(X)) / 2, (min(Y) + max(Y)) / 2))
             elif cls_attr.startswith("Space "):
                 kind, lab = cls_attr[6:], _text(g)
                 room = ("bedroom" if kind.startswith("Bedroom") else "kitchen" if kind.startswith("Kitchen")
@@ -209,7 +222,9 @@ def _parse_one(args):
                         else "sauna_room" if kind.startswith("Sauna") or lab in ("S", "SAUNA") else None)
                 if room is None:
                     room = next((c for prefix, c in OTHER_ROOMS if kind.startswith(prefix)), None)
-                if room:
+                if room in (None, "other_room"):
+                    undecided.append((room, *_poly_pts(g)))  # may turn out to be a sauna, see below
+                elif room:
                     add(room, *_poly_pts(g), pad=0.0)
             elif "Floorplan" in toks:
                 X, Y = [], []
@@ -221,6 +236,13 @@ def _parse_one(args):
                 add("floor", X, Y, pad=4.0)
         except Exception:
             errors += 1
+    # CubiCasa names only 133 rooms 'Sauna' in 5,000 plans, although 2,877 plans-worth of sauna stoves are drawn: most
+    # saunas are annotated 'Undefined'. A space with no usable label that holds a sauna stove or bench IS the sauna.
+    for room, X, Y in undecided:
+        if len(X) >= 3 and any(_in_poly(mx, my, X, Y) for mx, my in sauna_marks):
+            room = "sauna_room"
+        if room:
+            add(room, X, Y, pad=0.0)
     name = folder.strip("/").replace("/", "-")
     shutil.copy(src + "F1_original.png", f"{D}/yolo/images/{split}/{name}.png")
     lines = "".join(f"{c} {(x0 + x1) / 2 / w:.6f} {(y0 + y1) / 2 / h:.6f} {(x1 - x0) / w:.6f} {(y1 - y0) / h:.6f}\n" for c, x0, y0, x1, y1 in boxes)

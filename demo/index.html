@@ -85,7 +85,7 @@ let current = null, svgEl = null, baseVB = null, hlLayer = null, planLayer = nul
 const KINDS = {
   door:["Doors","#2563eb","Openings"], window:["Windows","#0d9488","Openings"],
   wc:["WC seats","#9333ea","Fixtures"], sink:["Sinks / wash basins","#db2777","Fixtures"], bathtub:["Bathtubs","#0891b2","Fixtures"],
-  shower:["Showers","#4f46e5","Fixtures"], sauna_stove:["Sauna stoves","#b45309","Fixtures"], sauna_bench:["Sauna benches","#a16207","Fixtures"],
+  shower:["Showers","#4f46e5","Fixtures"], sauna_stove:["Sauna stove (kiuas)","#b45309","Fixtures"], sauna_bench:["Bench levels inside a sauna","#a16207","Fixtures"],
   bedroom:["Bedrooms","#3b82f6","Rooms"], kitchen:["Kitchens","#eab308","Rooms"], bathroom:["Bathrooms","#10b981","Rooms"],
   wc_room:["WC rooms","#a855f7","Rooms"], balcony:["Balconies","#84cc16","Rooms"], sauna_room:["Sauna rooms","#ef4444","Rooms"],
   living_room:["Living rooms","#f97316","Rooms"], dining:["Dining areas","#d97706","Rooms"], room:["Rooms (general)","#6366f1","Rooms"],
@@ -231,7 +231,7 @@ function namesCard(p) {
   if (!p.can_read_names) return "";
   const n = p.names;
   if (!n) return `<div class="card" id="namescard"><div class="meta">The detector only knows a fixed list of room types. The names printed on the drawing can be read by a vision model.</div>
-    <button class="ask" id="readnames" style="background:#7c3aed">Read room names and areas</button><div class="meta" style="margin-top:6px">Runs on a cloud GPU: about half a minute, up to three when it has to start up.</div></div>`;
+    <button class="ask" id="readnames" style="background:#7c3aed">Read room names and areas</button><div class="meta" style="margin-top:6px">Runs on a cloud GPU: 10 to 40 seconds when the service is warm, about 11 minutes when it has to start up first.</div></div>`;
   if (n.error) return `<div class="card" id="namescard"><div class="warn">${esc(n.error)}</div></div>`;
   const rows = n.rooms.map(r => `<div class="frow" style="cursor:default"><i style="border-color:#7c3aed;background:#7c3aed22"></i><span>${esc(r.label)}</span><b style="min-width:70px">${r.area == null ? "" : r.area + " m²"}</b></div>`).join("");
   const total = n.rooms.reduce((s, r) => s + (r.area || 0), 0), withArea = n.rooms.filter(r => r.area != null).length;
