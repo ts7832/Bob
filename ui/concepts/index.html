@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en" data-concept="1">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bob design concepts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Design concepts for the Bob interface. Static mock-ups with real numbers from the library (Esplanades, level 2).
+   Typeface: Palantir's site uses "Alliance No.1 / No.2" (Degarism Studio, licensed). If it is installed on this
+   computer, or its files are put in ui/fonts/, it is used; otherwise Geist, the closest free grotesque. */
+@font-face{font-family:"Alliance No.2";src:local("Alliance No.2"),local("AllianceNo2-Regular"),url(../fonts/AllianceNo2-Regular.woff2) format("woff2");font-weight:400}
+@font-face{font-family:"Alliance No.2";src:local("Alliance No.2 Bold"),local("AllianceNo2-Bold"),url(../fonts/AllianceNo2-Bold.woff2) format("woff2");font-weight:700}
+:root{--ui:"Alliance No.2","Alliance No.1","Geist",system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,monospace}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{font:13px/1.4 var(--ui);color:var(--ink);background:var(--bg);display:grid;grid-template:"top top top" auto "rail stage side" 1fr "foot foot foot" auto / auto 1fr var(--sidew,400px);overflow:hidden}
+button,input{font:inherit;color:inherit}
+.mono{font-family:var(--mono)}
+
+/* ---------- shared anatomy ---------- */
+.top{grid-area:top;display:flex;align-items:center;gap:16px;padding:0 14px;height:46px;background:var(--top);color:var(--topink);border-bottom:1px solid var(--line)}
+.logo{font-weight:800;letter-spacing:.22em;font-size:13px;display:flex;align-items:center;gap:9px}
+.logo i{width:16px;height:16px;background:var(--acc);display:block}
+.crumb{display:flex;gap:8px;align-items:center;font-size:12.5px;opacity:.92}
+.crumb span{opacity:.5}
+.crumb b{font-weight:600}
+.top .sp{flex:1}
+.kbd{font:11px var(--mono);border:1px solid var(--line);padding:2px 6px;border-radius:3px;opacity:.7}
+.search{display:flex;align-items:center;gap:8px;border:1px solid var(--line);padding:5px 10px;min-width:260px;font-size:12px;border-radius:var(--r);background:var(--field);color:var(--mute)}
+.user{width:26px;height:26px;border-radius:50%;background:var(--acc);color:var(--accink);display:grid;place-items:center;font-weight:700;font-size:11px}
+.rail{grid-area:rail;width:50px;background:var(--rail);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:6px}
+.rail b{width:34px;height:34px;display:grid;place-items:center;border-radius:var(--r);color:var(--mute)}
+.rail b.on{background:var(--acc);color:var(--accink)}
+.rail svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7}
+.stage{grid-area:stage;position:relative;background:var(--canvas);overflow:hidden;min-width:0}
+.plan{position:absolute;inset:44px 28px 34px 28px;background:url(plan.jpg) center/contain no-repeat;mix-blend-mode:multiply;filter:var(--planfx,none)}
+.tools{position:absolute;left:14px;top:12px;display:flex;gap:0;border:1px solid var(--line);background:var(--panel);border-radius:var(--r);overflow:hidden;font-size:12px}
+.tools span{padding:6px 11px;border-right:1px solid var(--line)}
+.tools span:last-child{border:0}
+.tools .on{background:var(--ink);color:var(--panel)}
+.mark{position:absolute;border:2px solid var(--acc);background:color-mix(in srgb,var(--acc) 14%,transparent)}
+.mark u{position:absolute;left:-2px;top:-17px;white-space:nowrap;background:var(--acc);color:var(--accink);font:600 10px var(--mono);padding:1px 5px;text-decoration:none}
+.hud{position:absolute;right:14px;top:12px;font:11px var(--mono);color:var(--mute);text-align:right;line-height:1.7}
+.hud b{color:var(--ink);font-weight:600}
+.stack{position:absolute;left:16px;bottom:16px;width:176px;padding-right:40px!important;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:10px}
+.stack h4,.side h4{font:600 10px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute);margin-bottom:8px}
+.slab{height:13px;margin:0 0 5px 8px;border:1px solid var(--line);background:var(--field);transform:skewX(-28deg);position:relative}
+.slab.on{background:var(--acc);border-color:var(--acc)}
+.slab em{position:absolute;right:-34px;top:-2px;font:10px var(--mono);font-style:normal;transform:skewX(28deg);color:var(--mute)}
+.side{grid-area:side;background:var(--panel);border-left:1px solid var(--line);overflow:auto;display:flex;flex-direction:column}
+.sec{padding:14px 16px;border-bottom:1px solid var(--line)}
+.ask{display:flex;gap:8px}
+.ask input{flex:1;border:1px solid var(--line);background:var(--field);padding:9px 11px;border-radius:var(--r);outline:0}
+.ask button{border:0;background:var(--acc);color:var(--accink);font-weight:700;padding:0 16px;border-radius:var(--r);letter-spacing:.04em}
+.scope{display:flex;gap:6px;margin-top:9px;font-size:11.5px}
+.scope span{border:1px solid var(--line);padding:3px 9px;border-radius:99px;color:var(--mute)}
+.scope .on{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.big{font:700 64px/1 var(--ui);letter-spacing:-.04em;display:flex;align-items:baseline;gap:10px}
+.big small{font:500 15px var(--ui);letter-spacing:0;color:var(--mute)}
+.tier{display:inline-flex;align-items:center;gap:6px;font:600 10.5px var(--mono);letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border:1px solid var(--good);color:var(--good);border-radius:var(--r);margin-top:10px}
+.tier::before{content:"";width:6px;height:6px;background:var(--good)}
+.reuse{margin-left:6px;border-color:var(--acc);color:var(--acc)}
+.reuse::before{background:var(--acc)}
+.bar{height:6px;background:var(--field);margin-top:12px;position:relative;border-radius:var(--r);overflow:hidden}
+.bar i{position:absolute;inset:0 3% 0 0;background:var(--good)}
+.kv{display:grid;grid-template-columns:104px 1fr;gap:5px 10px;margin-top:12px;font-size:12px}
+.kv dt{color:var(--mute);font:11px var(--mono);text-transform:uppercase;letter-spacing:.05em}
+table{width:100%;border-collapse:collapse;font-size:12px}
+td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left}
+th{font:600 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+td.n{font-family:var(--mono);text-align:right}
+.meter{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.meter div{border:1px solid var(--line);padding:10px;border-radius:var(--r);background:var(--field)}
+.meter b{display:block;font:700 22px var(--mono);letter-spacing:-.02em}
+.meter small{color:var(--mute);font-size:11px}
+.foot{grid-area:foot;display:flex;gap:18px;padding:0 14px;height:26px;align-items:center;font:11px var(--mono);color:var(--mute);background:var(--top);border-top:1px solid var(--line)}
+.foot b{color:var(--good)}
+.foot .sp{flex:1}
+.pick{position:fixed;left:50%;bottom:36px;transform:translateX(-50%);display:flex;gap:0;background:#111;border-radius:99px;padding:4px;z-index:9;box-shadow:0 8px 30px rgba(0,0,0,.3)}
+.pick button{border:0;background:none;color:#bbb;padding:7px 14px;border-radius:99px;font:600 12px var(--ui);cursor:pointer}
+.pick button.on{background:#fff;color:#111}
+
+/* ---------- 1  FOUNDRY: operational light grey, dense, blue ---------- */
+[data-concept="1"]{--bg:#e9ecf0;--canvas:#dfe3e8;--panel:#f4f6f8;--field:#e7eaee;--rail:#f4f6f8;--top:#f4f6f8;--topink:#1c2127;--line:#cbd2da;--ink:#1c2127;--mute:#5f6b7c;--acc:#2d72d2;--accink:#fff;--good:#1c6e42;--r:3px}
+[data-concept="1"] .stage{background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:40px 40px;background-color:var(--canvas)}
+
+/* ---------- 2  GOTHAM HUD: pale steel, corner brackets, crosshair, signal green ---------- */
+[data-concept="2"]{--bg:#d9dde0;--canvas:#e6e9eb;--panel:#eceff1;--field:#dfe3e6;--rail:#15191d;--top:#15191d;--topink:#e6e9eb;--line:#b9c0c6;--ink:#12161a;--mute:#5a646d;--acc:#12161a;--accink:#c8ff5a;--good:#3a7d0a;--r:0px}
+[data-concept="2"] body,[data-concept="2"]{font-family:var(--mono)}
+[data-concept="2"] .big{font-family:var(--mono);font-size:58px}
+[data-concept="2"] .rail b{color:#7d8791}
+[data-concept="2"] .rail b.on{background:#c8ff5a;color:#12161a}
+[data-concept="2"] .logo i{background:#c8ff5a}
+[data-concept="2"] .user{background:#c8ff5a;color:#12161a}
+[data-concept="2"] .top .search{background:#20262c;border-color:#343c44;color:#8a949e}
+[data-concept="2"] .top .kbd{border-color:#343c44}
+[data-concept="2"] .stage::before,[data-concept="2"] .stage::after{content:"";position:absolute;inset:34px 18px 24px 18px;pointer-events:none;
+  background:linear-gradient(var(--ink),var(--ink)) left top/26px 2px no-repeat,linear-gradient(var(--ink),var(--ink)) left top/2px 26px no-repeat,
+  linear-gradient(var(--ink),var(--ink)) right top/26px 2px no-repeat,linear-gradient(var(--ink),var(--ink)) right top/2px 26px no-repeat,
+  linear-gradient(var(--ink),var(--ink)) left bottom/26px 2px no-repeat,linear-gradient(var(--ink),var(--ink)) left bottom/2px 26px no-repeat,
+  linear-gradient(var(--ink),var(--ink)) right bottom/26px 2px no-repeat,linear-gradient(var(--ink),var(--ink)) right bottom/2px 26px no-repeat}
+[data-concept="2"] .stage::after{inset:0;background:linear-gradient(90deg,transparent calc(50% - .5px),rgba(18,22,26,.25) 50%,transparent calc(50% + .5px)),linear-gradient(transparent calc(50% - .5px),rgba(18,22,26,.25) 50%,transparent calc(50% + .5px))}
+[data-concept="2"] .mark{border-color:#3a7d0a;background:rgba(200,255,90,.35)}
+[data-concept="2"] .mark u{background:#12161a;color:#c8ff5a}
+[data-concept="2"] .slab.on{background:#c8ff5a;border-color:#12161a}
+[data-concept="2"] .bar i{background:repeating-linear-gradient(90deg,#3a7d0a 0 6px,transparent 6px 8px)}
+[data-concept="2"] .foot{color:#8a949e}[data-concept="2"] .foot b{color:#c8ff5a}
+
+/* ---------- 3  CYANOTYPE: drafting vellum, blueprint blue, title-block panels ---------- */
+[data-concept="3"]{--bg:#dde6ef;--canvas:#e9f0f7;--panel:#eef3f9;--field:#dfe8f2;--rail:#0d3b78;--top:#0d3b78;--topink:#eaf2fb;--line:#9db6d3;--ink:#0b2f5e;--mute:#4e6f96;--acc:#0d57b8;--accink:#fff;--good:#0b6b52;--r:0px}
+[data-concept="3"] .stage{background-image:linear-gradient(rgba(13,87,184,.16) 1px,transparent 1px),linear-gradient(90deg,rgba(13,87,184,.16) 1px,transparent 1px),linear-gradient(rgba(13,87,184,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(13,87,184,.07) 1px,transparent 1px);background-size:100px 100px,100px 100px,20px 20px,20px 20px}
+[data-concept="3"]{--planfx:sepia(1) hue-rotate(175deg) saturate(3.2) brightness(.92)}
+[data-concept="3"] .rail b{color:#8fb2de}[data-concept="3"] .rail b.on{background:#eaf2fb;color:#0d3b78}
+[data-concept="3"] .logo i{background:#eaf2fb;border-radius:50%}
+[data-concept="3"] .top .search{background:#0a326a;border-color:#3d69a4;color:#a9c4e6}[data-concept="3"] .top .kbd{border-color:#3d69a4}
+[data-concept="3"] .user{background:#eaf2fb;color:#0d3b78}
+[data-concept="3"] .side{border-left:2px solid var(--ink)}
+[data-concept="3"] .sec{border-bottom:2px solid var(--ink);position:relative}
+[data-concept="3"] .side h4{color:var(--ink)}
+[data-concept="3"] .big{font-weight:300;font-size:76px}
+[data-concept="3"] .tier{border-width:2px;transform:rotate(-3deg);border-radius:4px;font-size:12px;padding:4px 10px}
+[data-concept="3"] .meter div,[data-concept="3"] .stack,[data-concept="3"] .tools{border:1.5px solid var(--ink);background:var(--panel)}
+[data-concept="3"] .foot{color:#a9c4e6}[data-concept="3"] .foot b{color:#fff}
+
+/* ---------- 4  ALUCARD: light Dracula, answers as coloured code, command prompt ---------- */
+[data-concept="4"]{--bg:#e9e5d6;--canvas:#f1eddf;--panel:#f6f3e7;--field:#ebe6d5;--rail:#f6f3e7;--top:#f6f3e7;--topink:#1f1f1f;--line:#d0c9b2;--ink:#1f1f1f;--mute:#6c664b;--acc:#644ac9;--accink:#fff;--good:#14710a;--r:8px;--pink:#a3144d;--cyan:#036a96;--orange:#a34d14}
+[data-concept="4"] body,[data-concept="4"]{font-family:var(--mono);font-size:12.5px}
+[data-concept="4"] .logo{color:var(--acc)}[data-concept="4"] .logo i{border-radius:5px;background:linear-gradient(135deg,#644ac9,#a3144d)}
+[data-concept="4"] .ask input{padding-left:26px;background:var(--field) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M2 2l5 4-5 4' fill='none' stroke='%23644ac9' stroke-width='2'/%3E%3C/svg%3E") 9px center no-repeat}
+[data-concept="4"] .big{font-family:var(--mono);color:var(--acc);font-size:60px}
+[data-concept="4"] .big small{color:var(--pink)}
+[data-concept="4"] .kv dt{color:var(--cyan)}[data-concept="4"] .kv dd{color:var(--orange)}
+[data-concept="4"] th{color:var(--pink)}[data-concept="4"] td.n{color:var(--cyan)}
+[data-concept="4"] .mark{border-color:var(--pink);background:rgba(163,20,77,.12)}[data-concept="4"] .mark u{background:var(--pink)}
+[data-concept="4"] .meter b{color:var(--acc)}[data-concept="4"] .meter div:last-child b{color:var(--good)}
+[data-concept="4"] .rail b.on{background:linear-gradient(135deg,#644ac9,#a3144d)}
+[data-concept="4"] .slab.on{background:linear-gradient(90deg,#644ac9,#a3144d);border-color:#644ac9}
+
+/* ---------- 5  SITE OFFICE: warm concrete, safety orange, heavy type, big cards ---------- */
+[data-concept="5"]{--bg:#d8d5cf;--canvas:#e7e4de;--panel:#efece6;--field:#e0dcd4;--rail:#1b1a18;--top:#efece6;--topink:#1b1a18;--line:#c2bdb2;--ink:#1b1a18;--mute:#66625a;--acc:#f04e00;--accink:#fff;--good:#1b6b3a;--r:10px;--sidew:440px}
+[data-concept="5"] .rail b{color:#8d897f}
+[data-concept="5"] .logo{font-size:17px;letter-spacing:.02em}[data-concept="5"] .logo i{border-radius:4px;transform:rotate(45deg) scale(.8)}
+[data-concept="5"] .side{background:var(--bg);border:0;padding:10px;gap:10px}
+[data-concept="5"] .sec{background:var(--panel);border:0;border-radius:14px;box-shadow:0 1px 0 #fff inset,0 2px 6px rgba(0,0,0,.06)}
+[data-concept="5"] .big{font-weight:800;font-size:92px;letter-spacing:-.06em}
+[data-concept="5"] .side h4{font-family:var(--ui);font-size:11px;letter-spacing:.08em;font-weight:700}
+[data-concept="5"] .stage{border-radius:14px;margin:10px 0 10px 10px;background-image:repeating-linear-gradient(135deg,rgba(0,0,0,.025) 0 10px,transparent 10px 20px)}
+[data-concept="5"] .tier{border:0;background:var(--good);color:#fff;border-radius:99px;padding:5px 12px}[data-concept="5"] .tier::before{background:#fff;border-radius:50%}
+[data-concept="5"] .reuse{background:var(--acc)}
+[data-concept="5"] .ask button{border-radius:99px}[data-concept="5"] .ask input{border-radius:99px;padding-left:16px}
+[data-concept="5"] .foot{background:var(--bg);border:0}
+
+/* ---------- 6  MONOLITH: off-white, hairlines, giant thin numerals, single red accent (Swiss poster) ---------- */
+[data-concept="6"]{--bg:#e6e6e3;--canvas:#ececea;--panel:#f1f1ef;--field:#e4e4e1;--rail:#f1f1ef;--top:#f1f1ef;--topink:#0c0c0c;--line:#0c0c0c;--ink:#0c0c0c;--mute:#55554f;--acc:#e10600;--accink:#fff;--good:#0c0c0c;--r:0px;--sidew:430px}
+[data-concept="6"] .top,[data-concept="6"] .foot{border-color:#0c0c0c}
+[data-concept="6"] .logo{font-size:20px;letter-spacing:-.03em;font-weight:800}[data-concept="6"] .logo i{width:11px;height:11px;border-radius:50%}
+[data-concept="6"] .rail b{border-radius:50%}
+[data-concept="6"] .big{font-weight:300;font-size:128px;letter-spacing:-.07em;line-height:.85}
+[data-concept="6"] .sec{border-bottom:1px solid #0c0c0c}
+[data-concept="6"] td,[data-concept="6"] th{border-color:rgba(12,12,12,.2)}
+[data-concept="6"] .meter div,[data-concept="6"] .ask input,[data-concept="6"] .search,[data-concept="6"] .tools,[data-concept="6"] .stack,[data-concept="6"] .scope span,[data-concept="6"] .kbd{border-color:#0c0c0c}
+[data-concept="6"] .slab{border-color:#0c0c0c}
+[data-concept="6"] .tier{border-color:#0c0c0c;color:#0c0c0c}[data-concept="6"] .tier::before{background:var(--acc);border-radius:50%}
+[data-concept="6"] .reuse{background:var(--acc);border-color:var(--acc);color:#fff}[data-concept="6"] .reuse::before{background:#fff}
+[data-concept="6"] .bar{height:2px}[data-concept="6"] .bar i{background:var(--acc)}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="logo"><i></i>BOB</div>
+  <div class="crumb">Demo <span>/</span> Esplanades <span>/</span> <b>Level 2 · 2.korrus</b></div>
+  <div class="sp"></div>
+  <div class="search">Search blueprints, rooms, tags <span class="sp" style="flex:1"></span><span class="kbd">⌘K</span></div>
+  <div class="user">TS</div>
+</div>
+<div class="rail">
+  <b class="on"><svg viewBox="0 0 24 24"><path d="M3 21V8l9-5 9 5v13M9 21v-7h6v7"/></svg></b>
+  <b><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></b>
+  <b><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5"/></svg></b>
+  <b><svg viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2z"/></svg></b>
+  <b><svg viewBox="0 0 24 24"><path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5"/></svg></b>
+</div>
+<div class="stage">
+  <div class="plan"></div>
+  <div class="tools"><span class="on">Plan</span><span>Rooms</span><span>Doors</span><span>Measure</span><span>3D stack</span></div>
+  <div class="mark" style="left:37%;top:43%;width:2.2%;height:4%"><u>D-07</u></div>
+  <div class="mark" style="left:52%;top:38%;width:2.2%;height:4%"><u>D-12</u></div>
+  <div class="mark" style="left:61%;top:55%;width:2.2%;height:4%"><u>D-19</u></div>
+  <div class="hud mono">SCALE <b>1:100</b><br>SHEET <b>4000 × 3168 px</b><br>SOURCE <b>BIM model</b><br>X <b>24.180 m</b> · Y <b>11.642 m</b></div>
+  <div class="stack"><h4>Building</h4>
+    <div class="slab" style="width:62%"><em>L5</em></div><div class="slab" style="width:74%"><em>L4</em></div><div class="slab" style="width:74%"><em>L3</em></div>
+    <div class="slab on" style="width:74%"><em>L2</em></div><div class="slab" style="width:80%"><em>L1</em></div></div>
+</div>
+<div class="side">
+  <div class="sec">
+    <div class="ask"><input value="How many doors are on this floor?"><button>ASK</button></div>
+    <div class="scope"><span class="on">This blueprint</span><span>Whole project · 5 sheets</span></div>
+  </div>
+  <div class="sec">
+    <h4>Answer</h4>
+    <div class="big">42 <small>doors</small></div>
+    <span class="tier">Measured</span><span class="tier reuse">From library · $0</span>
+    <div class="bar"><i></i></div>
+    <dl class="kv"><dt>Confidence</dt><dd>97% · exact model data</dd><dt>Method</dt><dd>Door elements on storey 2.korrus</dd><dt>First asked</dt><dd>0.386 s of engine time</dd><dt>Asked again</dt><dd>3 times, 0 s</dd></dl>
+  </div>
+  <div class="sec">
+    <h4>Whole project</h4>
+    <table><tr><th>Blueprint</th><th style="text-align:right">Doors</th><th style="text-align:right">Rooms</th></tr>
+      <tr><td>Level 1</td><td class="n">46</td><td class="n">50</td></tr><tr><td>Level 2</td><td class="n">42</td><td class="n">60</td></tr><tr><td>Level 3</td><td class="n">42</td><td class="n">60</td></tr><tr><td>Level 4</td><td class="n">42</td><td class="n">60</td></tr><tr><td>Level 5</td><td class="n">39</td><td class="n">55</td></tr><tr><td><b>Total</b></td><td class="n"><b>211</b></td><td class="n"><b>285</b></td></tr></table>
+  </div>
+  <div class="sec">
+    <h4>Compute</h4>
+    <div class="meter"><div><b>12.3 s</b><small>spent once, 418 answers</small></div><div><b>$0.00</b><small>for every answer asked again</small></div></div>
+  </div>
+</div>
+<div class="foot"><span><b>●</b> library online</span><span>62 blueprints</span><span>4 projects</span><span>MariaDB vector index</span><span class="sp"></span><span>design mock-up · numbers from the library</span></div>
+<div class="pick" id="pick"></div>
+<script>
+const names = ["Foundry", "Gotham HUD", "Cyanotype", "Alucard", "Site office", "Monolith"];
+const pick = document.getElementById("pick");
+const set = (n) => { document.documentElement.dataset.concept = n; [...pick.children].forEach((b, i) => b.classList.toggle("on", i + 1 == n)); history.replaceState(0, "", "?c=" + n); };
+names.forEach((t, i) => { const b = document.createElement("button"); b.textContent = (i + 1) + " " + t; b.onclick = () => set(i + 1); pick.appendChild(b); });
+set(new URLSearchParams(location.search).get("c") || 1);
+document.addEventListener("keydown", (e) => { if (e.key >= "1" && e.key <= "6") set(+e.key); });
+</script>
+</body>
+</html>
