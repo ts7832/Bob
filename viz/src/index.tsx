@@ -63,7 +63,7 @@ export function mount(el: HTMLElement, opts: MountOptions = {}): DrawViewHandle 
   }
 
   const apply = (loaded: Loaded) => {
-    store.set({ loaded, answer: null, selectedId: null, hoverId: null, loading: false, error: null })
+    store.set({ loaded, answer: null, selectedId: null, hoverId: null, loading: false, error: null, mpts: [], mclosed: false, hidden: [] })
     if (pending) { const [a, q] = pending; pending = null; handle.showAnswer(a, q) }
   }
 
@@ -107,7 +107,7 @@ export function mount(el: HTMLElement, opts: MountOptions = {}): DrawViewHandle 
       ensureAttached()
       const { loaded, loading } = store.get()
       if (!loaded || loading) { pending = [ask, question]; return }
-      store.set({ answer: toAnswer(ask, loaded, question), selectedId: null, hoverId: null })
+      store.set({ answer: toAnswer(ask, loaded, question), selectedId: null, hoverId: null, hidden: [] })
     },
     clear() { pending = null; store.set({ answer: null, selectedId: null, hoverId: null }) },
     reset() { store.set({ selectedId: null, fitAll: store.get().fitAll + 1 }) },

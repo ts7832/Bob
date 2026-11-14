@@ -96,3 +96,32 @@
 .dv-legend b { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
 
 @media (prefers-reduced-motion: reduce) { .dv-tag-active { transform: none; } }
+
+/* evidence stepper and clickable legend inside the (otherwise click-through) answer card */
+.dv-step { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 12.5px; pointer-events: auto; }
+.dv-step button { background: var(--dv-panel); border: 1px solid var(--dv-line); border-radius: 7px; width: 28px; height: 26px; cursor: pointer; font-size: 16px; line-height: 1; }
+.dv-step button:hover { background: var(--dv-chip); }
+.dv-step span { font-weight: 600; font-variant-numeric: tabular-nums; min-width: 64px; text-align: center; }
+.dv-step em { font-style: normal; color: var(--dv-muted); margin-left: 4px; }
+.dv-legend li { pointer-events: auto; cursor: pointer; border-radius: 6px; padding: 1px 4px; margin: 0 -4px; }
+.dv-legend li:hover { background: var(--dv-chip); }
+.dv-legend li.dv-off { opacity: 0.4; }
+.dv-legend li.dv-off i { background: transparent !important; outline: 1.5px solid var(--dv-muted); outline-offset: -1.5px; }
+
+/* wall cut-height slider (3D) */
+.dv-cut { display: flex; align-items: center; gap: 6px; background: var(--dv-panel); border: 1px solid var(--dv-line); border-radius: 7px; padding: 2px 10px; font-size: 12.5px; }
+.dv-cut input { width: 90px; accent-color: var(--dv-accent); }
+
+/* measure tool */
+.dv-measure {
+  position: absolute; left: 12px; bottom: 52px; max-width: min(520px, calc(100% - 24px)); background: var(--dv-panel);
+  border: 1px solid #b9cdf3; border-radius: 10px; padding: 8px 12px; box-shadow: var(--dv-float); font-size: 13px; display: grid; gap: 2px;
+}
+.dv-measure small { color: var(--dv-muted); font-size: 12px; }
+.dv-mdot { width: 9px; height: 9px; border-radius: 50%; background: #fff; border: 2px solid #2f6fde; }
+.dv-mlabel { background: #2f6fde; color: #fff; font: 600 11.5px/1 system-ui, sans-serif; padding: 3px 6px; border-radius: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* shown while the original is peeked at */
+.dv-peek { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: var(--dv-ink); color: #fff; font-size: 12.5px; border-radius: 99px; padding: 4px 12px; pointer-events: none; }
+.dv-offsheet { margin: 0; font-size: 13px; color: var(--dv-muted); }
+.dv-offsheet code { display: block; margin-top: 6px; color: var(--dv-ink); font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }

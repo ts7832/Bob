@@ -63,7 +63,9 @@ async function showAsk(i: number) {
 
 async function postAsk(question: string) {
   const fx = index.find((f) => f.stem === stem)!
-  return (await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: fx.path, question }) })).json()
+  const r = await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: fx.path, question }) })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return r.json()
 }
 
 function renderAnswer(r: Ask['response'], truth: unknown) {
@@ -87,9 +89,17 @@ $('ask').addEventListener('submit', async (e) => {
   e.preventDefault()
   const q = ($('q') as HTMLInputElement).value.trim()
   if (!q) return
-  if (live) { const r = await postAsk(q); view.showAnswer(r, q); renderAnswer(r, null); return }
-  const i = asks.findIndex((a) => a.question.toLowerCase() === q.toLowerCase())
-  if (i >= 0) showAsk(i); else $('answer').innerHTML = '<div class="ans muted">Replay mode only knows the listed questions. Add ?live=1 for the real server.</div>'
+  // typed questions always go to the real backend (the demo server, through the Vite proxy); saved answers are only
+  // used for the listed questions in replay mode
+  const i = live ? -1 : asks.findIndex((a) => a.question.toLowerCase() === q.toLowerCase())
+  if (i >= 0) { showAsk(i); return }
+  $('answer').innerHTML = '<div class="ans muted">Asking the backend…</div>'
+  try {
+    const r = await postAsk(q)
+    view.showAnswer(r, q); renderAnswer(r, null)
+  } catch {
+    $('answer').innerHTML = '<div class="ans bad">The backend is not reachable. Start it with: cd Bob && DRAWQA_LLM=0 PORT=8765 .venv/bin/python demo/server.py</div>'
+  }
 })
 
 // ?synthetic=areas|baseboards|slabs|pipes: test answers built from a Swiss sheet's real room polygons, to exercise the
