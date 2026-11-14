@@ -37,13 +37,15 @@ export function buildFixtures(l: Loaded, wallH: number): Map<Mat, THREE.BufferGe
     if (c) model(l.drawing, c, f.polygon, wallH, near, parts, f.cls)
   }
   for (const o of l.context.openings) if (o.cls === 'door') model(l.drawing, 'door', o.polygon, wallH, near, parts)
+  for (const e of l.guids.values()) if (e.leaf) leaf3d(l.drawing, e.leaf, wallH, parts) // BIM doors: the drawn leaf
   return merge(parts)
 }
 
 // One object's model as a single geometry (for the evidence highlight, which colours it in the answer colour).
-export function buildOne(l: Loaded, cls: Cls, poly: Pt[], wallH: number): THREE.BufferGeometry | null {
+export function buildOne(l: Loaded, cls: Cls, poly: Pt[], wallH: number, leaf?: Pt[] | null): THREE.BufferGeometry | null {
   const parts: Parts = new Map()
-  model(l.drawing, cls, poly, wallH, wallProbe(l.context.walls), parts)
+  if (leaf) leaf3d(l.drawing, leaf, wallH, parts)
+  else model(l.drawing, cls, poly, wallH, wallProbe(l.context.walls), parts)
   const all = [...parts.entries()].filter(([m]) => m !== 'glass').flatMap(([, g]) => g)
   if (!all.length) return null
   const g = mergeGeometries(all.map((x) => (x.index ? x.toNonIndexed() : x)).map(strip))
@@ -64,6 +66,13 @@ const strip = (g: THREE.BufferGeometry) => { // same attribute set everywhere so
   for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') g.deleteAttribute(k)
   if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((g.attributes.position.count) * 2), 2))
   return g
+}
+
+// BIM door leaf exactly as the model draws it (open), standing to door height
+function leaf3d(d: Drawing, ring: Pt[], wallH: number, parts: Parts) {
+  const s = new THREE.Shape(ring.map((p) => toShape(d, p)))
+  const g = new THREE.ExtrudeGeometry(s, { depth: (2.05 / 2.6) * wallH, bevelEnabled: false })
+  const a = parts.get('leaf') ?? []; a.push(g); parts.set('leaf', a)
 }
 
 // ---- local frame of a detected box: u along its long side, v across, z up (all sheet px)

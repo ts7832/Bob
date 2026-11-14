@@ -180,7 +180,7 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
       {lifted && !photo && !low && <Effects wallH={wallH} />}
       {/* 3D only: if the frame rate stays low, drop AO, shadows and resolution (2D is cheap and never degrades) */}
       {lifted && !photo && <PerformanceMonitor flipflops={3} onDecline={() => onSlow(true)} onIncline={() => onSlow(false)} onFallback={() => onSlow(true)} />}
-      {lifted && photo && <Photo loaded={loaded} b={building} tex={tex} wallH={wallH * cut} answer={answer} baseY={0.5 * L} status={photoStatus} />}
+      {lifted && photo && <Photo loaded={loaded} b={building} tex={tex} wallH={wallH * cut} fixH={wallH} answer={answer} baseY={0.5 * L} status={photoStatus} />}
 
       {/* the original drawing: always visible */}
       <mesh rotation-x={-Math.PI / 2} onClick={(e) => { e.stopPropagation(); if (e.delta > CLICK_PX) return; if (tools.measure) addPoint(e.point); else onSelect(null) }}
@@ -329,7 +329,7 @@ function Highlight({ el, loaded, drawing, tex, hatch, tier, measure, crowded, gl
   // 3D: a symbol's own model (WC, basin, door leaf...) in the answer colour, a little larger so it covers the plain one
   const model = useMemo(() => {
     if (!loaded || open || !el.cls || !SYMBOL.has(el.cls as Cls)) return null
-    const g = buildOne(loaded, el.cls as Cls, el.polygon, wallH)
+    const g = buildOne(loaded, el.cls as Cls, el.polygon, wallH, el.leaf)
     if (!g) return null
     g.computeBoundingBox()
     const c = new THREE.Vector3(); g.boundingBox!.getCenter(c)

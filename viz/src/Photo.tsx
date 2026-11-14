@@ -10,10 +10,12 @@ import type { Answer, Loaded } from './types'
 import type { BuildingGeo } from './Model'
 import { outline, shapeOf, tube } from './geom'
 import { planComposite } from './floors'
+import { buildFixtures, buildOne, fixtureMaterials } from './fixtures3d'
+import { SYMBOL, type Cls } from './ink'
 
 const BG = '#f4f5f7', ACCENT = '#ff7a00'
 
-function buildPhotoScene(loaded: Loaded, b: BuildingGeo, drawingTex: THREE.Texture, wallH: number, answer: Answer | null, baseY: number) {
+function buildPhotoScene(loaded: Loaded, b: BuildingGeo, drawingTex: THREE.Texture, wallH: number, fixH: number, answer: Answer | null, baseY: number) {
   const d = loaded.drawing, max = Math.max(d.width, d.height)
   const scene = new THREE.Scene()
   scene.background = new THREE.Color(BG)
@@ -51,9 +53,31 @@ function buildPhotoScene(loaded: Loaded, b: BuildingGeo, drawingTex: THREE.Textu
   if (b.solid) { group.add(new THREE.Mesh(b.solid[0], mats.cap), new THREE.Mesh(b.solid[1], mats.wall)) }
   if (b.fixtures) group.add(new THREE.Mesh(b.fixtures, mats.ceramic))
   if (b.glass) group.add(new THREE.Mesh(b.glass, mats.glass))
-  // the answer: low glowing volumes that light their rooms
+  // fixtures and door leaves: the same models as the raster view (heights in sheet px, full storey even when walls are cut)
+  const fix = new THREE.Group()
+  fix.rotation.x = -Math.PI / 2
+  fix.position.y = baseY
+  const fmats = fixtureMaterials()
+  // the path tracer: plain physical materials (clearcoat and alpha-blended glass came out black)
+  fmats.ceramic = new THREE.MeshStandardMaterial({ color: '#f8f7f4', roughness: 0.22 })
+  fmats.glass = new THREE.MeshPhysicalMaterial({ color: '#e4f1f6', roughness: 0.02, transmission: 0.9, ior: 1.5, thickness: 1 })
+  owned.push(...Object.values(fmats))
+  for (const [m, g] of buildFixtures(loaded, fixH)) { owned.push(g); fix.add(new THREE.Mesh(g, fmats[m])) }
+  const solidGlow = new THREE.MeshStandardMaterial({ color: ACCENT, emissive: ACCENT, emissiveIntensity: 0.9, roughness: 0.4 })
+  owned.push(solidGlow)
+  // the answer: counted symbols glow as their own model; areas as low glowing volumes that light their rooms
   const lines: THREE.Mesh[] = []
   if (answer?.status === 'answered') for (const el of answer.elements) {
+    if (el.geometry !== 'polyline' && el.cls && SYMBOL.has(el.cls as Cls)) {
+      const g = buildOne(loaded, el.cls as Cls, el.polygon, fixH, el.leaf)
+      if (g) {
+        g.computeBoundingBox()
+        const c = new THREE.Vector3(); g.boundingBox!.getCenter(c)
+        g.translate(-c.x, -c.y, 0).scale(1.035, 1.035, 1.03).translate(c.x, c.y, 0)
+        owned.push(g); fix.add(new THREE.Mesh(g, solidGlow))
+        continue
+      }
+    }
     if (el.geometry === 'polyline') { // open lines glow as tubes (pipes at their size), never as closed filled shapes
       const g = tube(d, outline(el), (el.diameterPx ?? max / 700) / 2)
       owned.push(g)
@@ -66,7 +90,7 @@ function buildPhotoScene(loaded: Loaded, b: BuildingGeo, drawingTex: THREE.Textu
     owned.push(g)
     group.add(new THREE.Mesh(g, mats.glow))
   }
-  scene.add(group, ...lines)
+  scene.add(group, fix, ...lines)
 
   const sun = new THREE.DirectionalLight('#fff6ea', 2.4)
   sun.position.set(-0.55 * max, 1.25 * max, -0.42 * max)
@@ -75,12 +99,12 @@ function buildPhotoScene(loaded: Loaded, b: BuildingGeo, drawingTex: THREE.Textu
   return { scene, dispose: () => owned.forEach((o) => o.dispose()) }
 }
 
-export function Photo({ loaded, b, tex, wallH, answer, baseY, status }: {
-  loaded: Loaded; b: BuildingGeo; tex: THREE.Texture; wallH: number; answer: Answer | null; baseY: number
+export function Photo({ loaded, b, tex, wallH, fixH, answer, baseY, status }: {
+  loaded: Loaded; b: BuildingGeo; tex: THREE.Texture; wallH: number; fixH: number; answer: Answer | null; baseY: number
   status: RefObject<HTMLSpanElement | null> // sample counter, written directly (no React render per frame)
 }) {
   const gl = useThree((s) => s.gl), camera = useThree((s) => s.camera), controls = useThree((s) => s.controls) as unknown as THREE.EventDispatcher<{ update: object }> | null
-  const photo = useMemo(() => buildPhotoScene(loaded, b, tex, wallH, answer, baseY), [loaded, b, tex, wallH, answer, baseY])
+  const photo = useMemo(() => buildPhotoScene(loaded, b, tex, wallH, fixH, answer, baseY), [loaded, b, tex, wallH, fixH, answer, baseY])
   useEffect(() => photo.dispose, [photo])
   const pt = useMemo(() => {
     const p = new WebGLPathTracer(gl)

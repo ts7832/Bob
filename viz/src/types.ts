@@ -38,6 +38,7 @@ export interface Element {
   cls?: string | null // normalised class (door, window, wc, ...; ink.ts normCls): glyph and symbol style
   markup?: string | null // BIM: the element's own SVG nodes, so its symbol can be drawn exactly
   ext?: Pt[] | null // BIM: bounding ring of all the element's drawn paths (sheet px)
+  leaf?: Pt[] | null // BIM doors: the leaf rectangle as drawn (open), for the 3D door leaf
 }
 
 export interface Answer {
