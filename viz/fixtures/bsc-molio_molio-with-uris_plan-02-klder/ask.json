@@ -1,0 +1,6921 @@
+[
+ {
+  "question": "How many doors are there in the model 'Molio Demo-hus'?",
+  "truth": 119,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 119,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "33GBU1flP9W8vlMtimANDE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3p49HTFZj1tfi_AhsW7fKS",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3$cqc8rkP1ch_GPdg9Ydj4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2SIIp8AVj6kvMEz4egOi47",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0j16ZLX3n9WB_KPE7tsbJx",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ckJm4RCr3OQ8EiEx3S8MO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1pnBdDje1Bx9$rFMrD1ZVY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2cAsNYEAPEkhKrei0blirN",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "06gdEwF$XEJh3nGu4Hc$2Y",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2JCxPU4PD1yQYFlzre4WFC",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3UOeaa3ZfDnh05i1z2zm6E",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0qwefjSA97MwdvpXouEioA",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1A7hBMrrHDdQ3t0FvRuYKL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "37p5olGkfDxhKYz2jjMiwD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1WoQN59iPEB8dEc$ImCDqo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0a$hwqLe94DgoZFRyfhekJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2njkrTUmHEkxVPwJ4YxEI2",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2HL3hfVWf1B93T62l_CXDR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1OT9oEbs15YfVJjdoKUJI3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3wMQlc7$HDJwYEM6p9Hy_k",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3dy$CZaoHF$eKT9dqEFM0r",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0n_BPhgJb2pgPsCK6VZycY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "374h_wmxL2FuyLgRKAphUp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3$TjvLokb7HwbTCksvnVhX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2pUVQXSuLF2wL9gwRafYwu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3MGpiI_Lf9zOxCW3gHodw0",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34I23TQAXCCv5DKlHryBHF",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1AbNctzCjFiwC3NUXYwhDU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2d73xXMa1ARPDxbcFbLuTD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0oHUDYkVv0dBwCLW60HMIE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1UKcmOIlvCZePoVjiR8y3w",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1RJcGZNVT8xBBfQSLxd4PI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "009zSyZs96$vS74ZPLJ8WT",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "02a48mbhTFofaZwesXgV3i",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3jnx1aPNP9cf0q1wj5AbUp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0d_inDC8b8ZBjO0hwJfW_W",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2$8$87OPjCPBEfNickVPbW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1glKjp2avFI8lDbega$DJz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0RDYZAx7bFsQvRB$nRELsc",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2sW0f9wvL2avxSCvXYe45e",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1uWUtZ4y59pQYB2jh7vo23",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2LhJF79wj32f5HVa2F4a5Y",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1ZMPoPkJzBrQfZicxuTUR_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34z1ImOe9FB9NZum$uCywG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "23Bz659P9FCPSehAbc3kv1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2P4Ef0HZf7LPXeRp5a2PLL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3ZooWPKtDFHgoZhYaXHNuw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3lueEf6qT8jAU4mPmcWDZH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "00WOpoYNL2oPNWPHB0_C4m",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3uPkFI0FT7Pxi_Mk8WATGv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3pkwonXCfCNP0ciZgfvmZC",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2mm$PphBP0vvw_RBBMw4p0",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0m4t8O$Uz2PPMl5zpkZnQv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3k7ldM86P4UeHFRN0CJ1iZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ouaf7wkX5BxaohHVx_3HP",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Wup$0POP55vbZIpNwKWro",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2YfAOzGMv7YBsI3vOPKJ5i",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0rOXpU$an9PfuhjBb5PT6B",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1x7kHJ8jT8SuyzriYHlh$2",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3sUwiY9$3xdC0oSVshgezs",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0eQnmQgqQyOwK5D5Sluwuv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Sj6utCPbFLhqT_WT$GUzk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0YmUYGdLr7a90JPTlBn3iU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2LcPdcWEgEGuPJK4d6eS9$",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2hY4CjVxzGgDZxBv_UcwBN",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2u2BKCqlJOO3R4k6mkqWgM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0VbPGgKNpfPbG3E2HWd7Yb",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3J24FnfCFlMa0wi5Ib9ycJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "30k2RLv4bEsjNKShzGBM5t",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2CJELVtT7EuN7f2s25gUIv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ojJdbUtH0HOiukWE$1Emf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "27_uHKvb3UinNboD7EHO$3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3mDR8$Sn4MQxGLMnYI$oWH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Yxl_wT9mpVuN$kmv0pLKX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Yg8AxBNDrlxxhu2mXdw$1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Ber86TeHgUNh4JEX6Kl6x",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0xkxlcwYL7M8pf3PKpUuLq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2HF_9Rj4pJ4S8GLImahkYV",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1dCFcS6nscPHeFKoRiXOst",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3W9U5ixPZsQ7rPOQXkT_ex",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "08sozL71TCyPU5q7Zc8KfD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Ym9eG2$$tDYF3iJs_n$n6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3GtuAcDPU9bHF0MCKTZvQu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1GwpxsIXUK6N5O5HR4_FSt",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0GeVVspF6ssgscARQ2q$YW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0mvUjzZS4oTCjRoRmWqcOc",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3NwZLzgIxabhS0nVU5X6l8",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1WOhqxMlv1RFfmS9QVp3vE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2S4RL3oG0YMxav6T2E9SOm",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2B7mSkJ25wtut4VV5PJMAY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Y_d8eOc_v5dU0WNvUNcxa",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3nIz96cA7n7Mxzv9qsWv84",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1FvaP3j8Tlpj4J6cRlLMZy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1pCiZjRj$E6GVECRtGkwKV",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0NP_okuM5EnAQa9T2Cz89U",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "16RCExKHi3yO38AcHeSsP$",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2DVf3H08h5DzrSi84QokT3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3IzaLqk$6Ybb6JwJqa38EO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0UHirbIT13WfXwI_6qVpUR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2g3YpXn2TULVf60AYhf$yO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2daIA8mwVL4r_Vs0uC_l4Y",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2AF8TC$BZnFskHsAHOK2wH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1YTyBNqTA4SFOFysDNeErC",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "26obsE0q84Glc2owLtKdsf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2SMB8yHapX0AIUA03WesIo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ArCqm_vtj00MO44HKBnob",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2fafOmHxu3d8BVfjgBhNET",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2DxKe6KC7$r7mpYo8MWDxo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "21tobeYx3ijVbsIhpYeyOk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2GqQKHbb6qur9NEr7FDgLw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0voKfkbLuL1iyO8j18EKjL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0L5WZOeg2kMvLjqZ9iUNzZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "19N_e$yWXA6B0WTStOR2ow",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1u9ONWp2H97gzybJDjr8O7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3QQ$WK9AnBTOp4JfaydHIq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0IU6e_hvX9T9eyHvs0SatN",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Gk_q1ZLLDFujmCNPdNlib",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Q9vsJMyf0ARfUQOooXlfX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "04Mwuk1AL0xOikN3iY2m1H",
+     "shape": "guid",
+     "label": null
+    }
+   ],
+   "explanation": "119 IfcDoor elements in the whole model.",
+   "intent": {
+    "intent": "ifc_count",
+    "cls": "door",
+    "storey": null
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "ifc",
+   "method": "BIM model query",
+   "honesty": {
+    "tier": "measured",
+    "deterministic": true,
+    "basis": "read from the building model's own elements and quantities"
+   },
+   "confidence": 0.99,
+   "dataset_answer": 119
+  }
+ },
+ {
+  "question": "Hvor mange døre er der i modellen 'Molio Demo-hus'?",
+  "truth": 119,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 119,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "33GBU1flP9W8vlMtimANDE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3p49HTFZj1tfi_AhsW7fKS",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3$cqc8rkP1ch_GPdg9Ydj4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2SIIp8AVj6kvMEz4egOi47",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0j16ZLX3n9WB_KPE7tsbJx",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ckJm4RCr3OQ8EiEx3S8MO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1pnBdDje1Bx9$rFMrD1ZVY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2cAsNYEAPEkhKrei0blirN",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "06gdEwF$XEJh3nGu4Hc$2Y",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2JCxPU4PD1yQYFlzre4WFC",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3UOeaa3ZfDnh05i1z2zm6E",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0qwefjSA97MwdvpXouEioA",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1A7hBMrrHDdQ3t0FvRuYKL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "37p5olGkfDxhKYz2jjMiwD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1WoQN59iPEB8dEc$ImCDqo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0a$hwqLe94DgoZFRyfhekJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2njkrTUmHEkxVPwJ4YxEI2",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2HL3hfVWf1B93T62l_CXDR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1OT9oEbs15YfVJjdoKUJI3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3wMQlc7$HDJwYEM6p9Hy_k",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3dy$CZaoHF$eKT9dqEFM0r",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0n_BPhgJb2pgPsCK6VZycY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "374h_wmxL2FuyLgRKAphUp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3$TjvLokb7HwbTCksvnVhX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2pUVQXSuLF2wL9gwRafYwu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3MGpiI_Lf9zOxCW3gHodw0",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34I23TQAXCCv5DKlHryBHF",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1AbNctzCjFiwC3NUXYwhDU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2d73xXMa1ARPDxbcFbLuTD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0oHUDYkVv0dBwCLW60HMIE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1UKcmOIlvCZePoVjiR8y3w",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1RJcGZNVT8xBBfQSLxd4PI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "009zSyZs96$vS74ZPLJ8WT",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "02a48mbhTFofaZwesXgV3i",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3jnx1aPNP9cf0q1wj5AbUp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0d_inDC8b8ZBjO0hwJfW_W",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2$8$87OPjCPBEfNickVPbW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1glKjp2avFI8lDbega$DJz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0RDYZAx7bFsQvRB$nRELsc",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2sW0f9wvL2avxSCvXYe45e",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1uWUtZ4y59pQYB2jh7vo23",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2LhJF79wj32f5HVa2F4a5Y",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1ZMPoPkJzBrQfZicxuTUR_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34z1ImOe9FB9NZum$uCywG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "23Bz659P9FCPSehAbc3kv1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2P4Ef0HZf7LPXeRp5a2PLL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3ZooWPKtDFHgoZhYaXHNuw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3lueEf6qT8jAU4mPmcWDZH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "00WOpoYNL2oPNWPHB0_C4m",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3uPkFI0FT7Pxi_Mk8WATGv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3pkwonXCfCNP0ciZgfvmZC",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2mm$PphBP0vvw_RBBMw4p0",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0m4t8O$Uz2PPMl5zpkZnQv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3k7ldM86P4UeHFRN0CJ1iZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ouaf7wkX5BxaohHVx_3HP",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Wup$0POP55vbZIpNwKWro",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2YfAOzGMv7YBsI3vOPKJ5i",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0rOXpU$an9PfuhjBb5PT6B",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1x7kHJ8jT8SuyzriYHlh$2",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3sUwiY9$3xdC0oSVshgezs",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0eQnmQgqQyOwK5D5Sluwuv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Sj6utCPbFLhqT_WT$GUzk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0YmUYGdLr7a90JPTlBn3iU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2LcPdcWEgEGuPJK4d6eS9$",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2hY4CjVxzGgDZxBv_UcwBN",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2u2BKCqlJOO3R4k6mkqWgM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0VbPGgKNpfPbG3E2HWd7Yb",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3J24FnfCFlMa0wi5Ib9ycJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "30k2RLv4bEsjNKShzGBM5t",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2CJELVtT7EuN7f2s25gUIv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ojJdbUtH0HOiukWE$1Emf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "27_uHKvb3UinNboD7EHO$3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3mDR8$Sn4MQxGLMnYI$oWH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Yxl_wT9mpVuN$kmv0pLKX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Yg8AxBNDrlxxhu2mXdw$1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Ber86TeHgUNh4JEX6Kl6x",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0xkxlcwYL7M8pf3PKpUuLq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2HF_9Rj4pJ4S8GLImahkYV",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1dCFcS6nscPHeFKoRiXOst",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3W9U5ixPZsQ7rPOQXkT_ex",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "08sozL71TCyPU5q7Zc8KfD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Ym9eG2$$tDYF3iJs_n$n6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3GtuAcDPU9bHF0MCKTZvQu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1GwpxsIXUK6N5O5HR4_FSt",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0GeVVspF6ssgscARQ2q$YW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0mvUjzZS4oTCjRoRmWqcOc",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3NwZLzgIxabhS0nVU5X6l8",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1WOhqxMlv1RFfmS9QVp3vE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2S4RL3oG0YMxav6T2E9SOm",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2B7mSkJ25wtut4VV5PJMAY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Y_d8eOc_v5dU0WNvUNcxa",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3nIz96cA7n7Mxzv9qsWv84",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1FvaP3j8Tlpj4J6cRlLMZy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1pCiZjRj$E6GVECRtGkwKV",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0NP_okuM5EnAQa9T2Cz89U",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "16RCExKHi3yO38AcHeSsP$",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2DVf3H08h5DzrSi84QokT3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3IzaLqk$6Ybb6JwJqa38EO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0UHirbIT13WfXwI_6qVpUR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2g3YpXn2TULVf60AYhf$yO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2daIA8mwVL4r_Vs0uC_l4Y",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2AF8TC$BZnFskHsAHOK2wH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1YTyBNqTA4SFOFysDNeErC",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "26obsE0q84Glc2owLtKdsf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2SMB8yHapX0AIUA03WesIo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ArCqm_vtj00MO44HKBnob",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2fafOmHxu3d8BVfjgBhNET",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2DxKe6KC7$r7mpYo8MWDxo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "21tobeYx3ijVbsIhpYeyOk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2GqQKHbb6qur9NEr7FDgLw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0voKfkbLuL1iyO8j18EKjL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0L5WZOeg2kMvLjqZ9iUNzZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "19N_e$yWXA6B0WTStOR2ow",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1u9ONWp2H97gzybJDjr8O7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3QQ$WK9AnBTOp4JfaydHIq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0IU6e_hvX9T9eyHvs0SatN",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Gk_q1ZLLDFujmCNPdNlib",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Q9vsJMyf0ARfUQOooXlfX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "04Mwuk1AL0xOikN3iY2m1H",
+     "shape": "guid",
+     "label": null
+    }
+   ],
+   "explanation": "119 IfcDoor elements in the whole model.",
+   "intent": {
+    "intent": "ifc_count",
+    "cls": "door",
+    "storey": null
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "ifc",
+   "method": "BIM model query",
+   "honesty": {
+    "tier": "measured",
+    "deterministic": true,
+    "basis": "read from the building model's own elements and quantities"
+   },
+   "confidence": 0.99,
+   "dataset_answer": 119
+  }
+ },
+ {
+  "question": "How many windows are there in the model 'Molio Demo-hus'?",
+  "truth": 119,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 119,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "3zVXS3aCf8tQ4nPYr1a9wb",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1vU0OU60LBu8m2ygJhVMai",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1zDk09njn7XB1cdyewriiz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Fzyb6EWbFBBwlI73ly6iq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0kAZKS93j6sA6i$w$E$wyW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Gpu7AvVL1cxN4lqao24ff",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3H1BVE$wb1SwzVaxII0umq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1y_7bCs7v6dPBzHjnvo6Xy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2JiHaa7br0WP1uLOnXFlYs",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "24ZK3aGcvF88ElZq4EIgM6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Zu_c5G1P0_e_ZLTflEy_Q",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0b1O8wnof7NxT1PX$UwKVT",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1aomCujpvBkP0FEqqoR$Ch",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "39FL8vO7T4YRmV61$XjmLB",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2zzBNpJyX43ewc0N6_4tXV",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Q50GXEQjCdBXciq99reoT",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1FC2kr1V12cxVSdXKNmZaa",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0E6YUk_jP70uN$Bmx5qR2i",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0O0YvcstD8CRMy1jmYZovy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1bwai6qvT3re2NCY4nK7eG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0eWuXWnrTFDfv2NASg6Bxo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1G5IQDsX99a9DBY8ugyT3h",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3O2WRu$DX0xeS$wThvz71C",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0_j8JDG4z5yf5zCvCcecwE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2c9tyF8aj0p8IpN0Wza$zb",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0OFDwC1_T7we4bstGBqtBx",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "11miOVG_L26Bn9TpPULXbz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "01$Zhtf1j3RglcYIkR5zq7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "080M1epgb0pPE9ISbOBz5U",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0JiNiUBzzArRNdMvDDiodY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3fhewXzNr9F89j3$O10kNq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0zZ$6Rp9r1AQJb$Q$6hpyU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1dYPv2FB5Edv5W_jPOIwRB",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3VYI1gHUPEuQr8lPdqg4_T",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0QHyBDcfz52O25MQPajAIl",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3TGcpZabv5cQroU51jVCW0",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3fD3iv69X2ghW1bobmSDER",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "31QMEWzF1EKBnRLYcMDzMH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3SoxglHV12T8rUnHOQHk26",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3AbMjJki11zwHfreUDV5yw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "33y3$LQEH0IhPYW2aEOXTL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1DSkDfbTT40QvOAFb77YQB",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0U8n7X8kv9NgCIdLMUbcdG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0LOT1OBMX6SOGAYuaTuaju",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0mWLIkZAr1Jw7_1RequcBv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ysFVkesn4YR7VZ5siH0_Q",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1_uxmHk6P9Lxf3n7Voi$UD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1t5xbefyfByBks_OTK7psX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3UBNtrmmPB3BloG8KkaqA5",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "03u1YGyiP87eHFs4dnrTM8",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2lQ1nTwyvC7xlxC3U4jptg",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "37ttD3X1LDnRe9MGJF9Pyy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "18a_dJ4an1NuR9Vwo_t$dV",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2vSqzwxnz5K81fLrCx4LdI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0uh0Jz_Lv0TOmiuW5HKLXl",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Ixm$vLOb9zO0xvzTTgJlN",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "211NrZluHCb8USJiQv2wzB",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "15o0Hul9v6ou7jAe6NYp$y",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2FYCXSRuL6Tewf7dVY7UC4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3exhiJwE3TJ8LgY3ULnMM7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2o9wdu$meiKpD9D$kE$K2z",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1hlFheoBidmwqU09ftSazC",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Bc4PoMFWOYyql2tZY0olM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1MMzVn8upQ3dTsjtqNPei6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "02VObTnc1aSrsQPvQq6$7W",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0WPWto1Oi$tpdAzUJNzrnk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0jRp9Y0HSGcZqBCBgJAmU5",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2RkOtk3Rc2LedNGYaBUEHT",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0TtCWwtkzxZD6t9WKBExyJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1_lLTFZ7YXnc2$QStD9Adm",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "00uEaJFtYy7DlhlBjUa6rg",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3helI1rQKm0Yn82QsPj5dc",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Xiwodi9McGVvLb$qKZE0B",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1TyvEvOPXxQZopRexTBKBn",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1y0ymeZ5fyTB7GQuT4CV7X",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2gI$f2VQBM3CXcNbr3fuwY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "02_5hOvBEv05hQshsVScng",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1I7rSDF7uRSsFhWPfemnEt",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0WbLlo1vhbL46qbeW$3gEF",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0g6ICqDsYkkceJybs9zRfp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1weVhee49fTIfQKnVksauK",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Z7tK_M7Uc00OEvY6JjC9w",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0_lEI5CTqbesM4Rv468XLH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0ZyyPxLZ9wKsQpkQ3hTLcB",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1uvcNsS0DFhwZpJs_uNmqY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0DuvffpmCaE_LhDh6OqTL0",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2fQ6MvtKSCiXVr8qqpnDo$",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1CnRj1kNp2rbCPcay7GAGJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3K08_7ahjwA3k3Hdy1oZB1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2WgPKh5MqODrwhtRQKBvX1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3jsmP_P7WXbqd5oOt$K_vh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2MQG4EBm4Cq7fmXkIGGhOc",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2veJMAbCej46VUZ8vA02g7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0z_8XbIujN2qyo3vcy2lb2",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0OhK$Dvl$QWdVXA9IixoPp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1dLbl2UEiisSylB1sxoO9w",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "17gE8M3rP8g9NeYBLTlanl",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1R3inhuMqHMQEpxhQLfzaK",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2CAkLCFpEfJOyEeTNgHTfH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "09Vj8tj34BmogRwmbaZGSO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3$kYU9wL$0DrDiRBYOpg2a",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0k3YjO4HDXOyyeCJmJ_tV4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1oTLb502FHY9X6nOKd2JMh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2s95c3DE3RXcg7bAa1dUZl",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2uqBEzRpxbTvoqF61ereAp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3L$cblt3ENeOdRnYuUYdUp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1jWHgllZwIDyUkxyc8LPlW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0GLnOovru9J7MCJg1Cji2t",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0bFVApiBdzwtpkrfAVMaP4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "02dVialM15IRpcyzw8$CLf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0F5Sa7O8tC1OGFrkJh_ibj",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3rPWQ$EWssyw$esIpqmcqi",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1yAehKLJ9VzgfjIrUs6$pU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0suWWUPkexZasEew270vDN",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0vKI3pl23dfR3STe7461hD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "27yb6Lx7eYmr5cZygGb2jR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3$mMBkdqLOjRl4rHDAoyKQ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "32heVbGqY2a6BktLBTdbVZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2EZx5N6nyHnBP_Cdkc1aPi",
+     "shape": "guid",
+     "label": null
+    }
+   ],
+   "explanation": "119 IfcWindow elements in the whole model.",
+   "intent": {
+    "intent": "ifc_count",
+    "cls": "window",
+    "storey": null
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "ifc",
+   "method": "BIM model query",
+   "honesty": {
+    "tier": "measured",
+    "deterministic": true,
+    "basis": "read from the building model's own elements and quantities"
+   },
+   "confidence": 0.99,
+   "dataset_answer": 119
+  }
+ },
+ {
+  "question": "Hvor mange vinduer er der i modellen 'Molio Demo-hus'?",
+  "truth": 119,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 119,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "3zVXS3aCf8tQ4nPYr1a9wb",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1vU0OU60LBu8m2ygJhVMai",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1zDk09njn7XB1cdyewriiz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Fzyb6EWbFBBwlI73ly6iq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0kAZKS93j6sA6i$w$E$wyW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Gpu7AvVL1cxN4lqao24ff",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3H1BVE$wb1SwzVaxII0umq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1y_7bCs7v6dPBzHjnvo6Xy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2JiHaa7br0WP1uLOnXFlYs",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "24ZK3aGcvF88ElZq4EIgM6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Zu_c5G1P0_e_ZLTflEy_Q",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0b1O8wnof7NxT1PX$UwKVT",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1aomCujpvBkP0FEqqoR$Ch",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "39FL8vO7T4YRmV61$XjmLB",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2zzBNpJyX43ewc0N6_4tXV",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Q50GXEQjCdBXciq99reoT",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1FC2kr1V12cxVSdXKNmZaa",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0E6YUk_jP70uN$Bmx5qR2i",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0O0YvcstD8CRMy1jmYZovy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1bwai6qvT3re2NCY4nK7eG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0eWuXWnrTFDfv2NASg6Bxo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1G5IQDsX99a9DBY8ugyT3h",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3O2WRu$DX0xeS$wThvz71C",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0_j8JDG4z5yf5zCvCcecwE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2c9tyF8aj0p8IpN0Wza$zb",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0OFDwC1_T7we4bstGBqtBx",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "11miOVG_L26Bn9TpPULXbz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "01$Zhtf1j3RglcYIkR5zq7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "080M1epgb0pPE9ISbOBz5U",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0JiNiUBzzArRNdMvDDiodY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3fhewXzNr9F89j3$O10kNq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0zZ$6Rp9r1AQJb$Q$6hpyU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1dYPv2FB5Edv5W_jPOIwRB",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3VYI1gHUPEuQr8lPdqg4_T",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0QHyBDcfz52O25MQPajAIl",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3TGcpZabv5cQroU51jVCW0",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3fD3iv69X2ghW1bobmSDER",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "31QMEWzF1EKBnRLYcMDzMH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3SoxglHV12T8rUnHOQHk26",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3AbMjJki11zwHfreUDV5yw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "33y3$LQEH0IhPYW2aEOXTL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1DSkDfbTT40QvOAFb77YQB",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0U8n7X8kv9NgCIdLMUbcdG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0LOT1OBMX6SOGAYuaTuaju",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0mWLIkZAr1Jw7_1RequcBv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ysFVkesn4YR7VZ5siH0_Q",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1_uxmHk6P9Lxf3n7Voi$UD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1t5xbefyfByBks_OTK7psX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3UBNtrmmPB3BloG8KkaqA5",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "03u1YGyiP87eHFs4dnrTM8",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2lQ1nTwyvC7xlxC3U4jptg",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "37ttD3X1LDnRe9MGJF9Pyy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "18a_dJ4an1NuR9Vwo_t$dV",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2vSqzwxnz5K81fLrCx4LdI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0uh0Jz_Lv0TOmiuW5HKLXl",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Ixm$vLOb9zO0xvzTTgJlN",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "211NrZluHCb8USJiQv2wzB",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "15o0Hul9v6ou7jAe6NYp$y",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2FYCXSRuL6Tewf7dVY7UC4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3exhiJwE3TJ8LgY3ULnMM7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2o9wdu$meiKpD9D$kE$K2z",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1hlFheoBidmwqU09ftSazC",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Bc4PoMFWOYyql2tZY0olM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1MMzVn8upQ3dTsjtqNPei6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "02VObTnc1aSrsQPvQq6$7W",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0WPWto1Oi$tpdAzUJNzrnk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0jRp9Y0HSGcZqBCBgJAmU5",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2RkOtk3Rc2LedNGYaBUEHT",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0TtCWwtkzxZD6t9WKBExyJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1_lLTFZ7YXnc2$QStD9Adm",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "00uEaJFtYy7DlhlBjUa6rg",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3helI1rQKm0Yn82QsPj5dc",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Xiwodi9McGVvLb$qKZE0B",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1TyvEvOPXxQZopRexTBKBn",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1y0ymeZ5fyTB7GQuT4CV7X",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2gI$f2VQBM3CXcNbr3fuwY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "02_5hOvBEv05hQshsVScng",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1I7rSDF7uRSsFhWPfemnEt",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0WbLlo1vhbL46qbeW$3gEF",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0g6ICqDsYkkceJybs9zRfp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1weVhee49fTIfQKnVksauK",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Z7tK_M7Uc00OEvY6JjC9w",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0_lEI5CTqbesM4Rv468XLH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0ZyyPxLZ9wKsQpkQ3hTLcB",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1uvcNsS0DFhwZpJs_uNmqY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0DuvffpmCaE_LhDh6OqTL0",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2fQ6MvtKSCiXVr8qqpnDo$",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1CnRj1kNp2rbCPcay7GAGJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3K08_7ahjwA3k3Hdy1oZB1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2WgPKh5MqODrwhtRQKBvX1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3jsmP_P7WXbqd5oOt$K_vh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2MQG4EBm4Cq7fmXkIGGhOc",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2veJMAbCej46VUZ8vA02g7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0z_8XbIujN2qyo3vcy2lb2",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0OhK$Dvl$QWdVXA9IixoPp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1dLbl2UEiisSylB1sxoO9w",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "17gE8M3rP8g9NeYBLTlanl",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1R3inhuMqHMQEpxhQLfzaK",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2CAkLCFpEfJOyEeTNgHTfH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "09Vj8tj34BmogRwmbaZGSO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3$kYU9wL$0DrDiRBYOpg2a",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0k3YjO4HDXOyyeCJmJ_tV4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1oTLb502FHY9X6nOKd2JMh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2s95c3DE3RXcg7bAa1dUZl",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2uqBEzRpxbTvoqF61ereAp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3L$cblt3ENeOdRnYuUYdUp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1jWHgllZwIDyUkxyc8LPlW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0GLnOovru9J7MCJg1Cji2t",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0bFVApiBdzwtpkrfAVMaP4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "02dVialM15IRpcyzw8$CLf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0F5Sa7O8tC1OGFrkJh_ibj",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3rPWQ$EWssyw$esIpqmcqi",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1yAehKLJ9VzgfjIrUs6$pU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0suWWUPkexZasEew270vDN",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0vKI3pl23dfR3STe7461hD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "27yb6Lx7eYmr5cZygGb2jR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3$mMBkdqLOjRl4rHDAoyKQ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "32heVbGqY2a6BktLBTdbVZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2EZx5N6nyHnBP_Cdkc1aPi",
+     "shape": "guid",
+     "label": null
+    }
+   ],
+   "explanation": "119 IfcWindow elements in the whole model.",
+   "intent": {
+    "intent": "ifc_count",
+    "cls": "window",
+    "storey": null
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "ifc",
+   "method": "BIM model query",
+   "honesty": {
+    "tier": "measured",
+    "deterministic": true,
+    "basis": "read from the building model's own elements and quantities"
+   },
+   "confidence": 0.99,
+   "dataset_answer": 119
+  }
+ },
+ {
+  "question": "How many rooms (spaces) are there in the model 'Molio Demo-hus'?",
+  "truth": 117,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 117,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "1zp9d2_bHFEASBhAWjSsRD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0TdIl3bwjDWB2n7KfOmHFz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3XyB8l02H3sRCiMgHGUg2q",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1ByK$NNG97SeclD0ZiKcS$",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3gKSn0zhT2jAC$tj2xik_x",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3cvRQuf8H2YB69I1F28QPR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3HExUak15AXQiV7lX4Q$L1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0004jnm$z12wBM4znXvHBh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3VgIRu5hH7oOYmqnEgloaP",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2NJ1Rfhvj5ifyW2MBqJf2L",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0UFch5g2f5Txs3t3ntaCUg",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1A_K8p1Cr1iOHFYpet3awQ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0LxOnJ3Hj3rwu_2Du2vOsR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34vL6CG6983PkQbBb3MYyT",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0A75koqcb8FRrVRqnScFW0",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3MSl80dzzDpghX$vCrYMBn",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0h7SUZvDvBSeC$jyyyG5Dg",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "28Fa3NgN913xIhdVAgnVHK",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "168he8qCzA8ebUCEpimypx",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3S3TopLG9AQRQWot5w$dqO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1wcAp_eAv7tuCe5rVnMB8X",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1HKmuLVCDA1fBnNSYMPAPH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "17aJDD3yb68RttjxCVv78s",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0ddTz66CXFouB0609D4VIM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3S6WD5N9rBH8z7qRKrInIv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3IcqAE8zL5_v1CZm25JxAu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Ph3xZB$f9xPHWhBHyWf6a",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2JBUzL5d1Eaf2c3G9XM4uk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3ABmMDX8EMy_x4d$wuL0s5",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0cxDsv_wG48tjDSjdshnc4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1JLQBcb15BVw9ROIP6a0TS",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Gi$s6qYXCoxcgARdWmYQJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "29HV3fW61D39JS1wwtOemu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3W1PAaCyv5X9SNFNEi4F5a",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Jx4aaD6D4WvL8eUeranHf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Gob4i$IjBh9gZtvQPA2RC",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3E1X2aTi52uhjYPFC9EWdW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0h1mu6Gg56QPpSW_U75vEr",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "00yJDdBjL5Ee6yXb0JU7Nx",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1sHEaMUWDAf9RaY_gSYPRo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2nh1Lkk$L0Ke6BzEv_rdED",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3iErLnysdV7P$NkAMsGGcw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3HgsXrxe8B3d5GlH9ef1Bn",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2HBgnYUPbJY6zUQs2U$8xy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1ixyzRXoRyKts5RagS5Iys",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0897rTb033ufooWKhh7rRl",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2dw3buljsdbnEUz86vjpTd",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2T8sDrhNR4Q_7IrhzekgHu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2rD3q9EqvTBh1d1aJi2kMB",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2aS_3utfYlCfP6IRz2RFpk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0SNByUrF10$OnWyD$3rfHi",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2_fgpE0mX4_uE7BokjRBS6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0I3o486GD1MP2soc6Vn08A",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2pEEa6YpkRj0kTlfQooxWV",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3i7zu93B0902wRvZCfIBx3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1njhqrwQT4qm5FEfSpoKRd",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0xTNHOgrv7fvHvSL2_kKP4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3eND785an6BuuHYEi5CBfo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34YMhYvEz779hV$mP$xXLo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "12KDNH8YbC$AeVzLJt0GXU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1ewvvq5jb9pAEVCnSqGCZs",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1ThSicZeXCHv96I242nnhZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3vQRXPx3z4vuHWYEBS$YfR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3N$fxzrZ57mwdZIp56BN9m",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2BI6$MOCqCwDpkOYSShV5e",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0gt069rgHxyTpqgwKD7vIx",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0cVWgAw0v73OGBY6PvAT81",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1tYri_GDT9OPR8vu$g6nbW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1DYcDWoQbAE9yOf2AuzWo8",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0XmkSR7sBIDnvWl_FMKVJ_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3CZV9xklSr3R5M7Yyl1rmQ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3qu9x4xGzQaiEeAULETcqR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3TSnc2TGTDHAHT_mr4J6UI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0wD6LQOSnAuu9uxUH7Leuf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1N4GqPS$X1xuEIRoijSuYY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3i75$P7VT6UOiB5lXtWYjs",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0vZ$6SiD1AewmUNzhbP57Z",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3deQurd4n5QxgOMtRQNiGJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1L5BlBoU5C9QiZgiISXntY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3jeOK12gTC8Bb2bAoRZdm9",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2j5ybGLEr1gOWeJBNAm3rf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3xrQNgnVjBk8ptcJV9kggi",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1At8Ws63r31e_FJLNMvqYs",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0XgDmIT1n3HviuhIR6UDaY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1u9IW3qbDCshglHMPN$$J1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1eS6b0W8DD8BuDJydOsvhJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2a7UATyLb6VBSBosnFcPxK",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2qOHQBtur1zQVwuWjsgM34",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3abSIPdVf$vKtBelVQ4XXw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2xh$3tMwGJocTlni93XsLa",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1KNi2XfrSW56Xc0QBRKhRR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "25GQXrlkn6_BkMFLlugHKp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "01zYSODHdEohPVuo0SArNX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0natflrnYvy_7_FTBE0B95",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2N84NRF0rL2Mr$0Xt336Dv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0idkPeUTVc7zwRlNZkOdtC",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2x5UMCM$yxlqfXajMPzMOE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0e_F4XCMIT2KqovgqoOxry",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ZrYWN$Ev8O8fm6zcDbMim",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0zYiFT5qmGK6teSDAuxJng",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "00iA7$uYBzsAm3EDLsJNWP",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1HMktmYIvBZqbMrGG2aBuc",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2IUK8TicfrqnaZfTgsm8N3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3M9AjfGKuvldtpCTEY339k",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2p8Af10O8vLZxRjq0BRmY7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0h3OQhSDP9Iu_CdYB7W4od",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1SxvCDeXvBrfBlQRDkIA2R",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1PQolbhwaMxF7uj6ya6rLz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0JcW$3HB6ZtnXjBF64d0wk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1i8amJNRX9Ygiyd9f38pfu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "05LuYC0rmXn79a0odIbMvi",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Q2K9XS_ft8mATpfR9hm8D",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1QUbIyW9f0Iq7lw$YkJLIm",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0AWYKnGMj6ZQ30DKZn6aVm",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34j$20Te2RLNhw0gCgZsD6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2PDDwRsBsqhnM2hzMNq27J",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2gqggqXEimU9mYBc8hw_Pc",
+     "shape": "guid",
+     "label": null
+    }
+   ],
+   "explanation": "117 IfcSpace elements in the whole model.",
+   "intent": {
+    "intent": "ifc_count",
+    "cls": "space",
+    "storey": null
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "ifc",
+   "method": "BIM model query",
+   "honesty": {
+    "tier": "measured",
+    "deterministic": true,
+    "basis": "read from the building model's own elements and quantities"
+   },
+   "confidence": 0.99,
+   "dataset_answer": 117
+  }
+ },
+ {
+  "question": "Hvor mange rum er der i modellen 'Molio Demo-hus'?",
+  "truth": 117,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 117,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "1zp9d2_bHFEASBhAWjSsRD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0TdIl3bwjDWB2n7KfOmHFz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3XyB8l02H3sRCiMgHGUg2q",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1ByK$NNG97SeclD0ZiKcS$",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3gKSn0zhT2jAC$tj2xik_x",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3cvRQuf8H2YB69I1F28QPR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3HExUak15AXQiV7lX4Q$L1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0004jnm$z12wBM4znXvHBh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3VgIRu5hH7oOYmqnEgloaP",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2NJ1Rfhvj5ifyW2MBqJf2L",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0UFch5g2f5Txs3t3ntaCUg",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1A_K8p1Cr1iOHFYpet3awQ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0LxOnJ3Hj3rwu_2Du2vOsR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34vL6CG6983PkQbBb3MYyT",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0A75koqcb8FRrVRqnScFW0",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3MSl80dzzDpghX$vCrYMBn",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0h7SUZvDvBSeC$jyyyG5Dg",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "28Fa3NgN913xIhdVAgnVHK",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "168he8qCzA8ebUCEpimypx",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3S3TopLG9AQRQWot5w$dqO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1wcAp_eAv7tuCe5rVnMB8X",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1HKmuLVCDA1fBnNSYMPAPH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "17aJDD3yb68RttjxCVv78s",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0ddTz66CXFouB0609D4VIM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3S6WD5N9rBH8z7qRKrInIv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3IcqAE8zL5_v1CZm25JxAu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Ph3xZB$f9xPHWhBHyWf6a",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2JBUzL5d1Eaf2c3G9XM4uk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3ABmMDX8EMy_x4d$wuL0s5",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0cxDsv_wG48tjDSjdshnc4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1JLQBcb15BVw9ROIP6a0TS",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Gi$s6qYXCoxcgARdWmYQJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "29HV3fW61D39JS1wwtOemu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3W1PAaCyv5X9SNFNEi4F5a",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Jx4aaD6D4WvL8eUeranHf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Gob4i$IjBh9gZtvQPA2RC",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3E1X2aTi52uhjYPFC9EWdW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0h1mu6Gg56QPpSW_U75vEr",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "00yJDdBjL5Ee6yXb0JU7Nx",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1sHEaMUWDAf9RaY_gSYPRo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2nh1Lkk$L0Ke6BzEv_rdED",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3iErLnysdV7P$NkAMsGGcw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3HgsXrxe8B3d5GlH9ef1Bn",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2HBgnYUPbJY6zUQs2U$8xy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1ixyzRXoRyKts5RagS5Iys",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0897rTb033ufooWKhh7rRl",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2dw3buljsdbnEUz86vjpTd",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2T8sDrhNR4Q_7IrhzekgHu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2rD3q9EqvTBh1d1aJi2kMB",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2aS_3utfYlCfP6IRz2RFpk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0SNByUrF10$OnWyD$3rfHi",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2_fgpE0mX4_uE7BokjRBS6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0I3o486GD1MP2soc6Vn08A",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2pEEa6YpkRj0kTlfQooxWV",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3i7zu93B0902wRvZCfIBx3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1njhqrwQT4qm5FEfSpoKRd",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0xTNHOgrv7fvHvSL2_kKP4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3eND785an6BuuHYEi5CBfo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34YMhYvEz779hV$mP$xXLo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "12KDNH8YbC$AeVzLJt0GXU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1ewvvq5jb9pAEVCnSqGCZs",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1ThSicZeXCHv96I242nnhZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3vQRXPx3z4vuHWYEBS$YfR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3N$fxzrZ57mwdZIp56BN9m",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2BI6$MOCqCwDpkOYSShV5e",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0gt069rgHxyTpqgwKD7vIx",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0cVWgAw0v73OGBY6PvAT81",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1tYri_GDT9OPR8vu$g6nbW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1DYcDWoQbAE9yOf2AuzWo8",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0XmkSR7sBIDnvWl_FMKVJ_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3CZV9xklSr3R5M7Yyl1rmQ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3qu9x4xGzQaiEeAULETcqR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3TSnc2TGTDHAHT_mr4J6UI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0wD6LQOSnAuu9uxUH7Leuf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1N4GqPS$X1xuEIRoijSuYY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3i75$P7VT6UOiB5lXtWYjs",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0vZ$6SiD1AewmUNzhbP57Z",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3deQurd4n5QxgOMtRQNiGJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1L5BlBoU5C9QiZgiISXntY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3jeOK12gTC8Bb2bAoRZdm9",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2j5ybGLEr1gOWeJBNAm3rf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3xrQNgnVjBk8ptcJV9kggi",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1At8Ws63r31e_FJLNMvqYs",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0XgDmIT1n3HviuhIR6UDaY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1u9IW3qbDCshglHMPN$$J1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1eS6b0W8DD8BuDJydOsvhJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2a7UATyLb6VBSBosnFcPxK",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2qOHQBtur1zQVwuWjsgM34",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3abSIPdVf$vKtBelVQ4XXw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2xh$3tMwGJocTlni93XsLa",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1KNi2XfrSW56Xc0QBRKhRR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "25GQXrlkn6_BkMFLlugHKp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "01zYSODHdEohPVuo0SArNX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0natflrnYvy_7_FTBE0B95",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2N84NRF0rL2Mr$0Xt336Dv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0idkPeUTVc7zwRlNZkOdtC",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2x5UMCM$yxlqfXajMPzMOE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0e_F4XCMIT2KqovgqoOxry",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ZrYWN$Ev8O8fm6zcDbMim",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0zYiFT5qmGK6teSDAuxJng",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "00iA7$uYBzsAm3EDLsJNWP",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1HMktmYIvBZqbMrGG2aBuc",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2IUK8TicfrqnaZfTgsm8N3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3M9AjfGKuvldtpCTEY339k",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2p8Af10O8vLZxRjq0BRmY7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0h3OQhSDP9Iu_CdYB7W4od",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1SxvCDeXvBrfBlQRDkIA2R",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1PQolbhwaMxF7uj6ya6rLz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0JcW$3HB6ZtnXjBF64d0wk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1i8amJNRX9Ygiyd9f38pfu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "05LuYC0rmXn79a0odIbMvi",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Q2K9XS_ft8mATpfR9hm8D",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1QUbIyW9f0Iq7lw$YkJLIm",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0AWYKnGMj6ZQ30DKZn6aVm",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34j$20Te2RLNhw0gCgZsD6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2PDDwRsBsqhnM2hzMNq27J",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2gqggqXEimU9mYBc8hw_Pc",
+     "shape": "guid",
+     "label": null
+    }
+   ],
+   "explanation": "117 IfcSpace elements in the whole model.",
+   "intent": {
+    "intent": "ifc_count",
+    "cls": "space",
+    "storey": null
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "ifc",
+   "method": "BIM model query",
+   "honesty": {
+    "tier": "measured",
+    "deterministic": true,
+    "basis": "read from the building model's own elements and quantities"
+   },
+   "confidence": 0.99,
+   "dataset_answer": 117
+  }
+ },
+ {
+  "question": "How many walls are there in the model 'Molio Demo-hus'?",
+  "truth": 189,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 189,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "2cIgW2OJTDieQWoBsIsovZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "03r_vdbtH25RjXPqeHKkek",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2krgaB0GP7DAfHc_3z76Gw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0VBdryB4DCBwzuYCpj07xh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0jonUfgb9CHfERqAUaM0B4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2xI5SBuCLAkfbZce2G3zMp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Fw2qJG$9FawLYvOW0vcmi",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3fj$kdqnr0bw$r$jQCG3rk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1nOVpzQ$15KhKJx3D4EF92",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2$kL08_3jEoOB3pI7eLHmP",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0ilDwH_FXCAhdmMgzq$2dE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3G8O$dXmr3PvRaNEOvxdzI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0l95C9dZH2KO7RUkFgODsw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2rhrmsCMb5_AcOOtjuME_1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "17M1hDQaz3ggniFyrXCGEi",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1nDYoulk90_PnzNxRwqHFp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0bsTHamgXFtP7ks3Uk4d1u",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2J5ICWuZTADhA1DddtWO40",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Fa_iZuJ1AueTEYC9x9wW5",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "292Uz8q4H04wGBtnwK1iSL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1qc1HZHSzFbueXRQJ177S0",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3eiyVql1LEJfVW9bYKA6H6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "24fpovvR92TvjhmzzCXdSE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0wl2mfRfj35f3dY9iHUN8O",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2tOEUMV71CyxJmQCiVIeEI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "18Jtj_G61FwPWKwIo3XTVI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "27gZo4s39BO8qmOSLRAlAh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1klWMhwSfEKvZc227FkrhD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1BeXudiH55sh5MigX$7A40",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "24RRUXQGT47Oni6SowGHRP",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2gHaY3GCDCDB4NBYv9JBLY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3sBH3T3z55Sey1TW9CTVMU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34Z7JEBqfF_xEToOl9Ap$t",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1tLOTPv9nEjPpOUG1zPvqg",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "21TO1o6KX97QE95V8mA7M7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0tpSrcx3zFM8wcmmJ$pbs6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0apPZzuA5B2BqhjA9UIs0t",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "22$37dwR9D2RbJWps7utq_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1M9c4zWkv8r8KiyQmwn$PZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1wR$LO0iL6XRMzbgmqK_Yh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Kjink1k55pgnDtiF68QXD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3YAxLpcW94vgGNo9LZM2c_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "20YaTWov14OPZG7C0mGgSX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3kBq2vikX8luKaktknAbvw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2np25HW6TAAfDhBRoKNXKQ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2bz38BDUL2aBb_1XYydhJM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1IzjUW95n0IQ6NWFAhc4Ip",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "235zKuBh1A5gh7K_NVDQtA",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3jat7m4KL16wuU5Atnv6EZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0myN9KDU56YPvgCGGynbdE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1vQjEiLdTEkvBU9PczScaO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1AV5uB7zXDmuEtXfVZTyQp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0XIYRlKtr5KPQUI53swQwd",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0X4UpMfhnD7uficTcaB8sw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "31kEOzCELA5xlRSIs3gqgz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1zRAeOfrvDMwdsfHM276iK",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0SoPIQXG56dBPhrG1qoVcS",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "26J67fdLjEsPmhK04NaEtV",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0TDTOYDiz7mwI_hAFxtA1Y",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3eMqTl48v2k9oMkfEtKjvZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "02LP552D1CXPL4KtKyz1lm",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "21CEo4QIDA$8B0n15mSSnc",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2CZ1xaLd52aQMt1ne$dJj6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3yf7Vb6Ij7qeaUH9hvCePr",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2_jE1VCJLDj8C9x3kBZdWN",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "20US2PYGL4OfZgQLEbSjbE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0SEdURjeP1JuqCDpTkK2_3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2CAga7$CDAdAvxkYC9Rdi_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1GU$X5Hxf3mgdieuv6AA3g",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3VCb2VU2n4aeS9h44SwBOy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0X1YF$6DzEce32ipcdu03c",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1J7P0ExKXFxx_Eqt99kxXQ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0h2oBeb91DBg18rd4hArDE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2YYOvQa71AqB6IDP8Cly8$",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1qEQYVXnfCywZfblrVsA74",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1XW3vvNw5EPu1jIGMmhMEW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2PD8gjKRf2MRdLWHzcwWe$",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3zMHLGX253qOdTzVXEOoj0",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Vk_I45iL53hMAV_yIKuO1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Py8VVGZ1EU8w2SQ2mwrS3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1NJbt5cDPC8AE$rHlJUObo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2XxgFQdUfFQvSVYb$4ARK7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1jVqKp2lb2jx89hegpmLaa",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0M8QhntLfF9viHCcVGm7fn",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "038GYOvFv8OfWIw8OJGyjT",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2fBPd$eyL8HALCtKzMJg$T",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0fu_5kV5bCE8ufkEFzLr08",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "33VhmrfdnCswetBq2lQeZ4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "16rVIUr7fDGeGAm2Mi1xkq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Jdsg3JqDEgxkdUZftpyr8",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0KWxLaR2r0QQo7jIDh03Ja",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Bg11JuSnF1xf5cUFsjNOx",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1atd7jciHE78sIQHW34Nzt",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3g52KdC8f1yRb6gSrqWPZX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3fXwLjH_T3T9j2uXoCLSpF",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2FCT8jnknDg9wqcdZlX50$",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0sYv8$uFb8c83mh08LTlwL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3BB$JfdgDAlR8iSy00prbq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3XeViwxzj5owWwAOuo_bCP",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "02mhJSsI91vBTbvLXfb9W7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0bgzaNIrtW6I$Z8VaSBMFW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "06oyWnOaCSDZjAotpQQHac",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0_8AfxY6MqMUSOjsYEg_9D",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0KPegVtRe38YPvD6fZ6_rb",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1$krLvuBrG3jWl1RtdQ8x9",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "24FYMGp$sJmwLhX8jFIlSp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2BLS_0fIX4pvgR5kK4Jmxq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2GQFUnRQIloPAEH$Rbd4lT",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3WvK9oetnB6PoFEU4Yui$S",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0dtlDB_L2kdVIHRktM3cbO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2CX3Qh_vjZ$lCFNxuSzm_5",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2b8jh1zB7NVHBTByQ5_ujt",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0daiTlINDS1rhui_ghqHkt",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0shVHa1_tJ41h_f0ljZ0uI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2pMwmyQur0sjVeYbUntkxr",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Cn3Nb8iIj4TkzbFXcm2Ax",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0uLIrkkOESXiWXhXdsCFjZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1vOOgdUVGQut6jUpKXAIh_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3nd0aVbvupRO$nw2ivgVQy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2beeR3QYdHCezMW1AwlIrs",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0yxviBfd0pP22iHcAPpaK_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1TnI9_tjQ2P457iMgVRVAM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1qWwD9GdFVrdvvDPEkV__T",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Ky2n76mb3YATUjfZfV3VG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34k1Qr0W9Br9GCueo0VIWz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ikbN1kq93QxYHIei9mR3D",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1qCEb3r17JjgDDIt$fNTMt",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3c5co9EgSDnRIhPD0kbbto",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3149ITUEPnEtrFJKQlcC5s",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "09b0_boBLtpt2TdKXr48wM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3UDUfIWRD72gA9cFnWhQLR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3OIoYX3jDv$4AMBVqdYBVa",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1kFglI1A5BwBdiGo7I91uf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2rEVXO7MWO$tDAXaIeyLY3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "23ks7OrwSXOEEeLXMOBny9",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1tRsT1R0$Xro6ASzHiskrU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Bi_687ueiF65Q9mkXZZIH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2fwyR5qJsu8Z8St1QG34It",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2$bCFWetYThNJWHhsZ5fiM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3HM2pqb_cRWHso2ONbt85j",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3MtUoD6fqdVawo5Iht7gAr",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2W6uV5Sxr4HOsUelS1k5xG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3RnUySaN3w5R5W6UHPDkwn",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "14KTUp9wy7qncPGzBeGuDX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ijI8H8oIwyUtQU6vGePkW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1_UhKbwFv7HB$WUlH424Bc",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "33bN9GU4f538iG_vLhA5it",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1miyh1HabCsRD7MtPCCLI_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "08R9OAcyTEABGdbf$ev6eH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1bXouNTfz7IRMJEBIofaIr",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2gtI3$NkzEBwmh9wow2yjR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3YXsW0aNT9fBJKoNu48wMl",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1upa2CczfA5Pb8JpYjtoaz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2mkdrAN3OAHZk$nMXiCHEI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0bF6ilXTJCpEHdrYDdpA5Y",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1u8mjwoHwfG7hFwCONGQfh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34EIHHZTLKrFNNENT67EUZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Kccv3ZlSEzFZ0cTkut$tf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1sN2TUrjDMKpOIOXLi3UTp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0gKuEwGKL3Gx09anWAryqK",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "37_lqqmrerU5KRYCzEW0ig",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2IWBAxPMmzrRX4JsCCSVnG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "08z4PiVUezJa4k0ttYokUQ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2iY0KCLJG6oMYH2A2PJ9BA",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2rjbwk8czsfqV1jsVVyPKh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "12KVyD3e$hqPe9tkmUG4SZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3KljgoOGwhJg0sVJTjvd37",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ecIL7BtZFL0g8BfeAxYw1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2jUFK2T5jZxYG5pG4S8Uyi",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "35Yit1JCQEfF2MDghgk_sL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0OU_GoX_qXDIEPMo6PCY2g",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Cr2K_6GknBdPNwALyAOPH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1i7erV$Yszpw3RiXXNVb1f",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1gVIvfjMag8LFla_MNls$p",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2yLIrlXVj58P1YEMVCepMG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2YTn7pBY972BbWyvyTnSPt",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2c2Q6eIN1F$u$aB0lz7Je5",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1v5SYTWvT7zgXQcohoYSyY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3rh_eaAfjD385dA0Kfu0QP",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Nh9z2izb6owTfk_BD7EIr",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0E4WIuO7b4E86pXzF8pZr3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3N9IcaDzT7Mx55daEDyU1b",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3pK7GCEKz49P4daaxi3ZWw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1F$sirAwL9tQDxeKx6zEyS",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1lcz$QU7DFQAnDIVQXw6g6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0MiVUlmKPAtgBMWWb4q3Z2",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2QhdNtJPPDyPyV5DGQwbQ5",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0kufZ9$KP4fBbqP6s_2ani",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "14IlVp__H5_BRNynwUltXl",
+     "shape": "guid",
+     "label": null
+    }
+   ],
+   "explanation": "189 IfcWall elements in the whole model.",
+   "intent": {
+    "intent": "ifc_count",
+    "cls": "wall",
+    "storey": null
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "ifc",
+   "method": "BIM model query",
+   "honesty": {
+    "tier": "measured",
+    "deterministic": true,
+    "basis": "read from the building model's own elements and quantities"
+   },
+   "confidence": 0.99,
+   "dataset_answer": 189
+  }
+ },
+ {
+  "question": "Hvor mange vægge er der i modellen 'Molio Demo-hus'?",
+  "truth": 189,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 189,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "2cIgW2OJTDieQWoBsIsovZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "03r_vdbtH25RjXPqeHKkek",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2krgaB0GP7DAfHc_3z76Gw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0VBdryB4DCBwzuYCpj07xh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0jonUfgb9CHfERqAUaM0B4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2xI5SBuCLAkfbZce2G3zMp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Fw2qJG$9FawLYvOW0vcmi",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3fj$kdqnr0bw$r$jQCG3rk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1nOVpzQ$15KhKJx3D4EF92",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2$kL08_3jEoOB3pI7eLHmP",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0ilDwH_FXCAhdmMgzq$2dE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3G8O$dXmr3PvRaNEOvxdzI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0l95C9dZH2KO7RUkFgODsw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2rhrmsCMb5_AcOOtjuME_1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "17M1hDQaz3ggniFyrXCGEi",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1nDYoulk90_PnzNxRwqHFp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0bsTHamgXFtP7ks3Uk4d1u",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2J5ICWuZTADhA1DddtWO40",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Fa_iZuJ1AueTEYC9x9wW5",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "292Uz8q4H04wGBtnwK1iSL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1qc1HZHSzFbueXRQJ177S0",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3eiyVql1LEJfVW9bYKA6H6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "24fpovvR92TvjhmzzCXdSE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0wl2mfRfj35f3dY9iHUN8O",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2tOEUMV71CyxJmQCiVIeEI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "18Jtj_G61FwPWKwIo3XTVI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "27gZo4s39BO8qmOSLRAlAh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1klWMhwSfEKvZc227FkrhD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1BeXudiH55sh5MigX$7A40",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "24RRUXQGT47Oni6SowGHRP",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2gHaY3GCDCDB4NBYv9JBLY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3sBH3T3z55Sey1TW9CTVMU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34Z7JEBqfF_xEToOl9Ap$t",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1tLOTPv9nEjPpOUG1zPvqg",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "21TO1o6KX97QE95V8mA7M7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0tpSrcx3zFM8wcmmJ$pbs6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0apPZzuA5B2BqhjA9UIs0t",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "22$37dwR9D2RbJWps7utq_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1M9c4zWkv8r8KiyQmwn$PZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1wR$LO0iL6XRMzbgmqK_Yh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Kjink1k55pgnDtiF68QXD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3YAxLpcW94vgGNo9LZM2c_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "20YaTWov14OPZG7C0mGgSX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3kBq2vikX8luKaktknAbvw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2np25HW6TAAfDhBRoKNXKQ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2bz38BDUL2aBb_1XYydhJM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1IzjUW95n0IQ6NWFAhc4Ip",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "235zKuBh1A5gh7K_NVDQtA",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3jat7m4KL16wuU5Atnv6EZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0myN9KDU56YPvgCGGynbdE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1vQjEiLdTEkvBU9PczScaO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1AV5uB7zXDmuEtXfVZTyQp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0XIYRlKtr5KPQUI53swQwd",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0X4UpMfhnD7uficTcaB8sw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "31kEOzCELA5xlRSIs3gqgz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1zRAeOfrvDMwdsfHM276iK",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0SoPIQXG56dBPhrG1qoVcS",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "26J67fdLjEsPmhK04NaEtV",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0TDTOYDiz7mwI_hAFxtA1Y",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3eMqTl48v2k9oMkfEtKjvZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "02LP552D1CXPL4KtKyz1lm",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "21CEo4QIDA$8B0n15mSSnc",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2CZ1xaLd52aQMt1ne$dJj6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3yf7Vb6Ij7qeaUH9hvCePr",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2_jE1VCJLDj8C9x3kBZdWN",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "20US2PYGL4OfZgQLEbSjbE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0SEdURjeP1JuqCDpTkK2_3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2CAga7$CDAdAvxkYC9Rdi_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1GU$X5Hxf3mgdieuv6AA3g",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3VCb2VU2n4aeS9h44SwBOy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0X1YF$6DzEce32ipcdu03c",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1J7P0ExKXFxx_Eqt99kxXQ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0h2oBeb91DBg18rd4hArDE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2YYOvQa71AqB6IDP8Cly8$",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1qEQYVXnfCywZfblrVsA74",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1XW3vvNw5EPu1jIGMmhMEW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2PD8gjKRf2MRdLWHzcwWe$",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3zMHLGX253qOdTzVXEOoj0",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Vk_I45iL53hMAV_yIKuO1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Py8VVGZ1EU8w2SQ2mwrS3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1NJbt5cDPC8AE$rHlJUObo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2XxgFQdUfFQvSVYb$4ARK7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1jVqKp2lb2jx89hegpmLaa",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0M8QhntLfF9viHCcVGm7fn",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "038GYOvFv8OfWIw8OJGyjT",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2fBPd$eyL8HALCtKzMJg$T",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0fu_5kV5bCE8ufkEFzLr08",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "33VhmrfdnCswetBq2lQeZ4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "16rVIUr7fDGeGAm2Mi1xkq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Jdsg3JqDEgxkdUZftpyr8",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0KWxLaR2r0QQo7jIDh03Ja",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Bg11JuSnF1xf5cUFsjNOx",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1atd7jciHE78sIQHW34Nzt",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3g52KdC8f1yRb6gSrqWPZX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3fXwLjH_T3T9j2uXoCLSpF",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2FCT8jnknDg9wqcdZlX50$",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0sYv8$uFb8c83mh08LTlwL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3BB$JfdgDAlR8iSy00prbq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3XeViwxzj5owWwAOuo_bCP",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "02mhJSsI91vBTbvLXfb9W7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0bgzaNIrtW6I$Z8VaSBMFW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "06oyWnOaCSDZjAotpQQHac",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0_8AfxY6MqMUSOjsYEg_9D",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0KPegVtRe38YPvD6fZ6_rb",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1$krLvuBrG3jWl1RtdQ8x9",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "24FYMGp$sJmwLhX8jFIlSp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2BLS_0fIX4pvgR5kK4Jmxq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2GQFUnRQIloPAEH$Rbd4lT",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3WvK9oetnB6PoFEU4Yui$S",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0dtlDB_L2kdVIHRktM3cbO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2CX3Qh_vjZ$lCFNxuSzm_5",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2b8jh1zB7NVHBTByQ5_ujt",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0daiTlINDS1rhui_ghqHkt",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0shVHa1_tJ41h_f0ljZ0uI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2pMwmyQur0sjVeYbUntkxr",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Cn3Nb8iIj4TkzbFXcm2Ax",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0uLIrkkOESXiWXhXdsCFjZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1vOOgdUVGQut6jUpKXAIh_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3nd0aVbvupRO$nw2ivgVQy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2beeR3QYdHCezMW1AwlIrs",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0yxviBfd0pP22iHcAPpaK_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1TnI9_tjQ2P457iMgVRVAM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1qWwD9GdFVrdvvDPEkV__T",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Ky2n76mb3YATUjfZfV3VG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34k1Qr0W9Br9GCueo0VIWz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ikbN1kq93QxYHIei9mR3D",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1qCEb3r17JjgDDIt$fNTMt",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3c5co9EgSDnRIhPD0kbbto",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3149ITUEPnEtrFJKQlcC5s",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "09b0_boBLtpt2TdKXr48wM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3UDUfIWRD72gA9cFnWhQLR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3OIoYX3jDv$4AMBVqdYBVa",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1kFglI1A5BwBdiGo7I91uf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2rEVXO7MWO$tDAXaIeyLY3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "23ks7OrwSXOEEeLXMOBny9",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1tRsT1R0$Xro6ASzHiskrU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Bi_687ueiF65Q9mkXZZIH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2fwyR5qJsu8Z8St1QG34It",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2$bCFWetYThNJWHhsZ5fiM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3HM2pqb_cRWHso2ONbt85j",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3MtUoD6fqdVawo5Iht7gAr",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2W6uV5Sxr4HOsUelS1k5xG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3RnUySaN3w5R5W6UHPDkwn",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "14KTUp9wy7qncPGzBeGuDX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ijI8H8oIwyUtQU6vGePkW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1_UhKbwFv7HB$WUlH424Bc",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "33bN9GU4f538iG_vLhA5it",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1miyh1HabCsRD7MtPCCLI_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "08R9OAcyTEABGdbf$ev6eH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1bXouNTfz7IRMJEBIofaIr",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2gtI3$NkzEBwmh9wow2yjR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3YXsW0aNT9fBJKoNu48wMl",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1upa2CczfA5Pb8JpYjtoaz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2mkdrAN3OAHZk$nMXiCHEI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0bF6ilXTJCpEHdrYDdpA5Y",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1u8mjwoHwfG7hFwCONGQfh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34EIHHZTLKrFNNENT67EUZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Kccv3ZlSEzFZ0cTkut$tf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1sN2TUrjDMKpOIOXLi3UTp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0gKuEwGKL3Gx09anWAryqK",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "37_lqqmrerU5KRYCzEW0ig",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2IWBAxPMmzrRX4JsCCSVnG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "08z4PiVUezJa4k0ttYokUQ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2iY0KCLJG6oMYH2A2PJ9BA",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2rjbwk8czsfqV1jsVVyPKh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "12KVyD3e$hqPe9tkmUG4SZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3KljgoOGwhJg0sVJTjvd37",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ecIL7BtZFL0g8BfeAxYw1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2jUFK2T5jZxYG5pG4S8Uyi",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "35Yit1JCQEfF2MDghgk_sL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0OU_GoX_qXDIEPMo6PCY2g",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Cr2K_6GknBdPNwALyAOPH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1i7erV$Yszpw3RiXXNVb1f",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1gVIvfjMag8LFla_MNls$p",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2yLIrlXVj58P1YEMVCepMG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2YTn7pBY972BbWyvyTnSPt",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2c2Q6eIN1F$u$aB0lz7Je5",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1v5SYTWvT7zgXQcohoYSyY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3rh_eaAfjD385dA0Kfu0QP",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Nh9z2izb6owTfk_BD7EIr",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0E4WIuO7b4E86pXzF8pZr3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3N9IcaDzT7Mx55daEDyU1b",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3pK7GCEKz49P4daaxi3ZWw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1F$sirAwL9tQDxeKx6zEyS",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1lcz$QU7DFQAnDIVQXw6g6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0MiVUlmKPAtgBMWWb4q3Z2",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2QhdNtJPPDyPyV5DGQwbQ5",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0kufZ9$KP4fBbqP6s_2ani",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "14IlVp__H5_BRNynwUltXl",
+     "shape": "guid",
+     "label": null
+    }
+   ],
+   "explanation": "189 IfcWall elements in the whole model.",
+   "intent": {
+    "intent": "ifc_count",
+    "cls": "wall",
+    "storey": null
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "ifc",
+   "method": "BIM model query",
+   "honesty": {
+    "tier": "measured",
+    "deterministic": true,
+    "basis": "read from the building model's own elements and quantities"
+   },
+   "confidence": 0.99,
+   "dataset_answer": 189
+  }
+ },
+ {
+  "question": "How many columns are there in the model 'Molio Demo-hus'?",
+  "truth": 14,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 14,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "2yZNVH4$v6AeBIgiiWYVAg",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Kz7q2yKr0xgTtAFVfW_eb",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2k3GK2jUT28AbWA7EtuMeK",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0RmQ04sOb6FODR2auzBSBo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "38bd3qEvb9lv5lHxHmBoDA",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3eLeuULBH2$Q4GKEcjFemy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1znpALv05FZxiytnwXsGra",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "16m7AeRcv3Tvvy74g$saxk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2gQIX93hf2RBe3k7if5zn4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Z2Yd0EvD9DQjqet1HeTaG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2mnSKbbVD6mOAkSfYM7Iwu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0N3Ytjb3z7muYjJILZQ6tW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2hCcOUK25DIe7ZI6pJ9RDu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "075wMOrBjBBhH5afQF$WfN",
+     "shape": "guid",
+     "label": null
+    }
+   ],
+   "explanation": "14 IfcColumn elements in the whole model.",
+   "intent": {
+    "intent": "ifc_count",
+    "cls": "column",
+    "storey": null
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "ifc",
+   "method": "BIM model query",
+   "honesty": {
+    "tier": "measured",
+    "deterministic": true,
+    "basis": "read from the building model's own elements and quantities"
+   },
+   "confidence": 0.99,
+   "dataset_answer": 14
+  }
+ },
+ {
+  "question": "Hvor mange søjler er der i modellen 'Molio Demo-hus'?",
+  "truth": 14,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 14,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "2yZNVH4$v6AeBIgiiWYVAg",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Kz7q2yKr0xgTtAFVfW_eb",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2k3GK2jUT28AbWA7EtuMeK",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0RmQ04sOb6FODR2auzBSBo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "38bd3qEvb9lv5lHxHmBoDA",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3eLeuULBH2$Q4GKEcjFemy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1znpALv05FZxiytnwXsGra",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "16m7AeRcv3Tvvy74g$saxk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2gQIX93hf2RBe3k7if5zn4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Z2Yd0EvD9DQjqet1HeTaG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2mnSKbbVD6mOAkSfYM7Iwu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0N3Ytjb3z7muYjJILZQ6tW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2hCcOUK25DIe7ZI6pJ9RDu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "075wMOrBjBBhH5afQF$WfN",
+     "shape": "guid",
+     "label": null
+    }
+   ],
+   "explanation": "14 IfcColumn elements in the whole model.",
+   "intent": {
+    "intent": "ifc_count",
+    "cls": "column",
+    "storey": null
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "ifc",
+   "method": "BIM model query",
+   "honesty": {
+    "tier": "measured",
+    "deterministic": true,
+    "basis": "read from the building model's own elements and quantities"
+   },
+   "confidence": 0.99,
+   "dataset_answer": 14
+  }
+ },
+ {
+  "question": "How many beams are there in the model 'Molio Demo-hus'?",
+  "truth": 7,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 7,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "0LaNcsg6n699Si$u$$QVvx",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1ERnS6WrT0XPsYVysDdMxL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Ep4_$gozAtvhMlWS5Gp10",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0oLSnxuw15iPg3W5bvzEhE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2JYftgSbr1pfEXIFs5ykGr",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "00HocSJHjAgvnJoKWX5xVY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1zGJwRFSL72R1DQmqLzOYq",
+     "shape": "guid",
+     "label": null
+    }
+   ],
+   "explanation": "7 IfcBeam elements in the whole model.",
+   "intent": {
+    "intent": "ifc_count",
+    "cls": "beam",
+    "storey": null
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "ifc",
+   "method": "BIM model query",
+   "honesty": {
+    "tier": "measured",
+    "deterministic": true,
+    "basis": "read from the building model's own elements and quantities"
+   },
+   "confidence": 0.99,
+   "dataset_answer": 7
+  }
+ },
+ {
+  "question": "Hvor mange bjælker er der i modellen 'Molio Demo-hus'?",
+  "truth": 7,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 7,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "0LaNcsg6n699Si$u$$QVvx",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1ERnS6WrT0XPsYVysDdMxL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Ep4_$gozAtvhMlWS5Gp10",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0oLSnxuw15iPg3W5bvzEhE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2JYftgSbr1pfEXIFs5ykGr",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "00HocSJHjAgvnJoKWX5xVY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1zGJwRFSL72R1DQmqLzOYq",
+     "shape": "guid",
+     "label": null
+    }
+   ],
+   "explanation": "7 IfcBeam elements in the whole model.",
+   "intent": {
+    "intent": "ifc_count",
+    "cls": "beam",
+    "storey": null
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "ifc",
+   "method": "BIM model query",
+   "honesty": {
+    "tier": "measured",
+    "deterministic": true,
+    "basis": "read from the building model's own elements and quantities"
+   },
+   "confidence": 0.99,
+   "dataset_answer": 7
+  }
+ },
+ {
+  "question": "How many stairs are there in the model 'Molio Demo-hus'?",
+  "truth": 15,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 15,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "1_BKpClXH78wCBLjl$Jh9t",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1QB4xK_0z30ROdFSs18Zi3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Ql4Baw5n9wwlb1J3UKUx8",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2IsAI2CTrCtABCglL$pQnh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "13SaT_Wa5DsQ2SlBFRPfBk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "01zZuI7ETB7xjWhPVxipdM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0tMnP1NX1DeecEPaXRkHd_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1hjZVNNY12WgzWVY38dSNF",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0W5EevjH50mRSGIYZvNWkY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3z7E2Dp0D7c8voSXZ7Uv0r",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1iJTCk7lf8IOt1ITnAE$qH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3ZUnY9umX9kggdlJ8P1XjJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0hFlDM1uf3SOsfj$hJZ5ip",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1hyIDUXjz90f0S9QWzdOSU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "24THzDrbv9xBHPczRiQ6mk",
+     "shape": "guid",
+     "label": null
+    }
+   ],
+   "explanation": "15 IfcStair elements in the whole model.",
+   "intent": {
+    "intent": "ifc_count",
+    "cls": "stair",
+    "storey": null
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "ifc",
+   "method": "BIM model query",
+   "honesty": {
+    "tier": "measured",
+    "deterministic": true,
+    "basis": "read from the building model's own elements and quantities"
+   },
+   "confidence": 0.99,
+   "dataset_answer": 15
+  }
+ },
+ {
+  "question": "Hvor mange trapper er der i modellen 'Molio Demo-hus'?",
+  "truth": 15,
+  "truth_unit": "count",
+  "probe": false,
+  "seconds": 0.0,
+  "response": {
+   "answer": 15,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "1_BKpClXH78wCBLjl$Jh9t",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1QB4xK_0z30ROdFSs18Zi3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Ql4Baw5n9wwlb1J3UKUx8",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2IsAI2CTrCtABCglL$pQnh",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "13SaT_Wa5DsQ2SlBFRPfBk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "01zZuI7ETB7xjWhPVxipdM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0tMnP1NX1DeecEPaXRkHd_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1hjZVNNY12WgzWVY38dSNF",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0W5EevjH50mRSGIYZvNWkY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3z7E2Dp0D7c8voSXZ7Uv0r",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1iJTCk7lf8IOt1ITnAE$qH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3ZUnY9umX9kggdlJ8P1XjJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0hFlDM1uf3SOsfj$hJZ5ip",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1hyIDUXjz90f0S9QWzdOSU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "24THzDrbv9xBHPczRiQ6mk",
+     "shape": "guid",
+     "label": null
+    }
+   ],
+   "explanation": "15 IfcStair elements in the whole model.",
+   "intent": {
+    "intent": "ifc_count",
+    "cls": "stair",
+    "storey": null
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "ifc",
+   "method": "BIM model query",
+   "honesty": {
+    "tier": "measured",
+    "deterministic": true,
+    "basis": "read from the building model's own elements and quantities"
+   },
+   "confidence": 0.99,
+   "dataset_answer": 15
+  }
+ },
+ {
+  "question": "How many doors are there?",
+  "truth": null,
+  "truth_unit": null,
+  "probe": true,
+  "seconds": 0.0,
+  "response": {
+   "answer": 119,
+   "unit": "count",
+   "evidence": [
+    {
+     "id": "33GBU1flP9W8vlMtimANDE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3p49HTFZj1tfi_AhsW7fKS",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3$cqc8rkP1ch_GPdg9Ydj4",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2SIIp8AVj6kvMEz4egOi47",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0j16ZLX3n9WB_KPE7tsbJx",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ckJm4RCr3OQ8EiEx3S8MO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1pnBdDje1Bx9$rFMrD1ZVY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2cAsNYEAPEkhKrei0blirN",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "06gdEwF$XEJh3nGu4Hc$2Y",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2JCxPU4PD1yQYFlzre4WFC",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3UOeaa3ZfDnh05i1z2zm6E",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0qwefjSA97MwdvpXouEioA",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1A7hBMrrHDdQ3t0FvRuYKL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "37p5olGkfDxhKYz2jjMiwD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1WoQN59iPEB8dEc$ImCDqo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0a$hwqLe94DgoZFRyfhekJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2njkrTUmHEkxVPwJ4YxEI2",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2HL3hfVWf1B93T62l_CXDR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1OT9oEbs15YfVJjdoKUJI3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3wMQlc7$HDJwYEM6p9Hy_k",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3dy$CZaoHF$eKT9dqEFM0r",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0n_BPhgJb2pgPsCK6VZycY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "374h_wmxL2FuyLgRKAphUp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3$TjvLokb7HwbTCksvnVhX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2pUVQXSuLF2wL9gwRafYwu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3MGpiI_Lf9zOxCW3gHodw0",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34I23TQAXCCv5DKlHryBHF",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1AbNctzCjFiwC3NUXYwhDU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2d73xXMa1ARPDxbcFbLuTD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0oHUDYkVv0dBwCLW60HMIE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1UKcmOIlvCZePoVjiR8y3w",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1RJcGZNVT8xBBfQSLxd4PI",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "009zSyZs96$vS74ZPLJ8WT",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "02a48mbhTFofaZwesXgV3i",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3jnx1aPNP9cf0q1wj5AbUp",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0d_inDC8b8ZBjO0hwJfW_W",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2$8$87OPjCPBEfNickVPbW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1glKjp2avFI8lDbega$DJz",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0RDYZAx7bFsQvRB$nRELsc",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2sW0f9wvL2avxSCvXYe45e",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1uWUtZ4y59pQYB2jh7vo23",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2LhJF79wj32f5HVa2F4a5Y",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1ZMPoPkJzBrQfZicxuTUR_",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "34z1ImOe9FB9NZum$uCywG",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "23Bz659P9FCPSehAbc3kv1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2P4Ef0HZf7LPXeRp5a2PLL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3ZooWPKtDFHgoZhYaXHNuw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3lueEf6qT8jAU4mPmcWDZH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "00WOpoYNL2oPNWPHB0_C4m",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3uPkFI0FT7Pxi_Mk8WATGv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3pkwonXCfCNP0ciZgfvmZC",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2mm$PphBP0vvw_RBBMw4p0",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0m4t8O$Uz2PPMl5zpkZnQv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3k7ldM86P4UeHFRN0CJ1iZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ouaf7wkX5BxaohHVx_3HP",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Wup$0POP55vbZIpNwKWro",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2YfAOzGMv7YBsI3vOPKJ5i",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0rOXpU$an9PfuhjBb5PT6B",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1x7kHJ8jT8SuyzriYHlh$2",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3sUwiY9$3xdC0oSVshgezs",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0eQnmQgqQyOwK5D5Sluwuv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Sj6utCPbFLhqT_WT$GUzk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0YmUYGdLr7a90JPTlBn3iU",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2LcPdcWEgEGuPJK4d6eS9$",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2hY4CjVxzGgDZxBv_UcwBN",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2u2BKCqlJOO3R4k6mkqWgM",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0VbPGgKNpfPbG3E2HWd7Yb",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3J24FnfCFlMa0wi5Ib9ycJ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "30k2RLv4bEsjNKShzGBM5t",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2CJELVtT7EuN7f2s25gUIv",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ojJdbUtH0HOiukWE$1Emf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "27_uHKvb3UinNboD7EHO$3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3mDR8$Sn4MQxGLMnYI$oWH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Yxl_wT9mpVuN$kmv0pLKX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2Yg8AxBNDrlxxhu2mXdw$1",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Ber86TeHgUNh4JEX6Kl6x",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0xkxlcwYL7M8pf3PKpUuLq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2HF_9Rj4pJ4S8GLImahkYV",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1dCFcS6nscPHeFKoRiXOst",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3W9U5ixPZsQ7rPOQXkT_ex",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "08sozL71TCyPU5q7Zc8KfD",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3Ym9eG2$$tDYF3iJs_n$n6",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3GtuAcDPU9bHF0MCKTZvQu",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1GwpxsIXUK6N5O5HR4_FSt",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0GeVVspF6ssgscARQ2q$YW",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0mvUjzZS4oTCjRoRmWqcOc",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3NwZLzgIxabhS0nVU5X6l8",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1WOhqxMlv1RFfmS9QVp3vE",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2S4RL3oG0YMxav6T2E9SOm",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2B7mSkJ25wtut4VV5PJMAY",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Y_d8eOc_v5dU0WNvUNcxa",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3nIz96cA7n7Mxzv9qsWv84",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1FvaP3j8Tlpj4J6cRlLMZy",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1pCiZjRj$E6GVECRtGkwKV",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0NP_okuM5EnAQa9T2Cz89U",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "16RCExKHi3yO38AcHeSsP$",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2DVf3H08h5DzrSi84QokT3",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3IzaLqk$6Ybb6JwJqa38EO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0UHirbIT13WfXwI_6qVpUR",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2g3YpXn2TULVf60AYhf$yO",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2daIA8mwVL4r_Vs0uC_l4Y",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2AF8TC$BZnFskHsAHOK2wH",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1YTyBNqTA4SFOFysDNeErC",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "26obsE0q84Glc2owLtKdsf",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2SMB8yHapX0AIUA03WesIo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2ArCqm_vtj00MO44HKBnob",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2fafOmHxu3d8BVfjgBhNET",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2DxKe6KC7$r7mpYo8MWDxo",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "21tobeYx3ijVbsIhpYeyOk",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "2GqQKHbb6qur9NEr7FDgLw",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0voKfkbLuL1iyO8j18EKjL",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0L5WZOeg2kMvLjqZ9iUNzZ",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "19N_e$yWXA6B0WTStOR2ow",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1u9ONWp2H97gzybJDjr8O7",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "3QQ$WK9AnBTOp4JfaydHIq",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0IU6e_hvX9T9eyHvs0SatN",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "0Gk_q1ZLLDFujmCNPdNlib",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "1Q9vsJMyf0ARfUQOooXlfX",
+     "shape": "guid",
+     "label": null
+    },
+    {
+     "id": "04Mwuk1AL0xOikN3iY2m1H",
+     "shape": "guid",
+     "label": null
+    }
+   ],
+   "explanation": "119 IfcDoor elements in the whole model.",
+   "intent": {
+    "intent": "count_openings",
+    "cls": "door"
+   },
+   "question_read": {
+    "by": "pattern",
+    "note": "matched a known question pattern"
+   },
+   "source_type": "ifc",
+   "method": "BIM model query",
+   "honesty": {
+    "tier": "measured",
+    "deterministic": true,
+    "basis": "read from the building model's own elements and quantities"
+   },
+   "confidence": 0.99
+  }
+ },
+ {
+  "question": "What is the total floor area?",
+  "truth": null,
+  "truth_unit": null,
+  "probe": true,
+  "seconds": 0.0,
+  "response": {
+   "answer": null,
+   "unit": null,
+   "evidence": [],
+   "intent": {
+    "intent": "schedule"
+   },
+   "method": "table query",
+   "confidence": null,
+   "explanation": "This sheet has 1 table(s) (''), but the question could not be turned into a query: language model not available (ModuleNotFoundError).",
+   "honesty": {
+    "tier": "cannot determine",
+    "deterministic": null,
+    "basis": "language model not available (ModuleNotFoundError)"
+   }
+  }
+ },
+ {
+  "question": "What is the ceiling height?",
+  "truth": null,
+  "truth_unit": null,
+  "probe": true,
+  "seconds": 0.0,
+  "response": {
+   "answer": null,
+   "unit": null,
+   "evidence": [],
+   "intent": {
+    "intent": "schedule"
+   },
+   "method": "table query",
+   "confidence": null,
+   "explanation": "This sheet has 1 table(s) (''), but the question could not be turned into a query: language model not available (ModuleNotFoundError).",
+   "honesty": {
+    "tier": "cannot determine",
+    "deterministic": null,
+    "basis": "language model not available (ModuleNotFoundError)"
+   }
+  }
+ }
+]

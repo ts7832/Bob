@@ -1,0 +1,98 @@
+/* DrawView styles. Injected once by mount(); every rule is scoped under .dv-root so the host page is untouched.
+   Tokens match the team's demo page (demo/index.html :root) so the view reads as part of it. */
+.dv-root {
+  --dv-bg: #f4f5f7;      /* canvas around the sheet (= page --bg), so the white paper keeps an edge */
+  --dv-panel: #fff;
+  --dv-ink: #1d2330;
+  --dv-muted: #6b7280;
+  --dv-line: #e3e6eb;
+  --dv-chip: #eef1f5;
+  --dv-accent: #ff7a00;  /* = page --accent and its old .hl highlight */
+  --dv-accent-soft: #fff3e6;
+  --dv-accent-line: #ffd2a6;
+  --dv-low: #d99a00;
+  --dv-ok: #14804a; --dv-okbg: #e5f6ec;
+  --dv-warn: #8a5a00; --dv-warnbg: #fff4dc;
+  --dv-bad: #b42318; --dv-badbg: #fdecea;
+  --dv-float: 0 1px 2px rgba(29, 35, 48, 0.06), 0 6px 20px rgba(29, 35, 48, 0.1);
+  position: relative; width: 100%; height: 100%; min-height: 320px; overflow: hidden;
+  background: var(--dv-bg); color: var(--dv-ink);
+  font: 14px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: light;
+}
+.dv-root *, .dv-root *::before, .dv-root *::after { box-sizing: border-box; }
+.dv-root button { font: inherit; color: inherit; }
+.dv-view { position: absolute; inset: 0; }
+.dv-overlay { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+
+/* answer card, top left (like the page's .card with .big) */
+.dv-badge {
+  position: absolute; top: 12px; left: 12px; width: max-content; max-width: min(400px, calc(100% - 24px));
+  background: var(--dv-panel); border: 1px solid var(--dv-line); border-radius: 12px; padding: 12px 14px;
+  box-shadow: var(--dv-float); pointer-events: none;
+}
+.dv-value { font-size: 34px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.dv-value small { font-size: 16px; font-weight: 500; color: var(--dv-muted); letter-spacing: 0; margin-left: 4px; }
+.dv-q { font-size: 12.5px; color: var(--dv-muted); margin-top: 4px; max-width: 46ch; }
+.dv-badge p { margin: 8px 0 0; font-size: 13px; max-width: 52ch; }
+.dv-note { color: var(--dv-muted); }
+.dv-warn { color: var(--dv-bad); }
+.dv-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.dv-chip { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 9px; background: var(--dv-chip); color: var(--dv-muted); }
+.dv-badge p.dv-basis { margin-top: 6px; font-size: 12.5px; color: var(--dv-muted); }
+.dv-tier-read, .dv-tier-measured { background: var(--dv-okbg); color: var(--dv-ok); }
+.dv-tier-detected { background: var(--dv-warnbg); color: var(--dv-warn); }
+.dv-tier-estimated { background: var(--dv-accent-soft); color: #9a3412; }
+.dv-cannot { border-color: #f5c2bd; }
+.dv-cannot .dv-title { color: var(--dv-bad); font-weight: 600; font-size: 14px; }
+
+/* tools, bottom left (like the page's .toolbar) */
+.dv-tools { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 6px; }
+.dv-tools button {
+  background: var(--dv-panel); border: 1px solid var(--dv-line); border-radius: 7px; padding: 5px 10px; font-size: 12.5px;
+  cursor: pointer; box-shadow: 0 1px 2px rgba(29, 35, 48, 0.05);
+}
+.dv-tools button:hover { background: var(--dv-chip); }
+.dv-tools .dv-on { background: var(--dv-accent-soft); border-color: var(--dv-accent-line); color: #9a3d00; }
+.dv-root button:focus-visible { outline: 2px solid var(--dv-accent); outline-offset: 1px; }
+
+/* where the evidence is on the original, top right */
+.dv-detail {
+  position: absolute; right: 12px; top: 12px; width: 330px; max-width: calc(100% - 24px);
+  background: var(--dv-panel); border: 1px solid var(--dv-line); border-radius: 12px; padding: 12px 14px; box-shadow: var(--dv-float);
+}
+.dv-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.dv-detail .dv-title { font-weight: 600; font-size: 13px; }
+.dv-x { background: none; border: 0; font-size: 20px; line-height: 1; cursor: pointer; color: var(--dv-muted); border-radius: 6px; padding: 0 4px; }
+.dv-x:hover { background: var(--dv-chip); }
+.dv-crop { display: block; border-radius: 8px; background: #fff; max-width: 100%; border: 1px solid var(--dv-line); }
+.dv-detail dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 10px 0 0; font-size: 13px; }
+.dv-detail dt { color: var(--dv-muted); }
+.dv-detail dd { margin: 0; overflow-wrap: anywhere; }
+.dv-detail code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* 3D note, bottom right (like the page's .note) */
+.dv-illustrative {
+  position: absolute; right: 12px; bottom: 12px; max-width: min(60%, 520px); font-size: 12.5px; color: var(--dv-muted);
+  background: var(--dv-panel); border: 1px solid var(--dv-line); border-radius: 7px; padding: 5px 10px; pointer-events: none;
+}
+
+.dv-status { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: var(--dv-muted); text-align: center; max-width: 80%; }
+.dv-error { color: var(--dv-bad); }
+
+/* labels on the drawing (portalled into .dv-overlay); same orange marker as the page's numbered evidence */
+.dv-tag {
+  background: var(--dv-accent); color: #fff; font: 600 12px/1 system-ui, -apple-system, sans-serif; padding: 3px 6px;
+  border-radius: 99px; white-space: nowrap; box-shadow: 0 0 0 1.5px #fff, 0 1px 3px rgba(29, 35, 48, 0.3); font-variant-numeric: tabular-nums;
+}
+.dv-tag-low { background: var(--dv-low); color: #1d2330; }
+.dv-tag-active { transform: scale(1.2); box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--dv-ink); }
+
+/* category legend inside the answer card */
+.dv-legend { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 3px; font-size: 13px; }
+.dv-legend li { display: grid; grid-template-columns: 13px 1fr auto; gap: 8px; align-items: center; }
+.dv-legend i, .dv-swatch { display: inline-block; width: 13px; height: 13px; border-radius: 3px; }
+.dv-swatch { margin-right: 6px; vertical-align: -2px; }
+.dv-legend b { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+
+@media (prefers-reduced-motion: reduce) { .dv-tag-active { transform: none; } }

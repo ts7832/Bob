@@ -1,0 +1,175 @@
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react'
+import { Canvas } from '@react-three/fiber'
+import type { Answer, Drawing, Element } from './types'
+import type { Store } from './store'
+import { Scene, focusOf, type Insets } from './Scene'
+import { Crop } from './Crop'
+import { bbox, outline } from './geom'
+
+const TIER_TEXT: Record<string, string> = {
+  read: 'Read from the sheet', measured: 'Measured from geometry', detected: 'Detected by a model',
+  estimated: 'Estimated', 'cannot determine': 'Cannot determine',
+}
+
+export function View({ store }: { store: Store }) {
+  const s = useSyncExternalStore(store.subscribe, store.get)
+  const overlay = useRef<HTMLDivElement>(null)
+  const viewRef = useRef<HTMLDivElement>(null), badgeRef = useRef<HTMLDivElement>(null), detailRef = useRef<HTMLDivElement>(null)
+  const photoStatus = useRef<HTMLSpanElement>(null)
+  const { loaded, answer, selectedId } = s
+  const selected = answer?.elements.find((e) => e.id === selectedId) ?? null
+  const focus = useMemo(
+    () => (selected ? focusOf([selected], 0.3) : answer?.status === 'answered' ? focusOf(answer.elements) : null),
+    [selected, answer],
+  )
+  const select = (id: string | null) => store.set({ selectedId: id })
+  const low = s.quality === 'low' || (s.quality === 'auto' && s.slow)
+  // Room the cards take, so zoom-to-answer frames the evidence in the free part of the view (not under a card)
+  const [insets, setInsets] = useState<Insets>({ l: 0, t: 0, r: 0, b: 48 })
+  useLayoutEffect(() => {
+    const measure = () => {
+      const v = viewRef.current?.getBoundingClientRect()
+      if (!v) return
+      const q = (n: number) => Math.max(0, Math.round(n / 8) * 8)
+      const bd = badgeRef.current?.getBoundingClientRect(), dt = detailRef.current?.getBoundingClientRect()
+      const wide = v.width > 900 // wide view: cards take a column at the side; narrow: a band at the top
+      const next: Insets = {
+        l: bd && wide ? q(bd.right - v.left + 12) : 0,
+        t: bd && !wide ? q(bd.bottom - v.top + 12) : 0,
+        r: dt && wide ? q(v.right - dt.left + 12) : 0,
+        b: 48,
+      }
+      setInsets((p) => (p.l === next.l && p.t === next.t && p.r === next.r && p.b === next.b ? p : next))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    for (const n of [viewRef.current, badgeRef.current, detailRef.current]) if (n) ro.observe(n)
+    return () => ro.disconnect()
+  }, [answer, selected])
+  useEffect(() => { // Esc clears the selection
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && store.get().selectedId) store.set({ selectedId: null }) }
+    window.addEventListener('keydown', k)
+    return () => window.removeEventListener('keydown', k)
+  }, [store])
+
+  return (
+    <div className="dv-view" ref={viewRef}>
+      {loaded && (
+        <Canvas flat shadows="percentage" dpr={low ? 1 : [1, 2]} camera={{ fov: 30, near: 1, far: 1e6, position: [0, 1e4, 0] }} onPointerMissed={() => select(null)}>
+          <color attach="background" args={['#f4f5f7']} />
+          <Suspense fallback={null}>
+            <Scene key={loaded.drawing.key} loaded={loaded} answer={answer} selectedId={selectedId} hoverId={s.hoverId}
+              dim={s.dim} showPlan={s.showPlan} mode={s.mode} photo={s.photo && s.mode === '3d'} photoStatus={photoStatus} focus={focus} fitAll={s.fitAll} insets={insets}
+              low={low} onSlow={(slow) => { if (store.get().slow !== slow) store.set({ slow }) }}
+              onSelect={select} onHover={(id) => store.set({ hoverId: id })} overlay={overlay} />
+          </Suspense>
+        </Canvas>
+      )}
+      <div ref={overlay} className="dv-overlay" />
+
+      {answer && <AnswerBadge answer={answer} boxRef={badgeRef} />}
+      {selected && loaded && <Detail drawing={loaded.drawing} el={selected} onClose={() => select(null)} boxRef={detailRef} />}
+
+      {loaded && (
+        <div className="dv-tools">
+          {answer?.status === 'answered' && answer.elements.length > 0 && (
+            <button className={s.dim ? 'dv-on' : ''} onClick={() => store.set({ dim: !s.dim })}>Dim rest</button>
+          )}
+          {!answer && loaded.plan.length > 0 && (
+            <button className={s.showPlan ? 'dv-on' : ''} onClick={() => store.set({ showPlan: !s.showPlan })}>Found plan</button>
+          )}
+          <button title="Clear the selection and frame the sheet (the building in 3D)" onClick={() => store.set({ selectedId: null, fitAll: s.fitAll + 1 })}>Reset view</button>
+          {s.mode === '3d' && (
+            <button className={s.photo ? 'dv-on' : ''} title="Path-traced render: refines while the camera rests" onClick={() => store.set({ photo: !s.photo })}>Photo</button>
+          )}
+          <button className={s.mode === '3d' ? 'dv-on' : ''} onClick={() => store.set({ mode: s.mode === '3d' ? '2d' : '3d', photo: false })}>
+            {s.mode === '3d' ? '2D' : '3D'}
+          </button>
+        </div>
+      )}
+      {loaded && s.mode === '3d' && (
+        <div className="dv-illustrative">3D for orientation only: wall heights are illustrative, answers come from the drawing{s.photo && <> · <span ref={photoStatus}>Path tracing…</span></>}</div>
+      )}
+
+      {s.loading && <div className="dv-status">Loading drawing…</div>}
+      {s.error && <div className="dv-status dv-error">{s.error}</div>}
+      {!loaded && !s.loading && !s.error && <div className="dv-status">Open a drawing to see it here.</div>}
+    </div>
+  )
+}
+
+// Known technical backend messages in plain words; the original stays in the tooltip (and in the chat).
+function friendly(t?: string | null) {
+  if (!t) return 'The drawing does not contain what this question needs.'
+  if (/language model (is )?(not available|switched off)|ModuleNotFoundError|DRAWQA_LLM|no ANTHROPIC_API_KEY/i.test(t))
+    return 'This question needs the language model, which is not running in this demo. Try asking with the wording of a listed question.'
+  return t
+}
+
+function AnswerBadge({ answer, boxRef }: { answer: Answer; boxRef: RefObject<HTMLDivElement | null> }) {
+  if (answer.status === 'cannot_answer')
+    return (
+      <div className="dv-badge dv-cannot" ref={boxRef}>
+        <div className="dv-title">Can't answer this from the drawing</div>
+        {answer.question && <div className="dv-q">{answer.question}</div>}
+        <p title={answer.explanation ?? undefined}>{friendly(answer.explanation)}</p>
+      </div>
+    )
+  const off = answer.cited - answer.elements.length
+  const [num, ...rest] = (answer.value ?? '').split(' '), unit = rest.join(' ') // '278.9 m²' -> big number, small unit (page's .big)
+  return (
+    <div className="dv-badge" ref={boxRef}>
+      <div className="dv-value">{num}{unit && <small>{unit}</small>}</div>
+      {answer.question && <div className="dv-q">{answer.question}</div>}
+      <div className="dv-chips">
+        {answer.tier && <span className={`dv-chip dv-tier-${answer.tier.replace(' ', '-')}`}>{TIER_TEXT[answer.tier] ?? answer.tier}</span>}
+        {answer.deterministic === false && <span className="dv-chip">not deterministic</span>}
+      </div>
+      {answer.basis && <p className="dv-basis">{answer.basis}</p>}
+      {(answer.groups.length > 1 || answer.groups.some((g) => g.value)) && (
+        <ul className="dv-legend">
+          {answer.groups.map((g) => (
+            <li key={g.name}><i style={{ background: g.color }} /><span>{g.name}</span><b>{g.value ?? `${g.count}×`}</b></li>
+          ))}
+        </ul>
+      )}
+      {answer.cited > 0 && off > 0 && (
+        <p className="dv-note">
+          {answer.elements.length} of {answer.cited} shown on this sheet. The other {off} are elsewhere in the model, not on this drawing.
+        </p>
+      )}
+      {answer.cited === 0 && <p className="dv-note">Nothing to highlight on the drawing for this answer.</p>}
+      {answer.styleWarning && <p className="dv-warn">Unfamiliar drawing style: this count may be wrong.</p>}
+    </div>
+  )
+}
+
+const pct = (c?: number | null) => (c == null ? null : `${Math.round(c * 100)}%`)
+const HOW: Record<string, string> = { polygon: 'outline', polyline: 'line', box: 'detection box', guid: 'BIM element', detector: 'detected', read: 'read from sheet' }
+
+function Detail({ drawing, el, onClose, boxRef }: { drawing: Drawing; el: Element; onClose: () => void; boxRef: RefObject<HTMLDivElement | null> }) {
+  const b = bbox(outline(el))
+  const [x0, y0] = drawing.fromPx([b.x0, b.y0]), [x1, y1] = drawing.fromPx([b.x1, b.y1])
+  const unit = drawing.units === 'm' ? 'm' : drawing.units === 'px' ? 'px' : ''
+  const f = (v: number) => (drawing.units === 'px' ? Math.round(v) : v.toFixed(2))
+  return (
+    <div className="dv-detail" ref={boxRef}>
+      <div className="dv-row">
+        <div className="dv-title">Where this is on the original drawing</div>
+        <button className="dv-x" onClick={onClose} aria-label="Close">×</button>
+      </div>
+      <Crop drawing={drawing} el={el} width={300} height={190} />
+      <dl>
+        {el.label && <><dt>Mark</dt><dd>{el.label}</dd></>}
+        {el.name && <><dt>Name</dt><dd>{el.name}</dd></>}
+        {el.group && <><dt>Group</dt><dd><i className="dv-swatch" style={{ background: el.color }} />{el.group}</dd></>}
+        {el.valueText && <><dt>Value</dt><dd>{el.valueText}</dd></>}
+        <dt>Type</dt><dd>{el.type === 'evidence' ? HOW[el.how ?? ''] ?? 'evidence' : el.type}</dd>
+        {pct(el.confidence) && <><dt>Confidence</dt><dd>{pct(el.confidence)}</dd></>}
+        <dt>ID</dt><dd><code>{el.id}</code></dd>
+        <dt>Position</dt>
+        <dd><code>x {f(Math.min(x0, x1))} to {f(Math.max(x0, x1))}, y {f(Math.min(y0, y1))} to {f(Math.max(y0, y1))}{unit && ' ' + unit}</code></dd>
+      </dl>
+    </div>
+  )
+}
