@@ -17,6 +17,15 @@ The drawing view (`viz/`): what exists, and what changed when. Newest first. Usa
 | Evidence that isn't on this sheet (BIM model-wide answers) | yes | says "N of M on this sheet"; selecting one says "Not on this drawing" |
 | Light theme matching the demo page | yes | default |
 
+## 2026-11-14 20:10: fix for a server crash on BIM plans
+- Opening a BIM plan in `ui/` crashed `tools/ui_server.py` with a segmentation fault (exit 139), every time on Esplanades.
+  The view fetched `/api/plan` and `/api/sheet` in parallel, so two threads ran `ifcopenshell.open()` on the same model
+  at once (`drawqa/ifc.py _model` via `plan_storey`). ifcopenshell is not thread-safe.
+- The view now fetches render, plan and sheet one after the other. This is not slower: the second request is served
+  from the server's cache. Re-tested: all 7 samples plus a gold drawing in `ui/`, server stays up, 0 errors.
+- Still needed on the backend: a lock around IFC model loading in `drawqa/ifc.py`, because any two parallel requests
+  (two browser tabs, or the page plus the gold scorer) can still hit it.
+
 ## 2026-11-14 18:00: works inside the team page; off-sheet evidence explained
 - Tested inside `ui/index.html` (`tools/ui_server.py`, PR #9) with this bundle: all 7 samples plus a gold drawing, rehearsed questions, evidence list to view selection, 3D. 0 console errors (`tests/teampage.py`).
 - Keyboard shortcuts only act when nothing else on the page has focus. The page's own buttons and inputs keep Space and the arrow keys.
