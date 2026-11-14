@@ -30,8 +30,9 @@ inside `ui/` before it is opened.
   - double-click zoom, F to refit.
 - **Clean view:** the plan redrawn from what was detected, with a swipe divider against the original.
 - **3D:**
-  - walls, floors per room type, and fixtures as real models (WC, basin, tub, shower, kitchen, sauna, door leaves);
-  - the counted object's model lights up;
+  - walls, floors per room type (oak, stone, tile, plus a tiled band on wet-room walls), and fixtures as real models (WC, basin, tub, shower, kitchen, sauna, door leaves);
+  - a cutaway: walls on your side drop low;
+  - the counted object's model lights up orange with a floor glow, and the selected one gets a callout (name, n of N, id, source);
   - wall cut slider, and a path-traced Photo mode;
   - heights are labelled illustrative and never used for answers.
 - **Sheets with several drawings:** says which drawing the evidence comes from (or the split), and a Drawings picker frames each one.

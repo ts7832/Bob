@@ -51,11 +51,11 @@ button.ask{background:var(--accent);color:var(--accent-fg);border:0;border-radiu
 button.ask:disabled{opacity:.5;cursor:wait}
 label.toggle{color:var(--muted);font-size:12px;display:flex;gap:6px;align-items:center;margin-left:auto;cursor:pointer}
 .chips{display:flex;flex-direction:column;gap:4px;margin-top:10px}
-.chip{border:1px solid var(--line);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:13px;background:var(--soft);text-align:left;color:var(--fg);font-family:inherit}
+.chip{border:1px solid var(--line);border-radius:10px;padding:9px 12px;cursor:pointer;font-size:14px;min-height:40px;background:var(--soft);text-align:left;color:var(--fg);font-family:inherit}
 .chip:hover{border-color:var(--muted)}
 .chip .exp{color:var(--muted);font-size:12px;margin-left:6px;white-space:nowrap}
 .card{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--panel)}
-.value{font-size:30px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.value{font-size:34px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
 .value.cannot{font-size:18px;color:var(--cannot)}
 .q{color:var(--muted);margin:4px 0 10px}
 .pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;border:1px solid currentColor}
@@ -69,7 +69,7 @@ dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}
 .ev{margin-top:12px}
 .ev h3{font-size:12px;color:var(--muted);margin:0 0 6px;font-weight:600}
 .evlist{display:flex;flex-wrap:wrap;gap:4px;max-height:140px;overflow:auto}
-.evlist button{border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:6px;padding:2px 7px;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;cursor:pointer}
+.evlist button{border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:8px;padding:5px 9px;min-width:34px;min-height:32px;font:13px ui-monospace,SFMono-Regular,Consolas,monospace;cursor:pointer}
 .evlist button.on{border-color:var(--accent);background:var(--accent);color:var(--accent-fg)}
 .error{color:var(--bad);background:var(--soft);border-radius:8px;padding:8px 10px;margin-top:8px;font-size:13px}
 .small{font-size:12px}
@@ -81,7 +81,7 @@ button.mic.on{border-color:var(--bad);background:var(--bad);color:#fff}
 .found{font-size:13px}
 .found .line{margin:3px 0}
 .found .lbl{color:var(--muted);display:inline-block;min-width:78px}
-.fchip{border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:999px;padding:1px 9px;margin:2px 2px 2px 0;font:inherit;font-size:12px;cursor:pointer}
+.fchip{border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:999px;padding:5px 12px;margin:3px 3px 3px 0;font:inherit;font-size:13px;cursor:pointer}
 .fchip:hover{border-color:var(--accent)}
 .fchip b{font-variant-numeric:tabular-nums}
 #suggested .chip{border-style:dashed}
@@ -99,7 +99,7 @@ button.mic.on{border-color:var(--bad);background:var(--bad);color:#fff}
 .corrected{margin-top:8px;padding:6px 10px;border-left:3px solid var(--accent);background:var(--soft);border-radius:6px;font-size:13px}
 button.link{border:0;background:none;color:var(--accent);cursor:pointer;font:inherit;font-size:12px;padding:0 4px;text-decoration:underline}
 .actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
-.actions button,.review button{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px;cursor:pointer}
+.actions button,.review button{border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:10px;padding:8px 13px;min-height:38px;font:inherit;font-size:14px;cursor:pointer}
 .actions button:hover,.review button:hover{border-color:var(--accent)}
 .review button.on{background:var(--fg);color:var(--panel);border-color:var(--fg)}
 .review button:disabled{opacity:.4;cursor:default}
@@ -119,15 +119,30 @@ button.link{border:0;background:none;color:var(--accent);cursor:pointer;font:inh
 .hist .h b{font-variant-numeric:tabular-nums}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
-@media (max-width:820px){main{flex-direction:column}#viewer{min-height:55vh}aside{width:auto;max-width:none;border-left:0;border-top:1px solid var(--line)}}
+/* tablets and phones: drawing on top, then the answer first, then everything else */
+@media (max-width:1100px){main{flex-direction:column}#viewer{min-height:52vh}aside{width:auto;max-width:none;border-left:0;border-top:1px solid var(--line)}
+  .scroll{display:flex;flex-direction:column}#answersec{order:-1}}
+body.simple .expert-only{display:none!important}
+header .modebtn{border:1px solid var(--line);background:var(--soft);color:var(--fg);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+.how{margin:10px 0 0;font-size:15px}
+.counted{margin-top:6px;font-size:13px;color:var(--muted)}
+.counted b{color:var(--fg);font-weight:600}
+.meta{margin-top:8px;font-size:12px;color:var(--muted)}
+details.more{margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
+details.more summary{cursor:pointer;color:var(--muted);font-size:13px;min-height:28px}
+.tryask{margin-top:12px}
+.tryask h3,.sheets h3{font-size:12px;color:var(--muted);margin:0 0 4px;font-weight:600}
+.sheets{margin-top:10px}
+.sheets .fchip.on{border-color:var(--accent);background:var(--accent);color:var(--accent-fg)}
 </style>
 <link rel="stylesheet" href="/bob/onebit.css"><!-- Bob layer (library/team_server.py only) -->
 </head>
-<body>
+<body class="simple">
 <header>
   <div class="brand">Draw<span>QA</span></div>
   <div class="title" id="title">Open a drawing</div>
-  <a href="/classic">classic demo page</a>
+  <button id="modebtn" class="modebtn" title="Switch between a simple view and the full details">Expert view</button>
+  <a href="/classic" class="expert-only">classic demo page</a>
 </header>
 <main>
   <div id="viewer"></div>
@@ -162,7 +177,7 @@ button.link{border:0;background:none;color:var(--accent);cursor:pointer;font:inh
         <div class="row">
           <button class="ask" id="askbtn">Ask</button>
           <button class="mic" id="micbtn" title="Ask by voice" hidden>🎤</button>
-          <label class="toggle"><input type="checkbox" id="showexp" checked> show checked answers</label>
+          <label class="toggle expert-only"><input type="checkbox" id="showexp" checked> show checked answers</label>
         </div>
         <div id="suggested"></div>
         <div class="chips" id="chips"></div>
@@ -256,6 +271,13 @@ function selectItem(div) { document.querySelectorAll(".item").forEach((x) => x.c
 
 async function openGold(g, div) {
   const qs = g.questions.map((q) => ({ question: q.question, checked: q.answer, unit: q.unit, type: q.type, tol: q.tolerance || 0.02, expected_tier: q.expected_tier, id: q.id, note: q.evidence_note, hasCheck: true }));
+  if (g.page > 1) {   // a question about one sheet of a set: open that sheet itself (drawqa reads the first page of a PDF)
+    selectItem(div);
+    try {
+      const pages = (await getJSON("/api/pages?path=" + encodeURIComponent(g.path))).pages;
+      return openSheetPage({ path: g.path, title: fileName(g.path), questions: qs, pages }, g.page, qs, div);
+    } catch (e) { return setStatus(`<div class="error">Could not open page ${g.page} of ${esc(fileName(g.path))}: ${esc(e.message)}</div>`); }
+  }
   if (g.generic) {   // open it as an unknown file, the way a judge's file arrives (no CAD sibling, no stored predictions)
     selectItem(div);
     setStatus(`<span class="spinner"></span>Reading ${esc(fileName(g.path))} as an unknown file…`);
@@ -274,7 +296,7 @@ async function openDrawing(d, div) {
   current = d; lastAnswer = null;
   $("title").textContent = d.title;
   $("answersec").hidden = true;
-  setStatus(d.page > 1 ? `<div class="error">These questions are about page ${d.page} of this PDF. The system reads page 1 only, so expect “cannot determine” until multi-page sets are supported (issue #8).</div>` : "");
+  setStatus("");
   renderChips();
   renderHistory();
   // the sheet's own data (room names, areas, detector confidence by id) and render info, for formulas, review and export
@@ -282,6 +304,7 @@ async function openDrawing(d, div) {
   d.sheetP = getJSON("/api/sheet?path=" + q).catch(() => null);
   d.renderP = getJSON("/api/render?path=" + q).catch(() => null);
   d.tablesP = getJSON("/api/tables?path=" + q).catch(() => null);
+  if (!d.set && /\.pdf$/i.test(d.path)) d.pagesP = getJSON("/api/pages?path=" + q).then((r) => r.pages).catch(() => null);
   exploring = null;
   renderUnderstood(d);
   if (view) {
@@ -380,7 +403,10 @@ async function renderAnswer(res, question, keep) {
   const sheet = current.sheetP ? await current.sheetP : null;
   work = keep || buildWork(res, question, sheet);   // a history entry keeps its own corrections
   const ev = work.items;
-  const evHtml = ev.length ? `<div class="ev"><h3>Evidence used (${ev.length}) · click to show it on the drawing${work.correctable ? " · ✕ to leave one out" : ""}</h3><div class="evlist">${
+  const evHead = simpleMode()
+    ? `Check it: tap a number to see that item on the drawing${work.correctable ? " · ✕ if one is wrong" : ""}`
+    : `Evidence used (${ev.length}) · click to show it on the drawing${work.correctable ? " · ✕ to leave one out" : ""}`;
+  const evHtml = ev.length ? `<div class="ev"><h3>${evHead}</h3><div class="evlist">${
     ev.slice(0, 300).map((it) => `<button data-id="${esc(it.id)}" title="${esc(itemTitle(it))}"${it.conf != null && it.conf < LOW_CONF ? ' class="unsure"' : ""}>${esc(it.mark)}${work.correctable ? `<span class="x" data-x="${esc(it.id)}" title="leave this one out">✕</span>` : ""}</button>`).join("")
   }${ev.length > 300 ? `<span class="muted">+${ev.length - 300} more</span>` : ""}</div></div>` : "";
   const read = res.question_read ? `${res.question_read.by}${res.question_read.model ? " (" + res.question_read.model + ")" : ""}` : "";
@@ -392,14 +418,22 @@ async function renderAnswer(res, question, keep) {
       ${ev.length ? `<button id="csvbtn">Export CSV</button>` : ""}
     </div><div id="playline" class="muted"></div><div id="reviewbox"></div>` : `<div class="actions"><button id="exportbtn">Export card</button></div>`;
   const looked = cannot ? await lookedHtml(res, sheet) : "";
+  const counted = countedAs(res, question);
+  const cost = res.cost ? (res.cost.usd === null ? "≥ " + usd(res.cost.usd_known) : usd(res.cost.usd)) : null;
   $("answer").innerHTML = `<div class="card">
-    <div class="value ${cannot ? "cannot" : ""}">${cannot ? "Cannot determine from this drawing" : esc(fmt(res.answer, res.unit))}</div>
+    <div class="value ${cannot ? "cannot" : ""}">${cannot ? (notUnderstood(res) ? "Question not understood" : simpleMode() ? "Not shown on this drawing" : "Cannot determine from this drawing") : esc(fmt(res.answer, res.unit))}</div>
     <div class="q">${esc(question)}</div>
-    <span class="pill ${tierCls}">${esc(tierText)}</span>${res.honesty?.deterministic === false ? ` <span class="muted" style="font-size:12px">not deterministic</span>` : ""}
+    <span class="pill ${tierCls}">${esc(tierLabel(tier, tierText))}</span>${res.honesty?.deterministic === false ? ` <span class="muted expert-only" style="font-size:12px">not deterministic</span>` : ""}
+    <div class="how">${esc(plainSentence(res, cannot))}</div>
+    ${counted ? `<div class="counted"><b>Counted as:</b> ${esc(counted)}</div>` : ""}
     <div id="formula">${formulaHtml()}</div>
     <div id="corrected"></div>
     ${actions}
     ${looked}
+    ${cannot ? tryAskHtml(res, question) : ""}
+    ${evHtml}
+    <div class="meta">${res._seconds.toFixed(1)} s${cost ? ` · cost ${esc(cost)}${res.cost.model_calls ? "" : " (no AI call)"}` : ""}</div>
+    <details class="more"${simpleMode() ? "" : " open"}><summary>Details: how it was worked out</summary>
     <dl>
       ${res.honesty?.basis ? `<dt>How</dt><dd>${esc(res.honesty.basis)}</dd>` : ""}
       ${res.explanation && res.explanation !== res.honesty?.basis ? `<dt>Explanation</dt><dd>${esc(res.explanation)}</dd>` : ""}
@@ -409,11 +443,112 @@ async function renderAnswer(res, question, keep) {
       <dt>Time</dt><dd>${res._seconds.toFixed(1)} s</dd>
       ${res.cost ? `<dt>Cost</dt><dd>${costHtml(res.cost)}</dd>` : ""}
     </dl>
-    ${check}
-    ${evHtml}
+    <div class="expert-only">${check}</div>
+    </details>
     <div class="feedback"><button class="link" id="fbopen">Wrong answer? Tell us the right one</button><div id="fbform"></div></div>
   </div>`;
   wireAnswer();
+}
+
+// ------------------------------------------------------------------ simple view (default) vs expert view
+// Simple: the answer in plain words, how to check it, and nothing a site engineer has to decode. Expert: everything.
+const PLAIN = { read: "Read off the drawing", measured: "Measured on the drawing", detected: "Found by AI: check the marked items",
+                estimated: "Estimate, based on an assumption", "cannot determine": "Not shown on this drawing" };
+function simpleMode() { return document.body.classList.contains("simple"); }
+function tierLabel(tier, expertText) { return simpleMode() ? (PLAIN[tier] || expertText) : expertText; }
+function setMode(simple, save = true) {
+  document.body.classList.toggle("simple", simple);
+  $("modebtn").textContent = simple ? "Expert view" : "Simple view";
+  if (save) { try { localStorage.setItem("drawqa-mode", simple ? "simple" : "expert"); } catch (e) { /* private window: not remembered */ } }
+  $("tabs").querySelector('[data-tab="gold"]').textContent = simple ? "Examples" : "Checked set";
+  $("tabs").querySelector('[data-tab="samples"]').textContent = simple ? "More examples" : "Samples";
+  $("showexp").checked = !simple;
+  renderLegend();
+  renderChips();
+  if (lastAnswer && work) renderAnswer(lastAnswer, work.question, work);
+}
+function renderLegend() {
+  const tiers = ["read", "measured", "detected", "estimated", "cannot determine"];
+  const cls = { read: "t-read", measured: "t-measured", detected: "t-detected", estimated: "t-estimated", "cannot determine": "t-cannot" };
+  document.querySelector(".legend").innerHTML = tiers.map((t) => `<span class="pill ${cls[t]}">${esc(simpleMode() ? PLAIN[t].split(":")[0] : t)}</span>`).join("");
+}
+
+// One plain sentence: what was done and how to check it
+function plainSentence(res, cannot) {
+  const tier = res.honesty?.tier;
+  if (cannot) {
+    if (notUnderstood(res)) return "The system didn't recognise this wording, so it gave no number rather than guess. Try one of the wordings below.";
+    const first = String(res.explanation || "").split(/(?<=\.)\s/)[0];
+    return first && first.length < 170 && !/pattern|language model/.test(first) ? first : "The drawing does not give this. It says so instead of guessing.";
+  }
+  const n = work ? work.items.length : 0;
+  if (work?.countMatch) {
+    const k = work.items.map((it) => it.kind).filter(Boolean);
+    const kind = k.length && k.every((x) => x === k[0]) ? `${k[0].replace(/_/g, " ")}${n === 1 ? "" : "s"}` : `item${n === 1 ? "" : "s"}`;
+    return `Found ${n} ${kind} on the drawing, each one numbered. Tap a number to check it.`;
+  }
+  if (work?.termsMatch) return `Added up the areas of ${n} room${n === 1 ? "" : "s"} on the drawing. Tap a number to see that room.`;
+  if (tier === "read") return `Read from the text printed on the sheet${n ? "; the marked items show where" : ""}.`;
+  if (tier === "measured") return `Measured from the drawing's own lines at its scale${n ? "; the marked items show what was measured" : ""}.`;
+  if (tier === "detected") return `Found by a trained model${n ? "; the marked items show what it found" : ""}. Check them before relying on the number.`;
+  if (tier === "estimated") return "An estimate that depends on an assumption: open Details to see it.";
+  return "";
+}
+
+// The rule the answer used, in one line, where the answer says it (counts: which symbols count once; areas: which rooms)
+function countedAs(res, question) {
+  if (Array.isArray(res.counting) && res.counting.length) {
+    const used = res.counting.find((c) => c.used) || res.counting[0];
+    const others = res.counting.filter((c) => c !== used && c.count !== used.count).map((c) => `${c.count} if ${c.rule}`);
+    return used.rule + (others.length ? ` (${others.join("; ")})` : "");
+  }
+  const m = String(res.explanation || "").match(/^[^:]{0,80}\(([^)]{3,60})\):/);
+  if (m) return m[1];
+  if (/net floor area/i.test(question)) return "net floor area, measured inside the walls" + (/balcon|loggia|terrace|outdoor/i.test(question) ? "; outdoor spaces left out" : "");
+  if (/baseboard|skirting/i.test(question)) return "room perimeter minus door openings";
+  return "";
+}
+
+// The question's wording was not understood (no pattern matched and no language model read it), as opposed to
+// the drawing not containing the answer: the page must not blame the drawing for that
+function notUnderstood(res) {
+  return /does not match a known pattern|could not be turned into a query|not recognised/i.test(`${res.explanation || ""} ${res.honesty?.basis || ""}`);
+}
+
+// When the wording was not understood: the closest questions this drawing does answer well
+function tryAskHtml(res, question) {
+  if (!notUnderstood(res)) return "";
+  const stop = new Set("what which many much this that there with from have does shown drawn plan floor drawing sheet total".split(" "));
+  const words = (s) => new Set(String(s).toLowerCase().match(/[a-zäöüåéèà]{4,}/g)?.filter((w) => !stop.has(w)) || []);
+  const mine = words(question);
+  const pool = [...document.querySelectorAll("#suggested [data-q]")].map((b) => b.dataset.q).concat((current?.questions || []).map((q) => q.question));
+  const scored = [...new Set(pool)].filter((q) => q.trim() !== question.trim()).map((q) => { const w = words(q); let s = 0; mine.forEach((x) => { if (w.has(x)) s++; }); return [s, q]; })
+    .filter(([s]) => s > 0).sort((a, b) => b[0] - a[0]).slice(0, 3);
+  const list = scored.length ? scored.map(([, q]) => q) : pool.filter((q) => q.trim() !== question.trim()).slice(0, 3);
+  if (!list.length) return "";
+  return `<div class="tryask"><h3>The wording wasn't understood. Try asking it like this:</h3>${list.map((q) => `<button class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join("")}</div>`;
+}
+
+// ------------------------------------------------------------------ multi-page sets: pick a sheet, open that page
+async function openSheetPage(parent, page, questions, div) {
+  const info = (parent.pages || []).find((p) => p.page === page) || {};
+  const label = [info.number, info.title].filter(Boolean).join(" ") || `page ${page}`;
+  setStatus(`<span class="spinner"></span>Opening sheet ${esc(label)}…`);
+  try {
+    const d = await getJSON(`/api/sheetpage?path=${encodeURIComponent(parent.path)}&page=${page}`);
+    setStatus("");
+    const qs = questions || (parent.questions || []).filter((q) => !q.page || q.page === page);
+    return openDrawing({ path: d.path, title: `${fileName(parent.path)} · ${label}`, questions: qs, page: 1,
+                         set: { path: parent.path, title: parent.title, questions: parent.questions, pages: parent.pages }, sheetPage: page }, div);
+  } catch (e) { setStatus(`<div class="error">Could not open ${esc(label)}: ${esc(e.message)}</div>`); }
+}
+
+function sheetsHtml(d) {
+  const pages = d.set ? d.set.pages : d.pages;
+  if (!pages || pages.length < 2) return "";
+  const at = d.sheetPage || 1;
+  return `<div class="sheets"><h3>This PDF is a set of ${pages.length} sheets. Open one:</h3>${pages.map((p) =>
+    `<button class="fchip${p.page === at ? " on" : ""}" data-page="${p.page}" title="page ${p.page}">${esc(p.number || "p" + p.page)}${p.title ? ` · ${esc(p.title.toLowerCase())}` : ""}</button>`).join("")}</div>`;
 }
 
 // ------------------------------------------------------------------ evidence, formula, correction, replay, review, export
@@ -734,10 +869,16 @@ async function renderUnderstood(d) {
     box.innerHTML = `<div class="muted small"><span class="spinner"></span>Reading the drawing… ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}${s > 15 ? "<br>A large scan is read once at full resolution (text, scale, rooms, symbols); this can take a few minutes the first time, and is instant after that." : ""}</div>`;
   };
   tick(); readTimer = setInterval(tick, 1000);
-  const [sheet, render, tables] = await Promise.all([d.sheetP, d.renderP, d.tablesP]);
+  const [sheet, render, tables, pages] = await Promise.all([d.sheetP, d.renderP, d.tablesP, d.pagesP || null]);
   clearInterval(readTimer);
   if (current !== d) return;
-  if (!sheet) { box.innerHTML = `<div class="muted small">Nothing could be read from this file.</div>`; renderSuggested(null, tables); return; }
+  if (pages) d.pages = pages;
+  const wireSheets = () => box.querySelectorAll(".sheets [data-page]").forEach((b) => b.onclick = () => {
+    const page = +b.dataset.page, set = d.set ? { ...d.set } : d;
+    if (!d.set && page === 1) return;   // already the first page
+    openSheetPage(set, page, null, document.querySelector(".item.on"));
+  });
+  if (!sheet) { box.innerHTML = `<div class="muted small">Nothing could be read from this sheet.</div>${sheetsHtml(d)}`; wireSheets(); renderSuggested(null, tables); return; }
   const rooms = sheet.rooms || [];
   const named = rooms.filter((r) => r.name);
   const items = [...(sheet.openings || []), ...(sheet.fixtures || []), ...(sheet.elements || [])];
@@ -758,7 +899,8 @@ async function renderUnderstood(d) {
   const canExplore = rooms.some((r) => r.polygon || r.bbox);
   box.innerHTML = `<div class="found">${lines.join("")}
     ${canExplore ? `<div class="actions"><button id="explorebtn">Explore rooms: click one on the drawing</button></div>` : ""}
-    <div id="roomfacts"></div></div>`;
+    <div id="roomfacts"></div>${sheetsHtml(d)}</div>`;
+  wireSheets();
   box.querySelectorAll(".fchip").forEach((b) => b.onclick = () => {
     const f = b.dataset.found;
     if (f === "rooms") return showFound(`All ${rooms.length} rooms`, rooms, sheet);
@@ -910,6 +1052,7 @@ function setupVoice() {
 }
 
 function wireAnswer() {
+  $("answer").querySelectorAll(".tryask [data-q]").forEach((b) => b.onclick = () => { $("q").value = b.dataset.q; ask(); });
   $("csvbtn") && ($("csvbtn").onclick = exportCsv);
   $("fbopen") && ($("fbopen").onclick = openFeedback);
   $("answer").querySelectorAll(".evlist button").forEach((b) => b.onclick = (e) => {
@@ -1002,6 +1145,10 @@ function wire() {
 async function init() {
   wire();
   mountView();
+  let saved = null;
+  try { saved = localStorage.getItem("drawqa-mode"); } catch (e) { /* private window */ }
+  setMode(saved !== "expert", false);   // simple view unless this browser chose the expert view before
+  $("modebtn").onclick = () => setMode(!simpleMode());
   try { [gold, samples] = await Promise.all([getJSON("/api/gold"), getJSON("/api/samples")]); }
   catch (e) { return setStatus(`<div class="error">Could not load the drawing lists: ${esc(e.message)}</div>`); }
   renderLists();

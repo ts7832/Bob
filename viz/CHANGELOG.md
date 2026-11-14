@@ -22,7 +22,30 @@ The drawing view (`viz/`): what exists, and what changed when. Newest first. Usa
 | Evidence that isn't on this sheet (BIM model-wide answers) | yes | says "N of M on this sheet"; selecting one says "Not on this drawing" |
 | Light theme matching the demo page | yes | default |
 
-## 2026-11-14 22:20: clean view keeps highlighted areas clean
+## 2026-11-15 00:20: window frames, counted windows light up, Photo mode matches the new look
+- **Windows in 3D** have frames: head and sill rails, jambs and a centre mullion around the glass.
+- **Counted windows light up:** the pane turns orange in its opening and moves with its wall under the wall cut and the cutaway. Before, a counted window had no 3D highlight.
+- **Photo mode** uses the same warm plaster, wet-room wall tiles, window frames and warm sun as the 3D view.
+- **The clean-view key** is more compact, so it covers less of the drawing.
+
+## 2026-11-15 00:12: new 3D look ("A + C" from the design canvas)
+- Chosen from three directions on a Claude Design canvas: A's unmistakable answer highlight, plus C's real materials and callout.
+- **Materials and light:**
+  - warm plaster walls;
+  - oak floors in rooms, stone in corridors and kitchens, grey-blue tile in wet rooms;
+  - wet rooms also get a tiled band on their walls, 1.2 m high, only where there is a wall (doorways stay open);
+  - a warmer, lower sun with soft long shadows.
+- **The answer:** the counted object stays solid orange with a soft glow on the floor under it. In 3D the selected item gets a callout, e.g. "WC · 2 of 3 · fx79 · measured from geometry".
+- **"Dim rest"** now fades out as the plan lifts. In 3D the orange models already stand out, so the room materials aren't washed out. 2D is unchanged.
+
+## 2026-11-14 23:55: cutaway 3D, readable tags on dense answers, smoother big answers
+- **Cutaway (3D, on by default):** walls on the camera's side drop low, and the back walls stay full height, so you can see into every room from any angle. It follows the camera as you orbit; shadows, door leaves and shower glass follow too. The **Cutaway** button switches it off.
+- **Dense answers stay readable:** when tags would overlap on screen (e.g. 112 doors on a whole sheet), they are thinned out and come back as you zoom in. The selected or hovered item always keeps its tag, and every highlight stays.
+- **Smoother:** symbol highlights are built one per task, so a 112-door answer no longer freezes the page (longest pause 594 → 187 ms).
+- **Shared outlines:** the duplicate-outline note is now neutral, not a red warning. It states the fact ("items 2 & 85… share one outline; the count includes both"). Swiss door answers do this on all three samples: 112 cited for 98 outlines, 21 for 18, 23 for 20. The dataset counts them the same way.
+- **Layout:** the toolbar wraps instead of running under the 3D note, which now sits above it.
+
+## 2026-11-14 22:05: clean view keeps highlighted areas clean
 - **Fix:** in clean view, a highlighted area (a room, a corridor) showed the original drawing inside it, even on the clean side. It now shows the clean drawing on the clean side and the original on the other, split exactly at the divider. The crop panel still shows the untouched original, for checking.
 
 ## 2026-11-14 22:05: Photo mode gets the real fixtures; BIM door leaves as drawn; TEAM.md

@@ -9,13 +9,15 @@ process, no proxy hop). Added routes:
   /viz/drawview.js   oliraff's drawing view bundle (viz/dist/drawview.js once PR #5 is merged, or --viz / DRAWQA_VIZ)
   /api/gold          the checked gold questions (gold/gold.jsonl, status verified or exact), grouped by drawing,
                      for the page's rehearsed questions and its "checked answer" comparison
+  /api/pages?path=   the sheets of a multi-page PDF (page, sheet number, title from the title block)
+  /api/sheetpage?path=&page=N   that page cut out as its own one-page PDF and opened as a drawing (drawqa reads page 1)
   POST /api/feedback a correction from the page ("Wrong answer?"), appended to gold/feedback.jsonl for the team to check
   /api/cost?path=    what one drawing has cost so far (tools/ui_cost.py meters every /api/* request: model calls,
                      tokens, GPU time, dollars); /api/ask answers also carry their own `cost`, with the drawing's total
 
 The demo's own "/" moves to /classic; nothing else changes.
 """
-import argparse, collections, importlib.util, io, json, os, sys, threading, time
+import argparse, collections, hashlib, importlib.util, io, json, os, re, sys, threading, time
 from http.server import ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -24,6 +26,7 @@ REPO = os.path.dirname(HERE)
 UI = os.path.join(REPO, "ui", "index.html")
 GOLD = os.path.join(REPO, "gold", "gold.jsonl")
 FEEDBACK = os.path.join(REPO, "gold", "feedback.jsonl")  # corrections from the page's "Wrong answer?" form
+PAGES = os.path.join(REPO, "data", "uploads", "pages")  # single pages cut from multi-page sets (git-ignored)
 
 
 def load_demo():
@@ -55,6 +58,31 @@ def gold_drawings(data_root):
                                        expected_tier=q.get("expected_tier"), status=q["status"], evidence_note=q.get("evidence_note"),
                                        tolerance=q.get("tolerance")))
     return list(groups.values())
+
+
+SHEET_NO = re.compile(r"^[A-Z]{1,3}[-.]?\d{1,4}(\.\d+)?[A-Z]?$")
+
+
+def pdf_pages(path):
+    """Each page of a PDF with its sheet number and title, read from the page's largest text (the title block).
+    Text that repeats on most pages (project name, address, firm) is not a title."""
+    import pymupdf
+    with pymupdf.open(path) as doc:
+        per_page = []
+        for pg in doc:
+            spans = [(s["size"], s["text"].strip()) for b in pg.get_text("dict")["blocks"] if b["type"] == 0
+                     for l in b["lines"] for s in l["spans"] if s["text"].strip()]
+            per_page.append(sorted(spans, key=lambda t: -t[0])[:12])
+        n = len(per_page)
+        common = collections.Counter(t for spans in per_page for t in {t for _, t in spans})
+        out = []
+        for i, spans in enumerate(per_page):
+            texts = [t for _, t in spans]
+            number = next((t for t in texts if SHEET_NO.match(t)), None)
+            title = next((t for t in texts if t != number and (n < 3 or common[t] <= n / 2) and len(t) > 3
+                          and sum(c.isdigit() for c in t) < len(t) / 3), None)
+            out.append(dict(page=i + 1, number=number, title=title))
+        return out
 
 
 def main():
@@ -162,6 +190,27 @@ def main():
                     return self._send(200, open(a.viz, "rb").read(), "text/javascript; charset=utf-8")
                 if u.path == "/api/gold":
                     return self._send(200, gold_drawings(demo.DATA))
+                if u.path == "/api/pages":  # the sheets of a multi-page PDF, by number and title
+                    f = demo.resolve(parse_qs(u.query)["path"][0])
+                    if not f.lower().endswith(".pdf"):
+                        return self._send(200, dict(pages=[]))
+                    return self._send(200, dict(pages=pdf_pages(f)))
+                if u.path == "/api/sheetpage":  # one page of a set as its own drawing: drawqa reads the first page of a PDF
+                    qs = parse_qs(u.query)
+                    f, page = demo.resolve(qs["path"][0]), int(qs["page"][0])
+                    import pymupdf
+                    os.makedirs(PAGES, exist_ok=True)
+                    tag = hashlib.sha1(os.path.abspath(f).encode()).hexdigest()[:10]
+                    out = os.path.join(PAGES, f"{tag}_p{page}_{re.sub(r'[^A-Za-z0-9._-]+', '_', os.path.basename(f))[-60:]}")
+                    if not os.path.exists(out):
+                        with pymupdf.open(f) as src:
+                            if not 1 <= page <= len(src):
+                                return self._send(400, {"error": f"page {page} is not in this PDF ({len(src)} pages)"})
+                            one = pymupdf.open()
+                            one.insert_pdf(src, from_page=page - 1, to_page=page - 1)
+                            one.save(out)
+                            one.close()
+                    return self._send(200, demo.open_file(out))
             except Exception as e:  # same contract as the demo: errors reach the page as JSON
                 import traceback
                 traceback.print_exc()

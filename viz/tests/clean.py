@@ -56,7 +56,8 @@ with sync_playwright() as p:
     check("C switches it on again", pg.locator(".dv-swipe").count() == 1)
 
     pg.goto(f"{base}/?d=site1102_bldg2242_floor10281&q=4&clean=0.5"); pg.wait_for_load_state("networkidle"); pg.wait_for_timeout(3500)
-    check("answer tags drawn over the clean view (21 doors)", pg.locator(".dv-tag").count() == 21)
+    n = pg.locator(".dv-tag").count()  # overlapping tags are thinned out on dense answers (declutter)
+    check(f"answer drawn over the clean view (21 doors, {n} tags readable)", pg.locator(".dv-badge").inner_text().startswith("21") and 8 <= n <= 21)
     pg.screenshot(path=f"{out}/3_answer.png")
     pg.locator(".dv-tools button", has_text="3D").click(); pg.wait_for_timeout(1500)
     check("3D: no divider, no Clean view button", pg.locator(".dv-swipe").count() == 0 and pg.locator(".dv-tools button", has_text="Clean view").count() == 0)
