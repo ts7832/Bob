@@ -97,7 +97,7 @@ export function View({ store }: { store: Store }) {
           <Suspense fallback={null}>
             <Scene key={loaded.drawing.key} loaded={loaded} answer={answer} selectedId={selectedId} hoverId={s.hoverId}
               dim={s.dim} showPlan={s.showPlan} mode={s.mode} photo={s.photo && s.mode === '3d'} photoStatus={photoStatus} focus={focus} fitAll={s.fitAll} insets={insets}
-              tools={{ view: vf, measure: s.measure, mpts: s.mpts, mclosed: s.mclosed, peek: s.peek, hidden: s.hidden, cut: s.cut, refit: s.refit, clean: s.clean && cleanOk, swipe: s.swipe }}
+              tools={{ view: vf, cutaway: s.cutaway, measure: s.measure, mpts: s.mpts, mclosed: s.mclosed, peek: s.peek, hidden: s.hidden, cut: s.cut, refit: s.refit, clean: s.clean && cleanOk, swipe: s.swipe }}
               onMeasure={(mpts, mclosed) => store.set({ mpts, mclosed })}
               low={low} onSlow={(slow) => { if (store.get().slow !== slow) store.set({ slow }) }}
               onSelect={select} onHover={(id) => store.set({ hoverId: id })} overlay={overlay} />
@@ -147,6 +147,10 @@ export function View({ store }: { store: Store }) {
           <button className={s.mode === '3d' ? 'dv-on' : ''} onClick={() => store.set({ mode: s.mode === '3d' ? '2d' : '3d', photo: false })}>
             {s.mode === '3d' ? '2D' : '3D'}
           </button>
+          {s.mode === '3d' && (
+            <button className={s.cutaway ? 'dv-on' : ''} title="Walls on your side drop low so you can see into every room (follows the camera)"
+              onClick={() => store.set({ cutaway: !s.cutaway })}>Cutaway</button>
+          )}
           {s.mode === '3d' && (
             <label className="dv-cut" title="Cut the walls lower to see into the rooms (illustrative heights)">Walls
               <input type="range" min={20} max={100} value={Math.round(s.cut * 100)} onChange={(e) => store.set({ cut: Number(e.target.value) / 100 })} />
@@ -269,7 +273,7 @@ function AnswerBadge({ answer, boxRef, selectedId, hidden, onStep, onToggle, fra
           Check that they show different things, not the same floor twice.</p>
       )}
       {!!answer.dupes?.length && (
-        <p className="dv-warn">Same outline cited twice: items {answer.dupes.slice(0, 3).join(', ')}{answer.dupes.length > 3 ? ` and ${answer.dupes.length - 3} more` : ''}. Check whether one element was counted twice.</p>
+        <p className="dv-note">{answer.dupes.length === 1 ? 'Items' : 'Pairs of items'} {answer.dupes.slice(0, 3).join(', ')}{answer.dupes.length > 3 ? ` and ${answer.dupes.length - 3} more` : ''} share one outline on the drawing (e.g. one door listed for two units). The count includes both.</p>
       )}
     </div>
   )

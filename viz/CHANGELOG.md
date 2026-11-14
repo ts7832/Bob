@@ -22,7 +22,14 @@ The drawing view (`viz/`): what exists, and what changed when. Newest first. Usa
 | Evidence that isn't on this sheet (BIM model-wide answers) | yes | says "N of M on this sheet"; selecting one says "Not on this drawing" |
 | Light theme matching the demo page | yes | default |
 
-## 2026-11-14 22:20: clean view keeps highlighted areas clean
+## 2026-11-14 23:55: cutaway 3D, readable tags on dense answers, smoother big answers
+- **Cutaway (3D, on by default):** walls on the camera's side drop low, and the back walls stay full height, so you can see into every room from any angle. It follows the camera as you orbit; shadows, door leaves and shower glass follow too. The **Cutaway** button switches it off.
+- **Dense answers stay readable:** when tags would overlap on screen (e.g. 112 doors on a whole sheet), they are thinned out and come back as you zoom in. The selected or hovered item always keeps its tag, and every highlight stays.
+- **Smoother:** symbol highlights are built one per task, so a 112-door answer no longer freezes the page (longest pause 594 → 187 ms).
+- **Shared outlines:** the duplicate-outline note is now neutral, not a red warning. It states the fact ("items 2 & 85… share one outline; the count includes both"). Swiss door answers do this on all three samples: 112 cited for 98 outlines, 21 for 18, 23 for 20. The dataset counts them the same way.
+- **Layout:** the toolbar wraps instead of running under the 3D note, which now sits above it.
+
+## 2026-11-14 22:05: clean view keeps highlighted areas clean
 - **Fix:** in clean view, a highlighted area (a room, a corridor) showed the original drawing inside it, even on the clean side. It now shows the clean drawing on the clean side and the original on the other, split exactly at the divider. The crop panel still shows the untouched original, for checking.
 
 ## 2026-11-14 22:05: Photo mode gets the real fixtures; BIM door leaves as drawn; TEAM.md

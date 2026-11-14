@@ -71,6 +71,7 @@ Modelled on takeoff and BIM viewers (Bluebeam markups list and measure, Autodesk
 | **Clean view**, or **C** (2D) | The plan redrawn from what the system detected or read, left of a divider, with the untouched original on the right. Drag the divider (or focus it and use ← →). Walls, rooms tinted by type with their names, numbers and areas, and one symbol set (doors and windows cut into the walls, fixtures as boxes with their glyph; BIM symbols from their own paths). Labelled "Redrawn from detections", with a symbol key. Hidden in 3D and on sheets with nothing detected. `view.setClean(on, swipe)` |
 | **Drawings** picker | On sheets with several drawings: frame one, outlined with its printed title and scale. The answer card says which drawing the evidence comes from, or how it splits across drawings. |
 | **Legend rows** | Switch a category of a breakdown answer on or off |
+| **Cutaway** (3D, on by default) | Walls on your side of the building drop low so you can see into every room; follows the camera |
 | **Walls** slider (3D) | Cut the walls lower to see into the rooms (heights are illustrative) |
 | **Reset view**, **Esc** | Frame the sheet, clear the selection |
 
