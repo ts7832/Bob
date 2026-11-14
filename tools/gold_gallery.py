@@ -8,7 +8,7 @@ with two kinds of marks drawn on it:
 Each card has a crop around the marks and a thumbnail of the whole sheet. Cards for wrong answers come first;
 --all also includes correct ones (useful while checking draft answers).
 
-Writes gold/reports/<stamp>-gallery/index.html plus JPEGs next to it. Coordinates: page pixels at drawqa.pdfsheet.DPI
+Writes gold/reports/<stamp>-gallery/index.html, one self-contained file (images embedded); click an image to enlarge. Coordinates: page pixels at drawqa.pdfsheet.DPI
 for PDFs (what drawqa's evidence uses), image pixels for raster files. Evidence from a DXF or BIM model is not drawn.
 """
 import argparse, glob, html, json, os, re, sys
@@ -82,12 +82,15 @@ def crop_around(img, boxes, pad=160, max_w=1400):
     return img
 
 
-def save_jpg(img, path):
+def jpg_data_uri(img, quality):
+    """The image as a data: URI, so index.html is one self-contained file (viewers that open only the HTML file,
+    such as a snapshot preview or an e-mail attachment, would not load JPEGs placed next to it)."""
+    import base64
     import cv2
-    ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 82])
+    ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, quality])
     if not ok:
-        raise RuntimeError(f"cannot encode {path}")
-    buf.tofile(path)
+        raise RuntimeError("cannot encode a gallery image")
+    return "data:image/jpeg;base64," + base64.b64encode(buf.tobytes()).decode("ascii")
 
 
 def main():
@@ -130,9 +133,8 @@ def main():
             canvas = img.copy()
             draw(canvas, exp_boxes, BLUE, 4)
             draw(canvas, sys_boxes, GREEN if r["value_ok"] else RED, 5)
-            crop_file, thumb_file = f"{r['id']}-crop.jpg", f"{r['id']}-sheet.jpg"
-            save_jpg(crop_around(canvas, sys_boxes + exp_boxes), os.path.join(out_dir, crop_file))
-            save_jpg(crop_around(canvas, [], max_w=900), os.path.join(out_dir, thumb_file))
+            crop_file = jpg_data_uri(crop_around(canvas, sys_boxes + exp_boxes, max_w=1200), 78)
+            thumb_file = jpg_data_uri(crop_around(canvas, [], max_w=700), 70)
         cards.append(card(r, q, crop_file, thumb_file, len(sys_boxes), len(exp_boxes)))
         print(f"{r['id']} {r['outcome']}")
     s = data["summary"]
@@ -159,8 +161,8 @@ def card(r, q, crop, thumb, n_sys, n_exp):
         marks.append(f"<span class={'k-ok' if r['value_ok'] else 'k-sys'}>■</span> {n_sys} evidence box(es) from the system")
     if n_exp:
         marks.append(f"<span class=k-exp>■</span> {n_exp} word(s) matching numbers in the evidence note")
-    imgs = (f'<a href="{e(crop)}" target=_blank><img class=crop src="{e(crop)}" alt="crop around the marks"></a>'
-            f'<a href="{e(thumb)}" target=_blank><img class=thumb src="{e(thumb)}" alt="whole sheet"></a>') if crop else "<p class=muted>No image for this file type.</p>"
+    imgs = (f'<img class=crop src="{crop}" alt="crop around the marks" title="click to enlarge">'
+            f'<img class=thumb src="{thumb}" alt="whole sheet" title="click to enlarge">') if crop else "<p class=muted>No image for this file type.</p>"
     why = r.get("error") or r.get("explanation") or ""
     return f"""<article class="card" data-outcome="{e(r['outcome'])}" data-origin="{e(r.get('origin') or '')}">
   <header><b>{e(r['id'])}</b> <span class="badge o-{e(r['outcome'])}">{e(r['outcome'].replace('_', ' '))}</span>
@@ -195,7 +197,7 @@ main{max-width:1200px;margin:0 auto;padding:16px}h1{font-size:20px;margin:8px 0 
 dl{display:grid;grid-template-columns:120px 1fr;gap:2px 12px;margin:0 0 8px;font-size:13px}dt{color:var(--muted)}dd{margin:0}.path{word-break:break-all;color:var(--muted)}
 .legend{font-size:12px;color:var(--muted)}.k-sys{color:var(--red)}.k-ok{color:var(--green)}.k-exp{color:var(--blue)}
 .imgs{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}.imgs img{max-width:100%;border:1px solid var(--line);border-radius:6px;background:#fff}
-.crop{width:min(100%,760px)}.thumb{width:min(100%,360px)}
+.crop{width:min(100%,760px)}.thumb{width:min(100%,360px)}.imgs img{cursor:zoom-in}.imgs img.big{width:100%;cursor:zoom-out}
 @media (max-width:640px){dl{grid-template-columns:1fr}.ans{gap:14px}}
 </style></head><body><main>
 <h1>Gold failure gallery</h1><p class=muted>{{TITLE}} · {{SUMMARY}}</p>
@@ -207,6 +209,7 @@ const outcomes=['all',...new Set(cards.map(c=>c.dataset.outcome))];let on='all';
 function show(){cards.forEach(c=>c.hidden=!(on==='all'||c.dataset.outcome===on));[...bar.children].forEach(b=>b.classList.toggle('on',b.dataset.o===on))}
 outcomes.forEach(o=>{const b=document.createElement('button');b.dataset.o=o;const n=o==='all'?cards.length:cards.filter(c=>c.dataset.outcome===o).length;
 b.textContent=o.replace(/_/g,' ')+' ('+n+')';b.onclick=()=>{on=o;show()};bar.appendChild(b)});show();
+document.querySelectorAll('.imgs img').forEach(i=>i.onclick=()=>i.classList.toggle('big'));
 </script></body></html>
 """
 
