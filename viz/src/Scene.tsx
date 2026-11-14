@@ -6,7 +6,7 @@ import CameraControlsImpl from 'camera-controls'
 import { Building, Effects, Fixtures, Floors, Lighting, drawingUV, useBuilding, useLifted, type Lift } from './Model'
 import { buildOne } from './fixtures3d'
 import { Photo } from './Photo'
-import type { Answer, Drawing, Element, Loaded, Pt, Tier } from './types'
+import type { Answer, Drawing, Element, Loaded, Pt, SheetView, Tier } from './types'
 import { GLYPH, SYMBOL, inkOf, type Cls } from './ink'
 import { buildClean } from './clean'
 import { anchor, bbox, measureScale, outline, ringArea, shapeOf, thickness, toShape, toWorld, tube } from './geom'
@@ -102,7 +102,7 @@ interface Props {
   focus: Focus
   fitAll: number
   insets: Insets
-  tools: { measure: boolean; mpts: Pt[]; mclosed: boolean; peek: boolean; hidden: string[]; cut: number; refit: number; clean: boolean; swipe: number }
+  tools: { view: SheetView | null; measure: boolean; mpts: Pt[]; mclosed: boolean; peek: boolean; hidden: string[]; cut: number; refit: number; clean: boolean; swipe: number }
   onMeasure: (pts: Pt[], closed: boolean) => void
   onSelect: (id: string | null) => void
   onHover: (id: string | null) => void
@@ -210,6 +210,7 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
           selected={el.id === selectedId} hovered={el.id === hoverId} interactive={!tools.measure}
           onSelect={onSelect} onHover={onHover} onZoom={zoomAt} overlay={overlay} />
       ))}
+      {tools.view && !tools.peek && <ViewMark drawing={drawing} view={tools.view} y={7 * L} overlay={overlay} />}
       {tools.mpts.length > 0 && <MeasureLayer drawing={drawing} pts={tools.mpts} closed={tools.mclosed} L={L} overlay={overlay} />}
     </>
   )
@@ -434,6 +435,22 @@ function Highlight({ el, loaded, drawing, tex, hatch, tier, measure, crowded, gl
           </Html>
         </group>
       )}
+    </group>
+  )
+}
+
+// The drawing chosen in the Drawings picker: a dashed frame with its title and scale.
+function ViewMark({ drawing, view, y, overlay }: { drawing: Drawing; view: SheetView; y: number; overlay: RefObject<HTMLDivElement | null> }) {
+  const [x0, y0, x1, y1] = view.box
+  const pts = ([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]] as Pt[]).map((p) => { const [x, z] = toWorld(drawing, p); return new THREE.Vector3(x, y, z) })
+  const dash = Math.max(drawing.width, drawing.height) / 150
+  const [lx, lz] = toWorld(drawing, [x0, y0])
+  return (
+    <group>
+      <Line points={pts} color="#2f6fde" lineWidth={2} dashed dashSize={dash} gapSize={dash * 0.6} raycast={() => null} />
+      <Html portal={overlay as RefObject<HTMLElement>} position={[lx, y, lz]} zIndexRange={[25, 0]} style={{ pointerEvents: 'none' }}>
+        <div className="dv-viewtag">{view.title ?? 'Drawing'}{view.scale && <small>{view.scale}</small>}</div>
+      </Html>
     </group>
   )
 }

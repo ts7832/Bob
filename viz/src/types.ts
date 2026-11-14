@@ -56,6 +56,7 @@ export interface Answer {
   groups: { name: string; color: string; count: number; value?: string | null }[] // legend, in backend order
   cited: number // evidence items in the answer, including ones not on this sheet
   citedIds: string[] // ids of all cited evidence (to explain a selection that is not on this sheet)
+  views?: { id: string; title: string; n: number }[] // drawings the placed evidence lies in (multi-drawing sheets)
   outside?: number // cited items whose position lies off this page (not drawn)
   dupes?: string[] // count answers: evidence items with the same outline, as 'mark & mark' (possible double count)
 }
@@ -72,12 +73,16 @@ export interface Context {
   fixtures: { cls: string; polygon: Pt[] }[] // wc, washbasin, bathtub, kitchen_unit, ... shown as low volumes
 }
 
+// One drawing on a multi-drawing sheet (sheet px box), with its printed title and scale when the sheet has them
+export interface SheetView { id: string; title: string | null; scale: string | null; kind: string; box: [number, number, number, number] }
+
 export interface Loaded {
   drawing: Drawing
   plan: Element[] // what the backend found on the sheet (detector boxes etc.), drawn faintly
   context: Context
   guids: Map<string, Element> // svg sheets: every element with a data-guid, for evidence lookup
   classes: Map<string, string> // sheet room / opening / fixture id -> its class (evidence ids are the same ids)
+  views: SheetView[] // the separate drawings on this sheet (empty when it is one drawing)
 }
 
 // Raw responses from the demo server, typed only as far as the view reads them.
