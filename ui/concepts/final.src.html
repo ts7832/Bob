@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en" data-concept="5" data-ask="bold">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bob: final design (One-bit)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Silkscreen:wght@400;700&family=Pixelify+Sans:wght@400;500;600;700&family=Fragment+Mono&family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Five directions after typesafe.ai: classic-Mac windows with black title bars, a bitmap terminal face, 1-bit dither,
+   charcoal #1e1e1e / bone #dedede / pink #f386a1, grainy cloud gradients. TypeSafe's own faces (LisaTerminal Paper,
+   Die Grotesk) are licensed, so VT323 / Silkscreen / Pixelify Sans and Geist stand in. The plan is the real
+   Esplanades level 2 from the BIM model, every room coloured by its real type; the filter chips toggle them. */
+:root{--ink:#1e1e1e;--bone:#dedede;--paper:#fefefe;--pink:#f386a1;--mag:#d45bb6;--green:#03aa5c;--sky:#4fa3d9;--violet:#8b5cf6;--sun:#f5c400;--tang:#ff7a1a;--teal:#12a99a;
+  --pix:"VT323",ui-monospace,monospace;--sans:"Geist",system-ui,sans-serif;--mono:"Fragment Mono","Geist Mono",ui-monospace,monospace;
+  --c-living:var(--pink);--c-entry:var(--sky);--c-bath:var(--green);--c-corridor:var(--sun);--c-stairs:var(--violet);--c-classroom:var(--tang);--c-bedroom:var(--mag);--c-utility:var(--teal);
+  --room:#eceae6;--wall:#1e1e1e;--door:#e10600;--win:#4fa3d9}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{font:14px/1.35 var(--sans);color:var(--ink);background:var(--desk);overflow:hidden;display:flex;flex-direction:column}
+.nav{display:flex;align-items:flex-start;gap:6px;padding:0;position:relative;z-index:3;height:38px}
+.nav a{background:var(--paper);color:var(--ink);text-decoration:none;font:500 17px var(--navf,var(--sans));padding:6px 8px 7px;letter-spacing:-.01em}
+.nav a.solid{background:var(--ink);color:var(--paper)}
+.nav .sp{flex:1}
+.nav .mid{display:flex;gap:6px;position:absolute;left:50%;transform:translateX(-50%)}
+.desk{flex:1;position:relative;display:grid;grid-template-columns:1fr 410px;gap:18px;padding:16px 18px 18px;min-height:0}
+.win{background:var(--paper);border:1px solid var(--ink);box-shadow:var(--shadow,3px 3px 0 var(--ink));display:flex;flex-direction:column;min-height:0;position:relative}
+.tb{background:var(--ink);color:var(--paper);font:19px/1 var(--pix);padding:3px 7px 4px;display:flex;justify-content:space-between;align-items:center;letter-spacing:.02em;flex:none}
+.tb i{font-style:normal;opacity:.7}
+.body{padding:12px 14px;min-height:0}
+.left{display:flex;flex-direction:column;gap:14px;min-height:0}
+.planwin{flex:1}
+.planbox{flex:1;position:relative;background:var(--planbg,var(--paper));overflow:hidden;min-height:0}
+.plansvg{position:absolute;inset:14px 18px 40px;width:calc(100% - 36px);height:calc(100% - 54px)}
+.plansvg > rect{fill:transparent}
+.plansvg text{display:none}
+.plansvg g[class^=IfcWall] path,.plansvg g[class^=IfcWall] *{fill:var(--wall);stroke:var(--wall)}
+.plansvg g.IfcSpace path{fill:var(--room);stroke:var(--roomline,#9a9a9a);stroke-width:.15;transition:fill .25s}
+.plansvg g.IfcDoor *{stroke:var(--doorrest,#555);fill:none}
+.plansvg g.IfcWindow *{stroke:var(--winrest,#777);fill:none}
+.plansvg g.IfcStairFlight *,.plansvg g.IfcRailing *{stroke:#777;fill:none}
+html.on-living .plansvg g[data-rt=living] path{fill:var(--c-living)}
+html.on-entry .plansvg g[data-rt=entry] path{fill:var(--c-entry)}
+html.on-bath .plansvg g[data-rt=bath] path{fill:var(--c-bath)}
+html.on-corridor .plansvg g[data-rt=corridor] path{fill:var(--c-corridor)}
+html.on-stairs .plansvg g[data-rt=stairs] path{fill:var(--c-stairs)}
+html.on-classroom .plansvg g[data-rt=classroom] path{fill:var(--c-classroom)}
+html.on-bedroom .plansvg g[data-rt=bedroom] path{fill:var(--c-bedroom)}
+html.on-utility .plansvg g[data-rt=utility] path{fill:var(--c-utility)}
+html.on-doors .plansvg g.IfcDoor *{stroke:var(--door);stroke-width:.6}
+html.on-windows .plansvg g.IfcWindow *{stroke:var(--win);stroke-width:.7}
+.chips{display:flex;flex-wrap:wrap;gap:5px;padding:8px 10px;border-top:1px solid var(--ink);background:var(--chipbar,var(--paper))}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ink);background:var(--paper);font:17px/1 var(--pix);padding:3px 7px 4px;cursor:pointer;user-select:none}
+.chip b{width:11px;height:11px;border:1px solid var(--ink);background:var(--paper);display:block}
+.chip em{font-style:normal;opacity:.55}
+.chip.on{background:var(--ink);color:var(--paper)}
+.chip.on b{background:var(--c);border-color:var(--paper)}
+.hud{position:absolute;right:14px;bottom:44px;font:16px/1.15 var(--pix);text-align:right;background:var(--paper);border:1px solid var(--ink);padding:4px 7px}
+.stack{position:absolute;left:14px;bottom:44px;width:148px}
+.stack .body{padding:8px 10px 4px}
+.slab{height:12px;margin:0 0 5px 6px;width:70%;border:1px solid var(--ink);background:var(--paper);transform:skewX(-30deg);position:relative}
+.slab.on{background:var(--ink)}
+.slab em{position:absolute;right:-30px;top:-3px;font:15px var(--pix);font-style:normal;transform:skewX(30deg)}
+.right{display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto;padding:10px 14px 10px 10px;margin:-10px -14px -10px -10px}
+.ask{display:flex;gap:6px}
+.ask input{flex:1;font:15px var(--mono);border:1px solid var(--ink);padding:8px 9px;background:var(--paper);outline:0;min-width:0}
+.ask button{font:20px var(--pix);background:var(--ink);color:var(--paper);border:0;padding:0 14px;cursor:pointer}
+.scope{display:flex;gap:5px;margin-top:8px}
+.scope span{font:16px var(--pix);border:1px solid var(--ink);padding:1px 7px 2px}
+.scope .on{background:var(--ink);color:var(--paper)}
+.big{display:flex;align-items:baseline;gap:10px}
+.big b{font:400 110px/0.8 var(--bignum,var(--pix));letter-spacing:-.02em}
+.big span{font:22px var(--pix)}
+.tags{display:flex;gap:5px;margin-top:10px;flex-wrap:wrap}
+.tag{font:16px/1 var(--pix);padding:3px 6px 4px;border:1px solid var(--ink)}
+.tag.inv{background:var(--ink);color:var(--paper)}
+.tag.acc{background:var(--acc,var(--pink));border-color:var(--ink)}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:3px 10px;margin-top:10px;font:13px var(--mono)}
+.kv dt{opacity:.6}
+.bars{display:flex;flex-direction:column;gap:7px;font:13px var(--mono)}
+.bars .r{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
+.bars .r b{font:16px/1 var(--pix);background:var(--ink);color:var(--paper);padding:2px 5px 3px;font-weight:400}
+.bars .r i{height:1px;background:var(--ink);position:relative;display:block}
+.bars .r i::after{content:"";position:absolute;top:-4px;left:var(--x);width:8px;height:8px;background:var(--ink)}
+table{width:100%;border-collapse:collapse;font:13px var(--mono)}
+td,th{padding:4px 2px;border-bottom:1px solid var(--rule,rgba(30,30,30,.25));text-align:left}
+th{font:16px var(--pix);font-weight:400}
+td.n,th.n{text-align:right}
+tr.tot td{border-bottom:0;font-weight:600}
+.pick{position:fixed;right:22px;bottom:12px;display:flex;gap:4px;z-index:9;background:var(--ink);padding:4px;box-shadow:3px 3px 0 rgba(0,0,0,.25)}
+.pick button{font:18px/1 var(--pix);background:var(--ink);color:var(--paper);border:1px solid #555;padding:4px 9px 5px;cursor:pointer}
+.pick button.on{background:var(--paper);color:var(--ink)}
+.clock{position:absolute;right:18px;top:-30px;font:17px var(--pix)}
+
+/* ask window while in use (clicked or focused); two looks to choose from, both like a selected chip */
+.field{position:relative;flex:1;display:flex;min-width:0}
+.field input{flex:1}
+.askwin{transition:background .12s,color .12s,box-shadow .12s}
+.askwin input,.askwin .ask button,.askwin .scope span{transition:background .12s,color .12s,border-color .12s}
+/* X invert: the whole window turns black, like a selected filter chip */
+[data-ask="invert"] .askwin.on{background:var(--ink);color:var(--paper)}
+[data-ask="invert"] .askwin.on .tb{background:var(--paper);color:var(--ink)}
+[data-ask="invert"] .askwin.on .tb span,[data-ask="invert"] .askwin.on .tb i{background:var(--paper)}
+[data-ask="invert"] .askwin.on input{background:var(--ink);color:var(--paper);border-color:var(--paper);outline:0;caret-color:var(--paper)}
+[data-ask="invert"] .askwin.on .ask button{background:var(--paper);color:var(--ink)}
+[data-ask="invert"] .askwin.on .scope span{border-color:var(--paper)}
+[data-ask="invert"] .askwin.on .scope .on{background:var(--paper);color:var(--ink)}
+/* Y bold outline: same colours, the frame turns heavy black */
+[data-ask="bold"] .askwin.on{outline:3px solid var(--ink);outline-offset:0;box-shadow:7px 7px 0 var(--ink)}
+[data-ask="bold"] .askwin.on .tb{background:var(--ink);color:var(--paper)}
+[data-ask="bold"] .askwin.on .tb span,[data-ask="bold"] .askwin.on .tb i{background:transparent}
+[data-ask="bold"] .askwin.on input{border-width:2px;outline:0}
+.askpick{left:22px;right:auto}
+
+/* ===== 1  LISA OS: bone desktop with a dot screen, every panel a window, bitmap type, pink accent ===== */
+[data-concept="1"]{--desk:#dedede;--acc:var(--pink)}
+[data-concept="1"] body{background:#dedede radial-gradient(rgba(30,30,30,.32) .8px,transparent 1.1px) 0 0/6px 6px}
+
+/* ===== 2  PINK DESKTOP: the TypeSafe pink, dense dither field, white windows ===== */
+[data-concept="2"]{--desk:#f386a1;--acc:#fefefe;--c-living:#d45bb6;--room:#f3f0ec}
+[data-concept="2"] body{background:#f386a1 radial-gradient(rgba(30,30,30,.55) .9px,transparent 1.2px) 0 0/5px 5px}
+[data-concept="2"] .desk::before{content:"";position:absolute;right:-120px;bottom:-140px;width:620px;height:620px;border-radius:50%;
+  background:radial-gradient(#1e1e1e 1.2px,transparent 1.6px) 0 0/7px 7px;-webkit-mask:radial-gradient(closest-side,#000 30%,transparent);mask:radial-gradient(closest-side,#000 30%,transparent);pointer-events:none}
+[data-concept="2"] .desk::after{content:"";position:absolute;left:-160px;top:220px;width:520px;height:520px;border-radius:50%;
+  background:radial-gradient(#1e1e1e 1.2px,transparent 1.6px) 0 0/7px 7px;-webkit-mask:radial-gradient(closest-side,#000 20%,transparent);mask:radial-gradient(closest-side,#000 20%,transparent);pointer-events:none}
+[data-concept="2"] .win{z-index:1}
+
+/* ===== 3  CLOUD: grainy pink-violet-blue sky band, white floating tabs, airy grotesk with bitmap details ===== */
+[data-concept="3"]{--desk:#fafafa;--shadow:0 1px 0 rgba(0,0,0,.04),0 18px 40px -18px rgba(60,20,80,.35);--acc:#f386a1;--bignum:var(--sans)}
+[data-concept="3"] body{background:
+  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E") 0 0/220px 220px,
+  radial-gradient(38% 60% at 0% 10%,#ff4fa8 0,transparent 70%),radial-gradient(30% 50% at 22% 100%,#f6a2c4 0,transparent 70%),
+  radial-gradient(40% 70% at 100% 20%,#9b5cf6 0,transparent 70%),radial-gradient(35% 50% at 82% 100%,#ff63b8 0,transparent 70%),
+  radial-gradient(70% 45% at 50% 0%,#5aa6d6 0,transparent 75%),#f4f1f7;background-repeat:repeat,no-repeat,no-repeat,no-repeat,no-repeat,no-repeat;
+  background-size:220px 220px,100% 100%,100% 100%,100% 100%,100% 100%,100% 100%;background-attachment:fixed}
+[data-concept="3"] .desk{padding:70px 46px 34px;gap:28px}
+[data-concept="3"] .planbox{background:rgba(254,254,254,.94)}
+[data-concept="3"] .win{border-color:rgba(30,30,30,.9)}
+[data-concept="3"] .big b{font-weight:300;font-size:120px;letter-spacing:-.06em}
+[data-concept="3"] .tb{font-size:18px}
+
+/* ===== 4  MONOLITH OS: your Monolith (hairlines, huge thin numeral, red primary) inside TypeSafe windows ===== */
+[data-concept="4"]{--desk:#e6e6e3;--shadow:none;--acc:#e10600;--bignum:var(--sans);--c-living:#e10600;--c-entry:#2f6fde;--c-bath:#00a86b;--c-corridor:#ffc400;--c-stairs:#7c3aed;--c-classroom:#ff6a00;--c-bedroom:#ff3fa4;--c-utility:#00a3c4;--room:#ededea}
+[data-concept="4"] body{background:#e6e6e3}
+[data-concept="4"] .tb{background:#e6e6e3;color:#0c0c0c;border-bottom:1px solid #0c0c0c;font-size:18px}
+[data-concept="4"] .tb::before{content:"";width:9px;height:9px;border-radius:50%;background:#e10600;margin-right:8px}
+[data-concept="4"] .tb{justify-content:flex-start}[data-concept="4"] .tb i{margin-left:auto}
+[data-concept="4"] .big b{font-weight:300;font-size:150px;letter-spacing:-.075em;line-height:.78}
+[data-concept="4"] .nav a{background:transparent;border-right:1px solid #0c0c0c}[data-concept="4"] .nav{border-bottom:1px solid #0c0c0c;background:#f1f1ef}
+[data-concept="4"] .nav a.solid{background:#e10600;color:#fff;border:0}
+[data-concept="4"] .chip.on{background:#0c0c0c}
+[data-concept="4"] .tag.acc{color:#fff}
+
+/* ===== 5  ONE-BIT: black, white and dither only; colour appears solely on what you switch on ===== */
+[data-concept="5"]{--desk:#fefefe;--acc:#03aa5c;--c-living:#f386a1;--c-entry:#4fa3d9;--c-bath:#03aa5c;--c-corridor:#f5c400}
+[data-concept="5"] body{background:#fefefe repeating-linear-gradient(0deg,rgba(30,30,30,.07) 0 1px,transparent 1px 3px)}
+[data-concept="5"] html.on-living .plansvg g[data-rt=living] path,[data-concept="5"].on-living .plansvg g[data-rt=living] path{fill:var(--c-living)}
+[data-concept="5"].on-entry .plansvg g[data-rt=entry] path{fill:var(--c-entry)}
+[data-concept="5"].on-bath .plansvg g[data-rt=bath] path{fill:var(--c-bath)}
+[data-concept="5"].on-corridor .plansvg g[data-rt=corridor] path{fill:var(--c-corridor)}
+[data-concept="5"].on-stairs .plansvg g[data-rt=stairs] path{fill:var(--c-stairs)}
+[data-concept="5"].on-classroom .plansvg g[data-rt=classroom] path{fill:var(--c-classroom)}
+[data-concept="5"].on-bedroom .plansvg g[data-rt=bedroom] path{fill:var(--c-bedroom)}
+[data-concept="5"].on-utility .plansvg g[data-rt=utility] path{fill:var(--c-utility)}
+[data-concept="5"] .tb{background:repeating-linear-gradient(0deg,#1e1e1e 0 1px,#fefefe 1px 2px);color:#1e1e1e}
+[data-concept="5"] .tb span,[data-concept="5"] .tb i{background:#fefefe;padding:0 6px}
+[data-concept="5"] .big b{font-family:var(--sans);font-weight:300;font-size:92px;letter-spacing:-.065em;line-height:.8}
+[data-concept="5"] .chip.on b{border-color:#1e1e1e}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <pattern id="dith" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="3" fill="#fefefe"/><rect width="1" height="1" fill="#1e1e1e"/></pattern>
+</defs></svg>
+<div class="nav">
+  <a>Bob</a>
+  <div class="mid"><a>Projects</a><a>Library</a><a>Scans</a><a>Compute</a></div>
+  <span class="sp"></span>
+  <a>⌗ Scan blueprint</a><a class="solid">TS</a>
+</div>
+<div class="desk">
+  <div class="left">
+    <div class="win planwin">
+      <div class="tb"><span>Esplanades / Level 2 · 2.korrus</span><i>BIM · 1:100 · 60 rooms</i></div>
+      <div class="planbox">
+        {{SVG}}
+        <div class="win stack"><div class="tb"><span>Building</span><i>5</i></div><div class="body">
+          <div class="slab"><em>L5</em></div><div class="slab"><em>L4</em></div><div class="slab"><em>L3</em></div><div class="slab on"><em>L2</em></div><div class="slab"><em>L1</em></div></div></div>
+        <div class="hud">SCALE 1:100<br>SOURCE BIM MODEL<br>X 24.180 M  Y 11.642 M</div>
+      </div>
+      <div class="chips" id="chips"></div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="win askwin"><div class="tb"><span>Ask</span><i>⌘K</i></div><div class="body">
+      <div class="ask"><span class="field"><input value="How many toilet rooms are on this floor?"></span><button>ASK</button></div>
+      <div class="scope"><span class="on">This blueprint</span><span>Whole project · 5</span></div></div></div>
+    <div class="win"><div class="tb"><span>Answer</span><i>0.00 s</i></div><div class="body">
+      <div class="big"><b>18</b><span>toilet rooms</span></div>
+      <div class="tags"><span class="tag inv">MEASURED</span><span class="tag acc">FROM LIBRARY · $0</span><span class="tag">BIM ROOM DATA</span></div>
+      <dl class="kv"><dt>Method</dt><dd>IfcSpace "TUALETTRUUM" on storey 2.korrus</dd><dt>Confidence</dt><dd>exact model data</dd><dt>Evidence</dt><dd>18 rooms, green on the plan</dd></dl></div></div>
+    <div class="win"><div class="tb"><span>Whole project</span><i>doors</i></div><div class="body">
+      <table><tr><th>Blueprint</th><th class="n">Doors</th><th class="n">Rooms</th></tr>
+        <tr><td>Level 1</td><td class="n">46</td><td class="n">50</td></tr><tr><td>Level 2</td><td class="n">42</td><td class="n">60</td></tr>
+        <tr><td>Level 3</td><td class="n">42</td><td class="n">60</td></tr><tr><td>Level 4</td><td class="n">42</td><td class="n">60</td></tr>
+        <tr><td>Level 5</td><td class="n">39</td><td class="n">55</td></tr><tr class="tot"><td>Total</td><td class="n">211</td><td class="n">285</td></tr></table></div></div>
+    <div class="win"><div class="tb"><span>Compute</span><i>engine time per answer</i></div><div class="body bars">
+      <div class="r"><b>First ask</b><i style="--x:96%"></i><span>0.386 s</span></div>
+      <div class="r"><b>Asked again</b><i style="--x:0%"></i><span>0 s · $0</span></div>
+      <div class="r"><b>Library</b><i style="--x:40%"></i><span>418 answers kept</span></div></div></div>
+  </div>
+</div>
+<script>
+const QS = new URLSearchParams(location.search);
+const ROOMS = [["living", "Living + kitchen", 18, 1], ["bath", "Toilet", 18, 1], ["entry", "Entry hall", 18, 1], ["corridor", "Corridor", 2, 0],
+  ["stairs", "Stairs", 1, 0], ["classroom", "Computer room", 1, 0], ["bedroom", "Bedroom", 1, 0], ["utility", "Utility", 1, 0]];
+const EXTRA = [["doors", "Doors", 42, 0, "var(--door)"], ["windows", "Windows", 53, 0, "var(--win)"]];
+const H = document.documentElement, chips = document.getElementById("chips");
+for (const [k, t, n, on, c] of [...ROOMS.map((r) => [...r, `var(--c-${r[0]})`]), ...EXTRA]) {
+  const el = document.createElement("span");
+  el.className = "chip" + (on ? " on" : ""); el.style.setProperty("--c", c);
+  el.innerHTML = `<b></b>${t} <em>${n}</em>`;
+  if (on) H.classList.add("on-" + k);
+  el.onclick = () => { el.classList.toggle("on"); H.classList.toggle("on-" + k); };
+  chips.appendChild(el);
+}
+</script>
+</body>
+</html>
