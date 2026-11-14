@@ -89,12 +89,62 @@ $('ask').addEventListener('submit', async (e) => {
   if (i >= 0) showAsk(i); else $('answer').innerHTML = '<div class="ans muted">Replay mode only knows the listed questions. Add ?live=1 for the real server.</div>'
 })
 
+// ?synthetic=areas|baseboards|slabs|pipes: test answers built from a Swiss sheet's real room polygons, to exercise the
+// view's grouped / linear / slab / pipe drawing before the backend emits them. Harness only; values are synthetic.
+async function synthetic(kind: string) {
+  const sheet = await getJSON(`/fixtures/${stem}/sheet.json`)
+  const flip = (p: [number, number]) => [p[0], -p[1]] as [number, number] // sheet y-up -> render frame
+  const rooms = (sheet.rooms ?? []).filter((r: { polygon?: unknown[] }) => r.polygon?.length)
+  const area = (p: number[][]) => Math.abs(p.reduce((a, q, i) => { const r = p[(i + 1) % p.length]; return a + q[0] * r[1] - r[0] * q[1] }, 0) / 2)
+  const per = (p: number[][]) => p.reduce((a, q, i) => { const r = p[(i + 1) % p.length]; return a + Math.hypot(r[0] - q[0], r[1] - q[1]) }, 0)
+  const cat = (n = '') => /bad|wc/i.test(n) ? 'Wet rooms' : /k[üu]che|korridor|eingang|flur/i.test(n) ? 'Kitchen & circulation'
+    : /terrass|balkon/i.test(n) ? 'Outdoor' : /b[üu]ro/i.test(n) ? 'Office' : /lift|treppe|reduit/i.test(n) ? 'Service' : 'Living & bedrooms'
+  const r2 = (v: number) => Math.round(v * 100) / 100
+  let ask: AskJSON & { breakdown?: unknown }
+  if (kind === 'areas') {
+    const ev = rooms.map((r: { id: string; name?: string; polygon: [number, number][] }) => ({ id: r.id, shape: 'polygon' as const, pts: r.polygon.map(flip), group: cat(r.name), value: r2(area(r.polygon)), unit: 'm2' }))
+    const groups = [...new Set(ev.map((e: { group: string }) => e.group))] as string[]
+    const breakdown = groups.map((g) => ({ group: g, value: r2(ev.filter((e: { group: string }) => e.group === g).reduce((a: number, e: { value: number }) => a + e.value, 0)), unit: 'm2' }))
+    ask = { answer: r2(breakdown.reduce((a, b) => a + b.value, 0)), unit: 'm2', evidence: ev, breakdown, honesty: { tier: 'measured', basis: 'synthetic test answer' } }
+  } else if (kind === 'baseboards') {
+    const rs = rooms.filter((r: { name?: string }) => !/terrass|lift|treppe/i.test(r.name ?? ''))
+    const ev = rs.map((r: { id: string; name?: string; polygon: [number, number][] }) => ({ id: r.id, shape: 'polyline' as const, pts: [...r.polygon, r.polygon[0]].map(flip), group: cat(r.name), value: r2(per(r.polygon)), unit: 'm' }))
+    ask = { answer: r2(ev.reduce((a: number, e: { value: number }) => a + e.value, 0)), unit: 'm', evidence: ev, honesty: { tier: 'measured', basis: 'synthetic test answer' } }
+  } else if (kind === 'slabs') {
+    const units = sheet.units_list ?? []
+    const ev = units.map((u: { id: string; polygon: [number, number][] }, i: number) => ({ id: u.id, shape: 'polygon' as const, pts: u.polygon.map(flip),
+      group: i % 2 ? '150 slab, D13 @ 300' : '300 slab, D16 @ 300', thickness_m: i % 2 ? 0.15 : 0.3, value: r2(area(u.polygon)), unit: 'm2' }))
+    ask = { answer: r2(ev.reduce((a: number, e: { value: number }) => a + e.value, 0)), unit: 'm2', evidence: ev, honesty: { tier: 'measured', basis: 'synthetic test answer' } }
+  } else {
+    const wet = rooms.filter((r: { name?: string }) => /bad|k[üu]che/i.test(r.name ?? ''))
+    const c = (p: [number, number][]) => [p.reduce((a, q) => a + q[0], 0) / p.length, p.reduce((a, q) => a + q[1], 0) / p.length] as [number, number]
+    const riser = c(wet[0].polygon)
+    const ev = wet.map((r: { id: string; name?: string; polygon: [number, number][] }, i: number) => {
+      const q = c(r.polygon)
+      return { id: `pipe${i}`, shape: 'polyline' as const, pts: [q, [q[0], riser[1]], riser].map((p) => flip(p as [number, number])),
+        group: i === 0 ? '4" riser' : '2" branch', diameter_m: i === 0 ? 0.1 : 0.05, value: r2(Math.abs(q[0] - riser[0]) + Math.abs(q[1] - riser[1])), unit: 'm' }
+    })
+    ask = { answer: r2(ev.reduce((a: number, e: { value: number }) => a + e.value, 0)), unit: 'm', evidence: ev, honesty: { tier: 'measured', basis: 'synthetic test answer' } }
+  }
+  view.showAnswer(ask, `Synthetic test (${kind}): not a real answer`)
+}
+
 async function main() {
+  // ?img=<url>: any image as a raster sheet (no backend data), e.g. the judges' example sheets in judge/
+  const img = P.get('img')
+  if (img) {
+    const head = new DataView(await (await fetch(img, { headers: { Range: 'bytes=0-31' } })).arrayBuffer()) // PNG IHDR: width, height
+    await view.load({ render: { type: 'image', width: head.getUint32(16), height: head.getUint32(20), url: img, source_type: 'raster' } })
+    if (P.get('mode') === '3d') view.setMode('3d')
+    $('drawing').innerHTML = `<option>${esc(img)}</option>`
+    return
+  }
   index = await getJSON('/fixtures/index.json')
   $('drawing').innerHTML = index.map((f) => `<option value="${esc(f.stem)}">${esc(f.title)}</option>`).join('')
   await openStem(P.get('d') ?? index[0].stem)
   if (P.has('q')) await showAsk(Number(P.get('q')))
   if (P.get('sel')) view.select(P.get('sel'))
+  if (P.get('synthetic')) await synthetic(P.get('synthetic')!)
   if (P.get('mode') === '3d') view.setMode('3d')
   if (P.has('photo')) setTimeout(() => (document.querySelector('.dv-tools button[title^="Path"]') as HTMLButtonElement | null)?.click(), 1500)
 }

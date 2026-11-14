@@ -4,11 +4,12 @@
 // axis-aligned). Never used to answer anything.
 import type { Pt } from './types'
 
-const WORK = 1200 // long side of the working copy, px
+const WORK = 2400 // long side of the working copy, px (full sheets need it: inner walls must stay >= 3 px)
 
-export function wallsFromImage(img: HTMLImageElement, width: number, height: number): Pt[][] {
-  const s = Math.min(1, WORK / Math.max(img.naturalWidth, img.naturalHeight))
-  const w = Math.max(1, Math.round(img.naturalWidth * s)), h = Math.max(1, Math.round(img.naturalHeight * s))
+export function wallsFromImage(img: HTMLImageElement | HTMLCanvasElement, width: number, height: number): Pt[][] {
+  const iw = img instanceof HTMLImageElement ? img.naturalWidth : img.width, ih = img instanceof HTMLImageElement ? img.naturalHeight : img.height
+  const s = Math.min(1, WORK / Math.max(iw, ih))
+  const w = Math.max(1, Math.round(iw * s)), h = Math.max(1, Math.round(ih * s))
   const c = document.createElement('canvas')
   c.width = w; c.height = h
   const g = c.getContext('2d', { willReadFrequently: true })!
@@ -23,9 +24,10 @@ export function wallsFromImage(img: HTMLImageElement, width: number, height: num
     mask[i] = y < 90 ? 1 : 0
   }
 
-  // 2. opening size: strokes thinner than k vanish. Tuned on the CubiCasa samples (475-1240 px): k 3-4 keeps inner
-  //    and outer walls and drops text, door swings and furniture; sizing it from the thickest walls lost the inner ones.
-  const k = Math.max(3, Math.round(Math.max(w, h) / 300))
+  // 2. opening size from the sheet's own thinnest strokes: k = hairline width + 2, so hairlines, text, door swings and
+  //    furniture vanish and every wall at least k wide stays. Gives k 3-4 on the CubiCasa scans (the values tuned by
+  //    hand there) and k 3 on full A1/A2 sheets at the working size. Sizing it from the thickest walls lost inner walls.
+  const k = Math.min(9, Math.max(3, hairline(mask, w, h) + 2))
 
   // 3. opening = erosion then dilation with a k x k square (separable)
   mask = dilate(erode(mask, w, h, k), w, h, k)
@@ -37,6 +39,17 @@ export function wallsFromImage(img: HTMLImageElement, width: number, height: num
   return rects
     .filter((r) => (r.x1 - r.x0) * (r.y1 - r.y0) >= minArea)
     .map((r) => [[r.x0 * sx, r.y0 * sy], [r.x1 * sx, r.y0 * sy], [r.x1 * sx, r.y1 * sy], [r.x0 * sx, r.y1 * sy]] as Pt[])
+}
+
+// Most common dark run length (1-6 px) across rows and columns, counted per run: the width of hairlines and text.
+function hairline(m: Uint8Array, w: number, h: number) {
+  const n = new Array(8).fill(0)
+  const add = (r: number) => { if (r >= 1 && r <= 6) n[r]++ }
+  for (let y = 0; y < h; y += 2) { let r = 0; for (let x = 0; x <= w; x++) { if (x < w && m[y * w + x]) r++; else { add(r); r = 0 } } }
+  for (let x = 0; x < w; x += 2) { let r = 0; for (let y = 0; y <= h; y++) { if (y < h && m[y * w + x]) r++; else { add(r); r = 0 } } }
+  let best = 1
+  for (let r = 1; r <= 6; r++) if (n[r] > n[best]) best = r
+  return best
 }
 
 // Min (erode) / max (dilate) over a k-wide window, rows then columns.

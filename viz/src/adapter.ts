@@ -31,8 +31,9 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
   const walls: Pt[][] = []
 
   if (render.type === 'image') {
-    const img = await loadImage(imageUrl ?? render.url!)
-    const width = render.width ?? img.naturalWidth, height = render.height ?? img.naturalHeight
+    const img = await loadSheetImage(imageUrl ?? render.url!)
+    const width = render.width ?? (img instanceof HTMLImageElement ? img.naturalWidth : img.width)
+    const height = render.height ?? (img instanceof HTMLImageElement ? img.naturalHeight : img.height)
     drawing = { key, kind: 'image', width, height, source: img, toPx: (p) => p, fromPx: (p) => p, units: 'px', mPerPx: sheet?.scale?.m_per_px ?? null, note: render.note }
     for (const w of sheet?.walls ?? []) if (w.polygon?.length) walls.push(w.polygon)
     // scans without the segmentation model: display-only walls from the image (not for PDF pages: tables, text)
@@ -92,35 +93,60 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
   return { drawing, plan: planEls, context: { walls, rooms, openings, fixtures }, guids }
 }
 
-const UNITS: Record<string, string> = { m2: 'm²', m3: 'm³', m: 'm', ft2: 'ft²', ft3: 'ft³', ft: 'ft', count: '' }
+const UNITS: Record<string, string> = { m2: 'm²', m3: 'm³', m: 'm', ft2: 'ft²', sqft: 'ft²', sf: 'ft²', ft3: 'ft³', ft: 'ft', lf: 'ft', count: '' }
+
+// Category colours, first = the usual answer orange; all readable over a white sheet and the dark UI.
+export const GROUP_COLORS = ['#ff6a00', '#2f6fde', '#12a37a', '#a24bd6', '#d63a7a', '#0d93b5', '#c99200', '#5f6f86']
+const LENGTH = new Set(['m', 'ft', 'mm', 'cm', 'lf'])
+const AREA = new Set(['m2', 'ft2', 'sqft', 'sf'])
 
 export function toAnswer(ask: AskJSON, loaded: Loaded, question?: string | null): Answer {
   const tier = ask.honesty?.tier ?? null
   const ev = ask.evidence ?? []
   const isCount = ask.unit === 'count'
+  const measure: Answer['measure'] = isCount ? 'count' : LENGTH.has(ask.unit ?? '') ? 'length' : AREA.has(ask.unit ?? '') ? 'area' : 'other'
   const cannot = !!ask.error || ask.answer == null || tier === 'cannot determine'
-  const { toPx } = loaded.drawing
+  const { toPx, mPerPx } = loaded.drawing
+  const fmt = (v: number | string | null | undefined, u?: string | null) => v == null ? null : `${v}${u ? ' ' + (UNITS[u] ?? u) : ''}`
+
+  // groups in the order the backend lists them (breakdown first, then evidence order)
+  const order: string[] = []
+  for (const b of ask.breakdown ?? []) if (b.group && !order.includes(b.group)) order.push(b.group)
+  for (const e of ev) if (e.group && !order.includes(e.group)) order.push(e.group)
+  const colorOf = (g?: string | null) => g ? GROUP_COLORS[order.indexOf(g) % GROUP_COLORS.length] : GROUP_COLORS[0]
+
   const elements: Element[] = []
   ev.forEach((e, i) => {
     // count answers number their evidence on the drawing; the backend's own label wins when it is short
     const label = isCount && ev.length <= 150 ? (e.label && e.label.length < 4 ? e.label : String(i + 1)) : null
-    const base = { id: e.id ?? `ev${i}`, label, how: e.shape }
+    const extra = {
+      group: e.group ?? null, color: colorOf(e.group), valueText: fmt(e.value, e.unit),
+      thicknessPx: e.thickness_m != null && mPerPx ? e.thickness_m / mPerPx : null,
+      diameterPx: e.diameter_m != null && mPerPx ? e.diameter_m / mPerPx : null,
+    }
+    const base = { id: e.id ?? `ev${i}`, label, how: e.shape, ...extra }
     if (e.shape === 'polygon' && e.pts?.length) {
       elements.push({ ...base, type: 'evidence', geometry: 'polygon', polygon: e.pts.map(toPx) })
+    } else if (e.shape === 'polyline' && e.pts && e.pts.length >= 2) {
+      elements.push({ ...base, type: 'evidence', geometry: 'polyline', polygon: e.pts.map(toPx) })
     } else if (e.shape === 'box' && e.bbox) {
       const polygon = boxPts(e.bbox, toPx)
       elements.push({ ...base, type: 'evidence', geometry: 'box', polygon, confidence: confOf(loaded.plan, polygon) })
     } else if (e.shape === 'guid' && e.id) {
       const g = loaded.guids.get(e.id)
-      if (g) elements.push({ ...g, label, how: 'guid' })
+      if (g) elements.push({ ...g, label, how: 'guid', ...extra })
     }
+  })
+  const groups: Answer['groups'] = order.map((name) => {
+    const b = ask.breakdown?.find((x) => x.group === name)
+    return { name, color: colorOf(name), count: b?.count ?? elements.filter((el) => el.group === name).length, value: fmt(b?.value, b?.unit ?? ask.unit) }
   })
   const unit = ask.unit ? UNITS[ask.unit] ?? ask.unit : ''
   return {
     question: question ?? null,
     status: cannot ? 'cannot_answer' : 'answered',
     value: cannot ? null : `${ask.answer}${unit ? ' ' + unit : ''}`,
-    isCount, tier: cannot ? 'cannot determine' : tier,
+    isCount, measure, groups, tier: cannot ? 'cannot determine' : tier,
     deterministic: ask.honesty?.deterministic ?? null, basis: ask.honesty?.basis ?? null,
     explanation: ask.error ?? ask.explanation ?? null, method: ask.method ?? null,
     styleWarning: !!ask.honesty?.style_warning,
@@ -148,6 +174,27 @@ function loadImage(url: string) {
     im.onerror = () => rej(new Error(`could not load drawing image ${url}`))
     im.src = url
   })
+}
+
+// Very large sheets (judges' PNGs are 67-138 megapixels) can fail to decode at full size: decode a downscaled copy.
+// The coordinate frame stays the original pixels (render width/height); crops scale from this copy.
+async function loadSheetImage(url: string): Promise<HTMLImageElement | HTMLCanvasElement> {
+  try {
+    const im = await loadImage(url)
+    await im.decode()
+    return im
+  } catch {
+    const blob = await (await fetch(url)).blob()
+    const probe = await createImageBitmap(blob, { resizeWidth: 64, resizeQuality: 'low' }) // aspect ratio only
+    const aspect = probe.height / probe.width
+    probe.close()
+    const w = 8192, bmp = await createImageBitmap(blob, { resizeWidth: w, resizeHeight: Math.round(w * aspect), resizeQuality: 'high' })
+    const c = document.createElement('canvas')
+    c.width = bmp.width; c.height = bmp.height
+    c.getContext('2d')!.drawImage(bmp, 0, 0)
+    bmp.close()
+    return c
+  }
 }
 
 function rasterVector(r: RenderJSON) {

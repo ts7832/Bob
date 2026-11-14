@@ -87,6 +87,13 @@ function AnswerBadge({ answer }: { answer: Answer }) {
         {answer.deterministic === false && <span className="dv-chip">not deterministic</span>}
         {answer.basis && <span className="dv-chip">{answer.basis}</span>}
       </div>
+      {(answer.groups.length > 1 || answer.groups.some((g) => g.value)) && (
+        <ul className="dv-legend">
+          {answer.groups.map((g) => (
+            <li key={g.name}><i style={{ background: g.color }} /><span>{g.name}</span><b>{g.value ?? `${g.count}×`}</b></li>
+          ))}
+        </ul>
+      )}
       {answer.cited > 0 && off > 0 && (
         <p className="dv-note">
           {answer.elements.length} of {answer.cited} shown on this sheet. The other {off} are elsewhere in the model, not on this drawing.
@@ -99,7 +106,7 @@ function AnswerBadge({ answer }: { answer: Answer }) {
 }
 
 const pct = (c?: number | null) => (c == null ? null : `${Math.round(c * 100)}%`)
-const HOW: Record<string, string> = { polygon: 'outline', box: 'detection box', guid: 'BIM element', detector: 'detected', read: 'read from sheet' }
+const HOW: Record<string, string> = { polygon: 'outline', polyline: 'line', box: 'detection box', guid: 'BIM element', detector: 'detected', read: 'read from sheet' }
 
 function Detail({ drawing, el, onClose }: { drawing: Drawing; el: Element; onClose: () => void }) {
   const b = bbox(outline(el))
@@ -116,6 +123,8 @@ function Detail({ drawing, el, onClose }: { drawing: Drawing; el: Element; onClo
       <dl>
         {el.label && <><dt>Mark</dt><dd>{el.label}</dd></>}
         {el.name && <><dt>Name</dt><dd>{el.name}</dd></>}
+        {el.group && <><dt>Group</dt><dd><i className="dv-swatch" style={{ background: el.color }} />{el.group}</dd></>}
+        {el.valueText && <><dt>Value</dt><dd>{el.valueText}</dd></>}
         <dt>Type</dt><dd>{el.type === 'evidence' ? HOW[el.how ?? ''] ?? 'evidence' : el.type}</dd>
         {pct(el.confidence) && <><dt>Confidence</dt><dd>{pct(el.confidence)}</dd></>}
         <dt>ID</dt><dd><code>{el.id}</code></dd>

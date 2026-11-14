@@ -39,8 +39,33 @@ What the view shows:
   - Swiss sheets: the DXF `WALL` layer (exact).
   - BIM plans: `IfcWall` / `IfcWallStandardCase` shapes in the SVG; height assumes a 1:100 sheet.
   - Scans: walls found in the image (`src/walls.ts`). Dark pixels, a morphological opening that drops text and thin lines, then rectangles.
-  - PDF pages get no walls.
+  - PDF pages get no walls. The image path works on full A1/A2 sheets too (the filter is sized from the sheet's own hairlines; 67-138 megapixel PNGs are decoded downscaled).
   - Door openings come from the sources themselves, so walls already have gaps there.
+
+## Optional evidence fields (for the judges' harder questions)
+
+The view reads `/api/ask` as it is today. These optional fields let the backend show multi-category and linear answers. All of them are optional and ignored if absent, and the view never computes a value itself:
+
+```jsonc
+{"answer": 348.47, "unit": "m2",
+ "breakdown": [{"group": "Dormitory", "value": 18665, "unit": "ft2", "count": 144}],   // legend subtotals, in this order
+ "evidence": [
+   {"id": "r12", "shape": "polygon", "pts": [...], "group": "Dormitory", "value": 24.3, "unit": "m2"},   // colour per group
+   {"id": "b3",  "shape": "polyline", "pts": [...], "group": "Classroom", "value": 31.2, "unit": "m"},   // baseboard / any line
+   {"id": "s1",  "shape": "polygon", "pts": [...], "group": "300 slab, D16 @ 300", "thickness_m": 0.30}, // slab at printed thickness
+   {"id": "p7",  "shape": "polyline", "pts": [...], "group": "8\" SS", "diameter_m": 0.2032}            // pipe at printed size
+ ]}
+```
+
+| Field | 2D | 3D |
+|---|---|---|
+| `group` | colour per group, legend (with `breakdown` subtotals, else counts) | volumes coloured per group |
+| `value` + `unit` | value tag per item (shown on hover when there are more than 12 items) | same |
+| `shape: "polyline"` | thick line, clickable | baseboard strip at floor level, or a tube when `diameter_m` is given |
+| `thickness_m` | as polygon | solid plate at that thickness (needs a sheet scale) |
+| length answers (`unit` m/ft) with polygon evidence (e.g. room perimeters) | outlines, no fill | baseboard strips along the outline |
+
+To try them: `/?d=site11692_bldg18240_floor48820&synthetic=areas|baseboards|slabs|pipes` (harness only; synthetic values from that sheet's real room polygons).
 
 ## Serving
 

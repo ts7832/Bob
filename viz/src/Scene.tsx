@@ -5,8 +5,8 @@ import { CameraControls, Html, Line } from '@react-three/drei'
 import CameraControlsImpl from 'camera-controls'
 import { Building, Effects, Floors, Lighting, drawingUV, useBuilding, useLifted, type Lift } from './Model'
 import { Photo } from './Photo'
-import type { Answer, Drawing, Element, Loaded, Tier } from './types'
-import { anchor, bbox, outline, shapeOf, thickness, toWorld } from './geom'
+import type { Answer, Drawing, Element, Loaded, Pt, Tier } from './types'
+import { anchor, bbox, outline, shapeOf, thickness, toShape, toWorld } from './geom'
 
 export const ACCENT = '#ff6a00'
 const LOW = '#e0a100' // low-confidence detections
@@ -108,6 +108,8 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
   const els = answer?.status === 'answered' ? answer.elements : []
   const tier = answer?.tier ?? null
   const lift = useRef<Lift>({ v: 0 })
+  // in 3D with nothing selected, frame the building (walls), not the whole paper with its title block
+  const home = useMemo(() => { const w = loaded.context.walls.flat(); return w.length > 3 ? (() => { const b = bbox(w); return { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1, min: 0 } })() : null }, [loaded])
   const lifted = useLifted(lift)
   const building = useBuilding(loaded)
 
@@ -119,7 +121,7 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
   return (
     <>
       <CameraControls makeDefault />
-      <CameraRig drawing={drawing} focus={focus} fitAll={fitAll} mode={mode} />
+      <CameraRig drawing={drawing} focus={focus} fitAll={fitAll} mode={mode} home={home} />
       <Lighting drawing={drawing} active={lifted} catcherY={2.5 * L} />
       {lifted && !photo && <Effects wallH={wallH} />}
       {lifted && photo && <Photo loaded={loaded} b={building} tex={tex} wallH={wallH} answer={answer} baseY={0.5 * L} status={photoStatus} />}
@@ -143,7 +145,7 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
       <Building b={building} tex={tex} wallH={wallH} lift={lift} y={0.5 * L} />
 
       {els.map((el) => (
-        <Highlight key={el.id} el={el} drawing={drawing} tex={tex} hatch={hatch} tier={tier} L={L} wallH={wallH} lift={lift}
+        <Highlight key={el.id} el={el} drawing={drawing} tex={tex} hatch={hatch} tier={tier} measure={answer?.measure ?? 'other'} crowded={els.length > 12} L={L} wallH={wallH} lift={lift}
           selected={el.id === selectedId} hovered={el.id === hoverId}
           onSelect={onSelect} onHover={onHover} overlay={overlay} />
       ))}
@@ -162,65 +164,122 @@ function PlanMark({ el, drawing, y }: { el: Element; drawing: Drawing; y: number
     dashed={dashed} dashSize={dash} gapSize={dash * 0.6} raycast={() => null} />
 }
 
-function Highlight({ el, drawing, tex, hatch, tier, L, wallH, lift, selected, hovered, onSelect, onHover, overlay }: {
-  el: Element; drawing: Drawing; tex: THREE.Texture; hatch: THREE.Texture; tier: Tier | null
+// A vertical strip along a line (shape space, z 0..1): baseboards in 3D. Closed for room outlines.
+function ribbon(d: Drawing, pts: Pt[], closed: boolean) {
+  const P = pts.map((p) => toShape(d, p)), n = closed ? P.length : P.length - 1, pos: number[] = []
+  for (let i = 0; i < n; i++) {
+    const a = P[i], b = P[(i + 1) % P.length]
+    pos.push(a.x, a.y, 0, b.x, b.y, 0, b.x, b.y, 1, a.x, a.y, 0, b.x, b.y, 1, a.x, a.y, 1)
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.computeVertexNormals()
+  return g
+}
+
+// A pipe along a polyline at its printed diameter (world space, centred on y = 0).
+function tube(d: Drawing, pts: Pt[], r: number) {
+  const path = new THREE.CurvePath<THREE.Vector3>()
+  const w = pts.map((p) => { const [x, z] = toWorld(d, p); return new THREE.Vector3(x, 0, z) })
+  for (let i = 0; i + 1 < w.length; i++) path.add(new THREE.LineCurve3(w[i], w[i + 1]))
+  return new THREE.TubeGeometry(path, Math.max(16, w.length * 6), Math.max(r, 0.5), 14, false)
+}
+
+function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, lift, selected, hovered, onSelect, onHover, overlay }: {
+  el: Element; drawing: Drawing; tex: THREE.Texture; hatch: THREE.Texture; tier: Tier | null; measure: Answer['measure']; crowded: boolean
   L: number; wallH: number; lift: RefObject<Lift>
   selected: boolean; hovered: boolean; onSelect: (id: string) => void; onHover: (id: string | null) => void
   overlay: RefObject<HTMLDivElement | null>
 }) {
   const pts = outline(el)
-  const shape = useMemo(() => shapeOf(drawing, pts), [el, drawing])
-  const geo = useMemo(() => drawingUV(new THREE.ShapeGeometry(shape), drawing), [shape])
-  const vol = useMemo(() => new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false, curveSegments: 4 }), [shape])
-  useEffect(() => () => { geo.dispose(); vol.dispose() }, [geo, vol])
+  const open = el.geometry === 'polyline'
+  const linear = open || measure === 'length' // lengths (baseboards, perimeters, pipes): outlines, not filled areas
+  const pipe = open && el.diameterPx != null
+  const area = !open
+  const shape = useMemo(() => (area ? shapeOf(drawing, pts) : null), [el, drawing])
+  const geo = useMemo(() => (shape ? drawingUV(new THREE.ShapeGeometry(shape), drawing) : null), [shape])
+  const vol = useMemo(() => (shape && !linear ? new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false, curveSegments: 4 }) : null), [shape, linear])
+  const strip = useMemo(() => (linear && !pipe ? ribbon(drawing, pts, !open) : null), [el, drawing, linear, pipe])
+  const pipeGeo = useMemo(() => (pipe ? tube(drawing, pts, el.diameterPx! / 2) : null), [el, drawing, pipe])
+  useEffect(() => () => { geo?.dispose(); vol?.dispose(); strip?.dispose(); pipeGeo?.dispose() }, [geo, vol, strip, pipeGeo])
   const line = useMemo(() => {
     const w = pts.map((p) => toWorld(drawing, p))
-    return [...w, w[0]].map(([x, z]) => new THREE.Vector3(x, 0, z))
+    return (open ? w : [...w, w[0]]).map(([x, z]) => new THREE.Vector3(x, 0, z))
   }, [el, drawing])
-  const [ax, az] = toWorld(drawing, anchor(el))
+  const [ax, az] = open ? toWorld(drawing, pts[Math.floor(pts.length / 2)]) : toWorld(drawing, anchor(el))
   // honesty tier -> line style: read/measured solid, detected dashed (amber when unsure), estimated hatched
   const detected = tier === 'detected'
   const low = detected && el.confidence != null && el.confidence < LOW_CONF
-  const color = low ? LOW : ACCENT
+  const color = low ? LOW : el.color ?? ACCENT
   const active = selected || hovered
   const dash = Math.max(drawing.width, drawing.height) / 160
+  // count numbers always; per-item values only while there is room (else on hover / selection; the legend has totals)
+  const tag = el.label ?? (crowded && !active ? null : el.valueText ?? null)
+  const events = {
+    onClick: (e: { stopPropagation(): void }) => { e.stopPropagation(); onSelect(el.id) },
+    onPointerOver: (e: { stopPropagation(): void }) => { e.stopPropagation(); onHover(el.id); document.body.style.cursor = 'pointer' },
+    onPointerOut: () => { onHover(null); document.body.style.cursor = '' },
+  }
 
-  // 3D: a translucent volume rises over the item, its outline rides on top, the tag floats above on a pin
-  const volRef = useRef<THREE.Mesh>(null), topRef = useRef<THREE.Group>(null), tagRef = useRef<THREE.Group>(null), pinRef = useRef<THREE.Group>(null)
+  // 3D: areas grow a translucent volume (slabs: their printed thickness), lengths a baseboard strip, pipes float at
+  // mid height; the outline rides on top and the tag floats above on a pin
+  const volRef = useRef<THREE.Mesh>(null), stripRef = useRef<THREE.Mesh>(null), pipeRef = useRef<THREE.Group>(null)
+  const topRef = useRef<THREE.Group>(null), tagRef = useRef<THREE.Group>(null), pinRef = useRef<THREE.Group>(null)
   useFrame(() => {
-    const v = lift.current?.v ?? 0, top = v * wallH * 0.45
+    const v = lift.current?.v ?? 0
+    const top = linear ? (pipe ? 0 : v * wallH * 0.12) : v * (el.thicknessPx ?? wallH * 0.45)
     if (volRef.current) { volRef.current.visible = v > 0.01; volRef.current.scale.z = Math.max(top, 0.001) }
-    if (topRef.current) topRef.current.position.y = 5 * L + top
+    if (stripRef.current) { stripRef.current.visible = v > 0.01; stripRef.current.scale.z = Math.max(top, 0.001) }
+    if (pipeRef.current) pipeRef.current.position.y = 5 * L + v * wallH * 0.55
+    if (topRef.current) topRef.current.position.y = 5 * L + (pipe ? v * wallH * 0.55 : top)
     if (tagRef.current) tagRef.current.position.y = 6 * L + v * wallH * 1.25
     if (pinRef.current) { pinRef.current.visible = v > 0.01; pinRef.current.scale.y = Math.max(v * wallH * 1.25, 0.001) }
   })
 
   return (
     <group>
-      <mesh geometry={geo} rotation-x={-Math.PI / 2} position-y={3 * L}
-        onClick={(e) => { e.stopPropagation(); onSelect(el.id) }}
-        onPointerOver={(e) => { e.stopPropagation(); onHover(el.id); document.body.style.cursor = 'pointer' }}
-        onPointerOut={() => { onHover(null); document.body.style.cursor = '' }}>
-        <meshBasicMaterial map={tex} toneMapped={false} />
-      </mesh>
-      <mesh geometry={geo} rotation-x={-Math.PI / 2} position-y={4 * L} renderOrder={5} raycast={() => null}>
-        {tier === 'estimated'
-          ? <meshBasicMaterial color={color} map={hatch} transparent opacity={active ? 0.55 : 0.35} depthWrite={false} toneMapped={false} />
-          : <meshBasicMaterial color={color} transparent opacity={active ? 0.32 : 0.14} depthWrite={false} toneMapped={false} />}
-      </mesh>
-      <mesh ref={volRef} geometry={vol} rotation-x={-Math.PI / 2} position-y={4 * L} visible={false} renderOrder={6} raycast={() => null}>
-        <meshBasicMaterial color={color} transparent opacity={active ? 0.38 : 0.2} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
-      </mesh>
+      {geo && (
+        <mesh geometry={geo} rotation-x={-Math.PI / 2} position-y={3 * L} {...events}>
+          <meshBasicMaterial map={tex} toneMapped={false} />
+        </mesh>
+      )}
+      {geo && !linear && (
+        <mesh geometry={geo} rotation-x={-Math.PI / 2} position-y={4 * L} renderOrder={5} raycast={() => null}>
+          {tier === 'estimated'
+            ? <meshBasicMaterial color={color} map={hatch} transparent opacity={active ? 0.55 : 0.35} depthWrite={false} toneMapped={false} />
+            : <meshBasicMaterial color={color} transparent opacity={active ? 0.32 : 0.14} depthWrite={false} toneMapped={false} />}
+        </mesh>
+      )}
+      {vol && (
+        <mesh ref={volRef} geometry={vol} rotation-x={-Math.PI / 2} position-y={4 * L} visible={false} renderOrder={6} raycast={() => null}>
+          {el.thicknessPx != null // slabs: solid plates at their printed thickness
+            ? <meshStandardMaterial color={color} roughness={0.8} emissive={color} emissiveIntensity={active ? 0.35 : 0.15} />
+            : <meshBasicMaterial color={color} transparent opacity={active ? 0.38 : 0.2} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />}
+        </mesh>
+      )}
+      {strip && (
+        <mesh ref={stripRef} geometry={strip} rotation-x={-Math.PI / 2} position-y={4 * L} visible={false} renderOrder={6} raycast={() => null}>
+          <meshBasicMaterial color={color} transparent opacity={active ? 0.95 : 0.8} side={THREE.DoubleSide} toneMapped={false} />
+        </mesh>
+      )}
+      {pipeGeo && (
+        <group ref={pipeRef}>
+          <mesh geometry={pipeGeo} {...events}>
+            <meshStandardMaterial color={color} roughness={0.35} metalness={0.4} emissive={color} emissiveIntensity={active ? 0.5 : 0.25} />
+          </mesh>
+        </group>
+      )}
       <group ref={topRef}>
-        <Line points={line} color={color} lineWidth={active ? 4 : 2.5} dashed={detected} dashSize={dash} gapSize={dash * 0.6} raycast={() => null} />
+        <Line points={line} color={color} lineWidth={active ? (linear ? 6 : 4) : linear ? 4.5 : 2.5} dashed={detected} dashSize={dash} gapSize={dash * 0.6}
+          {...(open ? events : { raycast: () => null })} />
       </group>
       <group ref={pinRef} position={[ax, 5 * L, az]} visible={false}>
         <Line points={[[0, 0, 0], [0, 1, 0]]} color={color} lineWidth={1.5} transparent opacity={0.8} raycast={() => null} />
       </group>
-      {el.label && (
+      {tag && (
         <group ref={tagRef} position={[ax, 6 * L, az]}>
           <Html portal={overlay as RefObject<HTMLElement>} center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
-            <div className={`dv-tag${active ? ' dv-tag-active' : ''}${low ? ' dv-tag-low' : ''}`}>{el.label}</div>
+            <div className={`dv-tag${active ? ' dv-tag-active' : ''}${low ? ' dv-tag-low' : ''}`} style={low ? undefined : { background: color }}>{tag}</div>
           </Html>
         </group>
       )}
@@ -230,7 +289,7 @@ function Highlight({ el, drawing, tex, hatch, tier, L, wallH, lift, selected, ho
 
 // Camera: one perspective camera for both modes. Looking straight down, a flat sheet shows exactly as in a 2D viewer;
 // 3D tilts the same camera while the walls rise. Fits `focus` (sheet-pixel rect) smoothly; user input takes over.
-function CameraRig({ drawing, focus, fitAll, mode }: { drawing: Drawing; focus: Focus; fitAll: number; mode: '2d' | '3d' }) {
+function CameraRig({ drawing, focus, fitAll, mode, home }: { drawing: Drawing; focus: Focus; fitAll: number; mode: '2d' | '3d'; home: Focus }) {
   const controls = useThree((s) => s.controls) as unknown as CameraControlsImpl | null
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
   const size = useThree((s) => s.size)
@@ -266,18 +325,18 @@ function CameraRig({ drawing, focus, fitAll, mode }: { drawing: Drawing; focus: 
     const all = fitAll !== lastFitAll.current
     lastFitAll.current = fitAll
     const f = all ? null : focus
-    const r = f ?? { x0: 0, y0: 0, x1: drawing.width, y1: drawing.height }
+    const r = f ?? (mode === '3d' && home ? home : { x0: 0, y0: 0, x1: drawing.width, y1: drawing.height })
     // keep some drawing around small elements so there's context to verify against
     const pad = f ? 1.5 : 1.06, min = f ? max * f.min : 0
     const w = Math.max((r.x1 - r.x0) * pad, min), h = Math.max((r.y1 - r.y0) * pad, min)
     const [x, z] = toWorld(drawing, [(r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2])
     const vf = THREE.MathUtils.degToRad(camera.fov), hf = 2 * Math.atan(Math.tan(vf / 2) * (size.width / size.height))
-    const dist = Math.max(h / 2 / Math.tan(vf / 2), w / 2 / Math.tan(hf / 2)) * (mode === '3d' ? 1.1 : 1)
+    const dist = Math.max(h / 2 / Math.tan(vf / 2), w / 2 / Math.tan(hf / 2)) * (mode === '3d' ? 1.3 : 1)
     const anim = !first.current
     first.current = false
     controls.moveTo(x, 0, z, anim)
     controls.dollyTo(dist, anim)
-  }, [focus, fitAll, drawing, size.width, size.height, controls])
+  }, [focus, fitAll, drawing, size.width, size.height, controls, mode, home])
 
   useFrame(() => { // near/far follow the distance so the thin flat layers keep their depth order at every zoom
     if (!controls) return

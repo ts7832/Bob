@@ -21,8 +21,13 @@ export interface Drawing {
 export interface Element {
   id: string
   type: string // door, window, wc, room, IfcSpace, ...
-  geometry: 'polygon' | 'box' | 'point'
-  polygon: Pt[] // sheet pixels; box = 4 corners; point = one point
+  geometry: 'polygon' | 'box' | 'point' | 'polyline'
+  polygon: Pt[] // sheet pixels; box = 4 corners; point = one point; polyline = open line (baseboard, pipe)
+  group?: string | null // category from the backend (room type, slab type, pipe size): colour + legend
+  color?: string // assigned per group by the adapter
+  valueText?: string | null // per-item value from the backend, e.g. '24.3 m²', '12.0 m'
+  thicknessPx?: number | null // printed slab thickness, sheet px (3D only)
+  diameterPx?: number | null // printed pipe diameter, sheet px (3D only)
   label?: string | null // short label shown on the drawing (count index, name)
   name?: string | null // longer name for the detail card
   value?: string | null
@@ -42,6 +47,8 @@ export interface Answer {
   method?: string | null
   styleWarning?: boolean
   elements: Element[] // evidence that could be placed on this sheet
+  measure: 'count' | 'area' | 'length' | 'other' // length answers draw outlines and baseboards, not filled areas
+  groups: { name: string; color: string; count: number; value?: string | null }[] // legend, in backend order
   cited: number // evidence items in the answer, including ones not on this sheet
 }
 
@@ -96,7 +103,12 @@ export interface AskJSON {
   explanation?: string | null
   method?: string | null
   confidence?: number | null
-  evidence?: { id?: string; shape: 'polygon' | 'box' | 'guid'; pts?: Pt[]; bbox?: number[]; label?: string | null }[]
+  evidence?: {
+    id?: string; shape: 'polygon' | 'box' | 'guid' | 'polyline'; pts?: Pt[]; bbox?: number[]; label?: string | null
+    // optional extension for multi-category and linear answers (all fields optional; the view never computes values)
+    group?: string | null; value?: number | string | null; unit?: string | null; thickness_m?: number | null; diameter_m?: number | null
+  }[]
+  breakdown?: { group: string; value?: number | string | null; unit?: string | null; count?: number | null }[]
   honesty?: { tier?: Tier; deterministic?: boolean; basis?: string; style_warning?: boolean }
   error?: string
 }
