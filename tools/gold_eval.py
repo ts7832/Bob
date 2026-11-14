@@ -172,7 +172,12 @@ def main():
             g = grade(q, r, draft)
             g["explanation"] = r.get("explanation")
             g["method"] = r.get("method")
-            g["evidence_items"] = len(r.get("evidence") or [])
+            ev = r.get("evidence") or []
+            g["evidence_items"] = len(ev)
+            # boxes on the page image, for tools/gold_gallery.py (GUID-only evidence from BIM models has no position)
+            g["evidence"] = [dict(id=e.get("id"), label=e.get("label"), bbox=e["bbox"]) for e in ev if e.get("bbox")][:400]
+            g["source_type"] = r.get("source_type")
+            g["basis"] = (r.get("honesty") or {}).get("basis")
         else:
             e = r
             g = dict(outcome="error", value_ok=False, expected=q["proposed_answer"] if draft else q["answer"], pred=None,
