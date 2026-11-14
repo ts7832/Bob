@@ -7,6 +7,12 @@ import type { Pt } from './types'
 const WORK = 2400 // long side of the working copy, px (full sheets need it: inner walls must stay >= 3 px)
 
 export function wallsFromImage(img: HTMLImageElement | HTMLCanvasElement, width: number, height: number): Pt[][] {
+  return scanLayout(img, width, height).walls
+}
+
+// Walls plus the rooms between them: free space bounded by the walls (door gaps closed for the cut, then each room
+// grown back up to the real walls). Each room is a list of rectangles in sheet px. Display only (3D floors, clean view).
+export function scanLayout(img: HTMLImageElement | HTMLCanvasElement, width: number, height: number): { walls: Pt[][]; rooms: Pt[][][] } {
   const iw = img instanceof HTMLImageElement ? img.naturalWidth : img.width, ih = img instanceof HTMLImageElement ? img.naturalHeight : img.height
   const s = Math.min(1, WORK / Math.max(iw, ih))
   const w = Math.max(1, Math.round(iw * s)), h = Math.max(1, Math.round(ih * s))
@@ -42,9 +48,55 @@ export function wallsFromImage(img: HTMLImageElement | HTMLCanvasElement, width:
   const sx = width / w, sy = height / h // working px -> sheet px (sheet frame = render width/height)
   const kept = rects.filter((r) => (r.x1 - r.x0) * (r.y1 - r.y0) >= minArea)
   // a handful of thick pieces is not a building (title-block borders, one thick-outlined foundation): no walls then
-  if (kept.length < 12) return []
-  return kept
-    .map((r) => [[r.x0 * sx, r.y0 * sy], [r.x1 * sx, r.y0 * sy], [r.x1 * sx, r.y1 * sy], [r.x0 * sx, r.y1 * sy]] as Pt[])
+  if (kept.length < 12) return { walls: [], rooms: [] }
+  const box = (r: Rect): Pt[] => [[r.x0 * sx, r.y0 * sy], [r.x1 * sx, r.y0 * sy], [r.x1 * sx, r.y1 * sy], [r.x0 * sx, r.y1 * sy]]
+  return { walls: kept.map(box), rooms: roomsOf(mask, w, h).map((rs) => rs.map(box)) }
+}
+
+// Rooms = free-space regions inside the walls. Door gaps are closed by thickening the walls by g, regions touching the
+// border (outside) and specks are dropped, then each region grows back (through free space only) to the real walls.
+function roomsOf(wall: Uint8Array, w: number, h: number): Rect[][] {
+  const n = w * h, g = Math.max(3, Math.round(0.022 * Math.max(w, h)))
+  const thick = dilate(wall, w, h, 2 * g + 1)
+  const lab = new Int32Array(n).fill(-1), q = new Int32Array(n), sizes: number[] = []
+  let id = 0
+  for (let s = 0; s < n; s++) {
+    if (thick[s] || lab[s] >= 0) continue
+    let head = 0, tail = 0, border = false
+    q[tail++] = s; lab[s] = id
+    while (head < tail) {
+      const i = q[head++], x = i % w, y = (i / w) | 0
+      if (x === 0 || y === 0 || x === w - 1 || y === h - 1) border = true
+      for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1])
+        if (j >= 0 && !thick[j] && lab[j] < 0) { lab[j] = id; q[tail++] = j }
+    }
+    sizes.push(border ? -1 : tail) // -1: outside
+    id++
+  }
+  const minArea = 0.002 * n
+  const keep = sizes.map((sz) => sz >= minArea)
+  for (let i = 0; i < n; i++) if (lab[i] >= 0 && !keep[lab[i]]) lab[i] = -1
+  // grow back to the walls: breadth-first through free (not wall) pixels, at most g + 1 steps
+  let front: number[] = []
+  for (let i = 0; i < n; i++) if (lab[i] >= 0) front.push(i)
+  for (let step = 0; step <= g && front.length; step++) {
+    const next: number[] = []
+    for (const i of front) {
+      const x = i % w, y = (i / w) | 0
+      for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1])
+        if (j >= 0 && !wall[j] && lab[j] < 0) { lab[j] = lab[i]; next.push(j) }
+    }
+    front = next
+  }
+  const out: Rect[][] = []
+  for (let r = 0; r < sizes.length; r++) {
+    if (!keep[r]) continue
+    const m = new Uint8Array(n)
+    let any = false
+    for (let i = 0; i < n; i++) if (lab[i] === r) { m[i] = 1; any = true }
+    if (any) out.push(rectangles(m, w, h))
+  }
+  return out
 }
 
 // Most common dark run length (1-6 px) across rows and columns, counted per run: the width of hairlines and text.

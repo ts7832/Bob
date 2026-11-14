@@ -2,6 +2,31 @@
 // name in any of the dataset's languages, or the detector's room type), and is generated in code (no downloaded assets).
 // Floors are multiplied over the drawing, so every printed line and label stays visible on top. Display only.
 import * as THREE from 'three'
+import type { Loaded, Pt } from './types'
+
+type FloorRoom = { name?: string | null; type?: string | null; polygon: Pt[] }
+// Floor areas for the 3D floors, Photo mode and the clean view. CAD / BIM: the rooms as read. Scans: the rooms found
+// between the image walls (whole rooms, up to the walls), each typed by the detector's room box that covers at least a
+// quarter of it; rooms the detector did not type get a neutral stone floor ('corridor'). Display only.
+export function floorRooms(l: Loaded): FloorRoom[] {
+  const regs = l.context.regions
+  if (!regs?.length) return l.context.rooms
+  const box = (p: Pt[]) => { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const [x, y] of p) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y) } return [x0, y0, x1, y1] }
+  const typed = l.context.rooms.filter((r) => r.type).map((r) => ({ type: r.type!, b: box(r.polygon) }))
+  const out: FloorRoom[] = []
+  for (const rects of regs) {
+    const rb = rects.map(box), area = rb.reduce((a, b) => a + (b[2] - b[0]) * (b[3] - b[1]), 0)
+    let best: string | null = null, bestA = 0
+    for (const t of typed) {
+      let a = 0
+      for (const b of rb) a += Math.max(0, Math.min(b[2], t.b[2]) - Math.max(b[0], t.b[0])) * Math.max(0, Math.min(b[3], t.b[3]) - Math.max(b[1], t.b[1]))
+      if (a > bestA) { bestA = a; best = t.type }
+    }
+    const type = best && bestA >= 0.25 * area ? best : 'corridor'
+    for (const r of rects) out.push({ name: null, type, polygon: r })
+  }
+  return out
+}
 
 export type FloorKind = 'wood' | 'tile' | 'stone' | 'concrete' | 'deck'
 

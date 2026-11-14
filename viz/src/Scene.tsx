@@ -393,6 +393,10 @@ function Highlight({ el, loaded, drawing, tex, clean, hatch, tier, measure, crow
   const paneMat = useMemo(() => cutaway(new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.45, roughness: 0.35 }), cutU, true), [color, cutU])
   useEffect(() => () => paneMat.dispose(), [paneMat])
   const paneRef = useRef<THREE.Group>(null)
+  // the counted object's model, trimmed at the cut exactly like the plain one it covers
+  const modelMat = useMemo(() => cutaway(new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.42, roughness: 0.38, envMapIntensity: 0.8 }), cutU, false, wallH), [color, cutU, wallH])
+  useEffect(() => () => modelMat.dispose(), [modelMat])
+  useEffect(() => { modelMat.emissiveIntensity = active ? 0.75 : 0.42 }, [modelMat, active])
   // label anchor; a glowing symbol's tag sits just off its box, on the side away from the drawn swing / linework
   let [ax, az] = open ? toWorld(drawing, pts[Math.floor(pts.length / 2)]) : toWorld(drawing, anchor(el))
   let side: 'up' | 'down' | null = null
@@ -483,9 +487,7 @@ function Highlight({ el, loaded, drawing, tex, clean, hatch, tier, measure, crow
       )}
       {model && (
         <group ref={modelRef} rotation-x={-Math.PI / 2} position-y={0.5 * L} visible={false}>
-          <mesh geometry={model} castShadow raycast={() => null}>
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={active ? 0.75 : 0.42} roughness={0.38} envMapIntensity={0.8} />
-          </mesh>
+          <mesh geometry={model} material={modelMat} castShadow raycast={() => null} />
         </group>
       )}
       {strip && (

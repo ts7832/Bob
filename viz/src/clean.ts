@@ -5,13 +5,13 @@
 import type { Element, Loaded, Pt } from './types'
 import { anchor, bbox, obb, obbRect, ringArea, shapesFromRings } from './geom'
 import { GLYPH, normCls, type Cls } from './ink'
-import { floorKind, type FloorKind } from './floors'
+import { floorKind, floorRooms, type FloorKind } from './floors'
 
 const PAPER = '#fcfcfd', WALL = '#1f2430', LABEL = '#2f3644', MUTED = '#6b7280', ROOM_LINE = '#c3cad4'
 const ROOM_FILL: Record<FloorKind, string> = { wood: '#f3e9db', tile: '#d9ebf5', stone: '#ebe9e5', concrete: '#e3e6ea', deck: '#e0eed8' }
 export const SYMBOL_COLOR: Partial<Record<Cls, string>> = {
   door: '#2563eb', window: '#0d9488', wc: '#9333ea', sink: '#db2777', bathtub: '#0891b2', shower: '#4f46e5', stairs: '#57534e',
-  stove: '#b45309', kitchen: '#a16207', fixture: '#64748b', column: WALL,
+  stove: '#b45309', kitchen: '#a16207', fixture: '#64748b', column: WALL, washer: '#0e7490', shaft: '#57534e', cabinet: '#8b5e34',
 }
 const ROOM_NAME: Record<string, string> = {
   bedroom: 'Bedroom', kitchen: 'Kitchen', bathroom: 'Bathroom', wc_room: 'WC', balcony: 'Balcony', sauna_room: 'Sauna',
@@ -35,7 +35,7 @@ export function cleanClasses(l: Loaded): Cls[] {
     for (const f of l.context.fixtures) { const c = normCls(f.cls); if (c) out.add(c) }
     if (l.drawing.kind === 'image' && l.plan.some((p) => p.type === 'door')) out.add('door')
   }
-  const order: Cls[] = ['door', 'window', 'wc', 'sink', 'bathtub', 'shower', 'stairs', 'stove', 'kitchen', 'fixture']
+  const order: Cls[] = ['door', 'window', 'wc', 'sink', 'bathtub', 'shower', 'washer', 'kitchen', 'cabinet', 'stairs', 'shaft', 'stove', 'fixture']
   return order.filter((c) => out.has(c))
 }
 
@@ -52,12 +52,14 @@ export async function buildClean(l: Loaded): Promise<HTMLCanvasElement | null> {
   const ring = (pts: Pt[]) => { pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath() }
   g.lineJoin = 'round'; g.lineCap = 'round'
 
-  // 1. rooms: tinted by what kind of room they are (name in any language, or the detector's type)
-  for (const r of l.context.rooms) {
+  // 1. rooms: tinted by what kind of room they are (name in any language, or the detector's type); scans: the whole
+  //    rooms between the walls, not just the detector's boxes
+  const scan = !!l.context.regions?.length
+  for (const r of floorRooms(l)) {
     if (r.polygon.length < 3) continue
     g.beginPath(); ring(r.polygon)
     g.fillStyle = ROOM_FILL[floorKind(r.name, r.type)]; g.fill()
-    g.strokeStyle = ROOM_LINE; g.lineWidth = 1.2 * px; g.stroke()
+    if (!scan) { g.strokeStyle = ROOM_LINE; g.lineWidth = 1.2 * px; g.stroke() }
   }
 
   // 2. walls (exact on CAD and BIM sheets, found in the image on scans)
