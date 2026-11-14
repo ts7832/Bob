@@ -189,6 +189,7 @@ def web():
             return Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
         return Image.open(io.BytesIO(data)).convert("RGB")
 
+    ENGINE = modal.Function.from_name("bob-engine", "answer")
     norm = lambda s: re.sub(r"[^\w]+", " ", s.lower(), flags=re.UNICODE).strip()[:500]
 
     # ---- API ----------------------------------------------------------------------------------------------------------
@@ -282,6 +283,18 @@ def web():
         sheet_row(w, sid)
         q("UPDATE sheets SET sheet_json=%s, convert_seconds=%s, convert_cost_usd=%s WHERE id=%s", ((await request.body()).decode(), convert_seconds, convert_cost_usd, sid))
         q("INSERT INTO ledger (workspace_id, sheet_id, kind, cost_usd, seconds) VALUES (%s,%s,'convert',%s,%s)", (w, sid, convert_cost_usd, convert_seconds))
+        dirty.set()
+        return dict(ok=True)
+
+    @api.patch("/api/sheets/{sid}")
+    def rename_sheet(sid: int, request: Request, name: str = "", revision: str = ""):
+        """Change a sheet's display name (and revision label)."""
+        w = ws(request)
+        sheet_row(w, sid)
+        if name:
+            q("UPDATE sheets SET name=%s WHERE id=%s", (name, sid))
+        if revision:
+            q("UPDATE sheets SET revision=%s WHERE id=%s", (revision, sid))
         dirty.set()
         return dict(ok=True)
 
@@ -394,6 +407,11 @@ def web():
             q("INSERT INTO ledger (workspace_id, sheet_id, kind, saved_usd, saved_seconds) VALUES (%s,%s,'reuse',%s,%s)", (w, sid, r["cost_usd"], r["seconds"]))
             return dict(sheet_id=sid, status="saved", answer_id=r["id"], answer=json.loads(r["answer_json"]), first_cost_usd=r["cost_usd"], first_seconds=r["seconds"])
         aid = r["id"] if r else q("INSERT INTO answers (sheet_id, question, question_norm, status) VALUES (%s,%s,%s,'pending')", (sid, question, norm(question)))
+        try:                                    # the engine on Modal (library/modal_engine.py) answers it and posts the result back
+            f = q("SELECT file_name FROM sheets WHERE id=%s", (sid,), one=True)["file_name"]
+            ENGINE.spawn(aid, sid, f, question)
+        except Exception as e:
+            print("engine not reachable:", e)
         return dict(sheet_id=sid, status="pending", answer_id=aid)
 
     @api.post("/api/ask")
