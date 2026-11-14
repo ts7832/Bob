@@ -53,7 +53,12 @@ def expected_marks(page, note):
     k = pdfsheet.DPI / 72
     M = page.rotation_matrix
     out = []
-    for x0, y0, x1, y1, w, *_ in page.get_text("words"):
+    words = page.get_text("words", sort=True)
+    for i, (x0, y0, x1, y1, w, *_) in enumerate(words):
+        # a number that is part of a dimension (39 1/4", 3'-0", 7'11") is a measurement, not the value we look for
+        nxt = words[i + 1][4] if i + 1 < len(words) and abs(words[i + 1][1] - y0) < (y1 - y0) / 2 else ""
+        if re.search(r"['\"]", w) or re.match(r"^\d+/\d+", nxt) or nxt[:1] in ("'", '"', "-"):
+            continue
         if w.strip("()[],;:") in nums:
             r = pymupdf.Rect(x0, y0, x1, y1) * M
             r.normalize()
