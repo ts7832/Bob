@@ -3,9 +3,12 @@ import * as THREE from 'three'
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { CameraControls, Html, Line, PerformanceMonitor } from '@react-three/drei'
 import CameraControlsImpl from 'camera-controls'
-import { Building, Effects, Floors, Lighting, drawingUV, useBuilding, useLifted, type Lift } from './Model'
+import { Building, Effects, Fixtures, Floors, Lighting, drawingUV, useBuilding, useLifted, type Lift } from './Model'
+import { buildOne } from './fixtures3d'
 import { Photo } from './Photo'
-import type { Answer, Drawing, Element, Loaded, Pt, Tier } from './types'
+import type { Answer, Drawing, Element, Loaded, Pt, SheetView, Tier } from './types'
+import { GLYPH, SYMBOL, inkOf, type Cls } from './ink'
+import { buildClean } from './clean'
 import { anchor, bbox, measureScale, outline, ringArea, shapeOf, thickness, toShape, toWorld, tube } from './geom'
 
 export const ACCENT = '#ff7a00' // = the demo page's --accent
@@ -99,7 +102,7 @@ interface Props {
   focus: Focus
   fitAll: number
   insets: Insets
-  tools: { measure: boolean; mpts: Pt[]; mclosed: boolean; peek: boolean; hidden: string[]; cut: number; refit: number }
+  tools: { view: SheetView | null; measure: boolean; mpts: Pt[]; mclosed: boolean; peek: boolean; hidden: string[]; cut: number; refit: number; clean: boolean; swipe: number }
   onMeasure: (pts: Pt[], closed: boolean) => void
   onSelect: (id: string | null) => void
   onHover: (id: string | null) => void
@@ -131,6 +134,9 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
     return { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1, min: 0 }
   }, [loaded, want3d])
   const lifted = useLifted(lift)
+  // a selected symbol (WC, tub, door...) in 3D: walls drop to 45% so the object is never hidden behind its room's walls
+  const selEl = els.find((e) => e.id === selectedId)
+  const cut = mode === '3d' && selEl?.cls && SYMBOL.has(selEl.cls as Cls) ? Math.min(tools.cut, 0.45) : tools.cut
   const building = useBuilding(loaded, want3d)
 
   // double-click zooms in towards the spot; measure clicks snap to the drawing's own corners (rooms, evidence, walls)
@@ -174,7 +180,7 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
       {lifted && !photo && !low && <Effects wallH={wallH} />}
       {/* 3D only: if the frame rate stays low, drop AO, shadows and resolution (2D is cheap and never degrades) */}
       {lifted && !photo && <PerformanceMonitor flipflops={3} onDecline={() => onSlow(true)} onIncline={() => onSlow(false)} onFallback={() => onSlow(true)} />}
-      {lifted && photo && <Photo loaded={loaded} b={building} tex={tex} wallH={wallH * tools.cut} answer={answer} baseY={0.5 * L} status={photoStatus} />}
+      {lifted && photo && <Photo loaded={loaded} b={building} tex={tex} wallH={wallH * cut} answer={answer} baseY={0.5 * L} status={photoStatus} />}
 
       {/* the original drawing: always visible */}
       <mesh rotation-x={-Math.PI / 2} onClick={(e) => { e.stopPropagation(); if (e.delta > CLICK_PX) return; if (tools.measure) addPoint(e.point); else onSelect(null) }}
@@ -183,7 +189,10 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
         <meshBasicMaterial map={tex} toneMapped={false} />
       </mesh>
 
-      {showPlan && !answer && !tools.peek && loaded.plan.map((el) => <PlanMark key={el.id} el={el} drawing={drawing} y={L} />)}
+      {/* clean view (2D): the plan redrawn from detections, left of the swipe divider; the original stays on the right */}
+      <CleanLayer loaded={loaded} on={tools.clean && mode === '2d' && !tools.peek} swipe={tools.swipe} y={0.8 * L} />
+
+      {showPlan && !answer && !tools.peek && !tools.clean && loaded.plan.map((el) => <PlanMark key={el.id} el={el} drawing={drawing} y={L} />)}
 
       {dim && shown.length > 0 && (
         <mesh rotation-x={-Math.PI / 2} position-y={2 * L} renderOrder={2} raycast={() => null}>
@@ -193,15 +202,53 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
       )}
 
       {want3d && <Floors loaded={loaded} wallH={wallH} lift={lift} y={1.5 * L} />}
-      <Building b={building} tex={tex} wallH={wallH * tools.cut} lift={lift} y={0.5 * L} />
+      <Building b={building} tex={tex} wallH={wallH * cut} lift={lift} y={0.5 * L} />
+      {want3d && <Fixtures loaded={loaded} wallH={wallH} lift={lift} y={0.5 * L} />}
 
       {shown.map((el) => (
-        <Highlight key={el.id} el={el} drawing={drawing} tex={tex} hatch={hatch} tier={tier} measure={answer?.measure ?? 'other'} crowded={shown.length > 12} L={L} wallH={wallH} lift={lift}
+        <Highlight key={el.id} el={el} loaded={want3d ? loaded : null} drawing={drawing} tex={tex} hatch={hatch} tier={tier} measure={answer?.measure ?? 'other'} crowded={shown.length > 12} glyphs={shown.length <= 24} L={L} wallH={wallH} lift={lift}
           selected={el.id === selectedId} hovered={el.id === hoverId} interactive={!tools.measure}
           onSelect={onSelect} onHover={onHover} onZoom={zoomAt} overlay={overlay} />
       ))}
+      {tools.view && !tools.peek && <ViewMark drawing={drawing} view={tools.view} y={7 * L} overlay={overlay} />}
       {tools.mpts.length > 0 && <MeasureLayer drawing={drawing} pts={tools.mpts} closed={tools.mclosed} L={L} overlay={overlay} />}
     </>
+  )
+}
+
+function CleanLayer({ loaded, on, swipe, y }: { loaded: Loaded; on: boolean; swipe: number; y: number }) {
+  const d = loaded.drawing
+  const [tex, setTex] = useState<THREE.Texture | null>(null)
+  const [want, setWant] = useState(on) // built on first use, kept while the drawing stays open
+  useEffect(() => { if (on) setWant(true) }, [on])
+  useEffect(() => {
+    if (!want) return
+    let live = true, t: THREE.Texture | null = null
+    buildClean(loaded).then((c) => {
+      if (!live || !c) return
+      t = new THREE.CanvasTexture(c)
+      t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8
+      setTex(t)
+    }).catch(() => {})
+    return () => { live = false; t?.dispose(); setTex(null) }
+  }, [loaded, want])
+  const gl = useThree((s) => s.gl)
+  useEffect(() => { gl.localClippingEnabled = true }, [gl])
+  // keep x <= the ground point under the divider (camera looks straight down in 2D, so that is a vertical screen line)
+  const clip = useMemo(() => new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0), [])
+  const tmp = useMemo(() => ({ ray: new THREE.Raycaster(), ground: new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit: new THREE.Vector3(), ndc: new THREE.Vector2() }), [])
+  useFrame(({ camera }) => {
+    if (!on) return
+    tmp.ndc.set(2 * swipe - 1, 0)
+    tmp.ray.setFromCamera(tmp.ndc, camera)
+    if (tmp.ray.ray.intersectPlane(tmp.ground, tmp.hit)) clip.constant = tmp.hit.x
+  })
+  if (!tex || !on) return null
+  return (
+    <mesh rotation-x={-Math.PI / 2} position-y={y} renderOrder={1} raycast={() => null}>
+      <planeGeometry args={[d.width, d.height]} />
+      <meshBasicMaterial map={tex} toneMapped={false} clippingPlanes={[clip]} />
+    </mesh>
   )
 }
 
@@ -229,8 +276,27 @@ function ribbon(d: Drawing, pts: Pt[], closed: boolean) {
   return g
 }
 
-function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, lift, selected, hovered, interactive, onSelect, onHover, onZoom, overlay }: {
-  el: Element; drawing: Drawing; tex: THREE.Texture; hatch: THREE.Texture; tier: Tier | null; measure: Answer['measure']; crowded: boolean
+// The drawn symbol of an evidence item (door leaf + swing, WC, window lines) in the answer colour with a soft glow,
+// as a texture over exactly the sheet area it came from. Built after the first frame; null = keep the plain box style.
+function useInk(d: Drawing, el: Element, on: boolean, color: string) {
+  const [ink, setInk] = useState<{ tex: THREE.Texture; w: number; h: number; x: number; z: number } | null>(null)
+  useEffect(() => {
+    if (!on) return
+    let live = true, t: THREE.Texture | null = null
+    inkOf(d, el, el.cls as Cls, color).then((r) => {
+      if (!live || !r) return
+      t = new THREE.CanvasTexture(r.canvas)
+      t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4
+      const [x, z] = toWorld(d, [(r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2])
+      setInk({ tex: t, w: r.x1 - r.x0, h: r.y1 - r.y0, x, z })
+    }).catch(() => {})
+    return () => { live = false; t?.dispose(); setInk(null) }
+  }, [d, el, on, color])
+  return ink
+}
+
+function Highlight({ el, loaded, drawing, tex, hatch, tier, measure, crowded, glyphs, L, wallH, lift, selected, hovered, interactive, onSelect, onHover, onZoom, overlay }: {
+  el: Element; loaded: Loaded | null; drawing: Drawing; tex: THREE.Texture; hatch: THREE.Texture; tier: Tier | null; measure: Answer['measure']; crowded: boolean; glyphs: boolean
   L: number; wallH: number; lift: RefObject<Lift>
   selected: boolean; hovered: boolean; interactive: boolean; onSelect: (id: string) => void; onHover: (id: string | null) => void
   onZoom: (p: THREE.Vector3) => void; overlay: RefObject<HTMLDivElement | null>
@@ -242,7 +308,7 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, 
   const area = !open
   const shape = useMemo(() => (area ? shapeOf(drawing, pts) : null), [el, drawing])
   const geo = useMemo(() => (shape ? drawingUV(new THREE.ShapeGeometry(shape), drawing) : null), [shape])
-  const vol = useMemo(() => (shape && !linear ? new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false, curveSegments: 4 }) : null), [shape, linear])
+  const vol = useMemo(() => (shape && !linear && !(el.cls && SYMBOL.has(el.cls as Cls) && loaded) ? new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false, curveSegments: 4 }) : null), [shape, linear, loaded])
   const strip = useMemo(() => (linear && !pipe ? ribbon(drawing, pts, !open) : null), [el, drawing, linear, pipe])
   const pipeGeo = useMemo(() => (pipe ? tube(drawing, pts, el.diameterPx! / 2) : null), [el, drawing, pipe])
   useEffect(() => () => { geo?.dispose(); vol?.dispose(); strip?.dispose(); pipeGeo?.dispose() }, [geo, vol, strip, pipeGeo])
@@ -251,12 +317,34 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, 
     const w = pts.map((p) => toWorld(drawing, p))
     return (open ? w : [...w, w[0]]).map(([x, z]) => new THREE.Vector3(x, 0, z))
   }, [el, drawing])
-  const [ax, az] = open ? toWorld(drawing, pts[Math.floor(pts.length / 2)]) : toWorld(drawing, anchor(el))
   // honesty tier -> line style: read/measured solid, detected dashed (amber when unsure), estimated hatched
   const detected = tier === 'detected'
   const low = detected && el.confidence != null && el.confidence < LOW_CONF
   const color = low ? LOW : el.color ?? ACCENT
   const active = selected || hovered
+  // symbols (doors, WCs, windows, ...): the drawn linework glows; the box stays as a thin, crisp outline
+  const glyph = el.cls ? GLYPH[el.cls as Cls] : undefined
+  const ink = useInk(drawing, el, !open && !!el.cls && SYMBOL.has(el.cls as Cls), color)
+  const sym = !!ink
+  // 3D: a symbol's own model (WC, basin, door leaf...) in the answer colour, a little larger so it covers the plain one
+  const model = useMemo(() => {
+    if (!loaded || open || !el.cls || !SYMBOL.has(el.cls as Cls)) return null
+    const g = buildOne(loaded, el.cls as Cls, el.polygon, wallH)
+    if (!g) return null
+    g.computeBoundingBox()
+    const c = new THREE.Vector3(); g.boundingBox!.getCenter(c)
+    return g.translate(-c.x, -c.y, 0).scale(1.035, 1.035, 1.03).translate(c.x, c.y, 0)
+  }, [loaded, el, wallH, open])
+  useEffect(() => () => model?.dispose(), [model])
+  // label anchor; a glowing symbol's tag sits just off its box, on the side away from the drawn swing / linework
+  let [ax, az] = open ? toWorld(drawing, pts[Math.floor(pts.length / 2)]) : toWorld(drawing, anchor(el))
+  let side: 'up' | 'down' | null = null
+  if (ink) {
+    const b = bbox(pts), [bx, bz0] = toWorld(drawing, [b.cx, b.y0]), bz1 = bz0 + b.h
+    const inkUp = bz0 - (ink.z - ink.h / 2) > ink.z + ink.h / 2 - bz1 + 1e-6
+    side = inkUp ? 'down' : 'up'
+    ax = bx; az = inkUp ? bz1 : bz0
+  }
   const dash = Math.max(drawing.width, drawing.height) / 160
   // count numbers always; per-item values only while there is room (else on hover / selection; the legend has totals)
   const tag = el.label ?? (crowded && !active ? null : el.valueText ?? null)
@@ -270,11 +358,13 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, 
   // 3D: areas grow a translucent volume (slabs: their printed thickness), lengths a baseboard strip, pipes float at
   // mid height; the outline rides on top and the tag floats above on a pin
   const volRef = useRef<THREE.Mesh>(null), stripRef = useRef<THREE.Mesh>(null), pipeRef = useRef<THREE.Group>(null)
+  const modelRef = useRef<THREE.Group>(null)
   const topRef = useRef<THREE.Group>(null), tagRef = useRef<THREE.Group>(null), pinRef = useRef<THREE.Group>(null)
   useFrame(() => {
     const v = lift.current?.v ?? 0
-    const top = linear ? (pipe ? 0 : v * wallH * 0.12) : v * (el.thicknessPx ?? wallH * 0.45)
+    const top = model ? 0 : linear ? (pipe ? 0 : v * wallH * 0.12) : v * (el.thicknessPx ?? wallH * 0.45) // modelled symbols: outline stays on the floor
     if (volRef.current) { volRef.current.visible = v > 0.01; volRef.current.scale.z = Math.max(top, 0.001) }
+    if (modelRef.current) { modelRef.current.visible = v > 0.01; modelRef.current.scale.z = Math.max(v, 0.001) }
     if (stripRef.current) { stripRef.current.visible = v > 0.01; stripRef.current.scale.z = Math.max(top, 0.001) }
     if (pipeRef.current) pipeRef.current.position.y = 5 * L + v * wallH * 0.55
     if (topRef.current) topRef.current.position.y = 5 * L + (pipe ? v * wallH * 0.55 : top)
@@ -293,7 +383,13 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, 
         <mesh geometry={geo} rotation-x={-Math.PI / 2} position-y={4 * L} renderOrder={5} raycast={() => null}>
           {tier === 'estimated'
             ? <meshBasicMaterial color={color} map={hatch} transparent opacity={active ? 0.55 : 0.35} depthWrite={false} toneMapped={false} />
-            : <meshBasicMaterial color={color} transparent opacity={active ? 0.32 : 0.14} depthWrite={false} toneMapped={false} />}
+            : <meshBasicMaterial color={color} transparent opacity={sym ? (active ? 0.12 : 0.04) : active ? 0.32 : 0.14} depthWrite={false} toneMapped={false} />}
+        </mesh>
+      )}
+      {ink && (
+        <mesh position={[ink.x, 4.5 * L, ink.z]} rotation-x={-Math.PI / 2} renderOrder={7} raycast={() => null}>
+          <planeGeometry args={[ink.w, ink.h]} />
+          <meshBasicMaterial map={ink.tex} transparent opacity={active ? 1 : 0.9} depthWrite={false} toneMapped={false} />
         </mesh>
       )}
       {vol && (
@@ -302,6 +398,13 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, 
             ? <meshStandardMaterial color={color} roughness={0.8} emissive={color} emissiveIntensity={active ? 0.35 : 0.15} />
             : <meshBasicMaterial color={color} transparent opacity={active ? 0.38 : 0.2} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />}
         </mesh>
+      )}
+      {model && (
+        <group ref={modelRef} rotation-x={-Math.PI / 2} position-y={0.5 * L} visible={false}>
+          <mesh geometry={model} castShadow raycast={() => null}>
+            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={active ? 0.75 : 0.42} roughness={0.38} envMapIntensity={0.8} />
+          </mesh>
+        </group>
       )}
       {strip && (
         <mesh ref={stripRef} geometry={strip} rotation-x={-Math.PI / 2} position-y={4 * L} visible={false} renderOrder={6} raycast={() => null}>
@@ -316,7 +419,8 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, 
         </group>
       )}
       <group ref={topRef}>
-        <Line points={line} color={color} lineWidth={active ? (linear ? 6 : 4) : linear ? 4.5 : 2.5} dashed={detected} dashSize={dash} gapSize={dash * 0.6}
+        <Line points={line} color={color} lineWidth={sym ? (active ? 2.5 : 1) : active ? (linear ? 6 : 4) : linear ? 4.5 : 2.5} dashed={detected}
+          transparent opacity={sym && !active ? 0.5 : 1} dashSize={dash} gapSize={dash * 0.6}
           {...(open ? events : { raycast: () => null })} />
       </group>
       <group ref={pinRef} position={[ax, 5 * L, az]} visible={false}>
@@ -325,10 +429,28 @@ function Highlight({ el, drawing, tex, hatch, tier, measure, crowded, L, wallH, 
       {tag && (
         <group ref={tagRef} position={[ax, 6 * L, az]}>
           <Html portal={overlay as RefObject<HTMLElement>} center zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
-            <div className={`dv-tag${active ? ' dv-tag-active' : ''}${low ? ' dv-tag-low' : ''}`} style={low ? undefined : { background: color }}>{tag}</div>
+            <div className={`dv-tag${active ? ' dv-tag-active' : ''}${low ? ' dv-tag-low' : ''}${side ? ` dv-tag-${side}` : ''}`} style={low ? undefined : { background: color }}>
+              {glyph && (glyphs || active) && <svg className="dv-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d={glyph} /></svg>}{tag}
+            </div>
           </Html>
         </group>
       )}
+    </group>
+  )
+}
+
+// The drawing chosen in the Drawings picker: a dashed frame with its title and scale.
+function ViewMark({ drawing, view, y, overlay }: { drawing: Drawing; view: SheetView; y: number; overlay: RefObject<HTMLDivElement | null> }) {
+  const [x0, y0, x1, y1] = view.box
+  const pts = ([[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]] as Pt[]).map((p) => { const [x, z] = toWorld(drawing, p); return new THREE.Vector3(x, y, z) })
+  const dash = Math.max(drawing.width, drawing.height) / 150
+  const [lx, lz] = toWorld(drawing, [x0, y0])
+  return (
+    <group>
+      <Line points={pts} color="#2f6fde" lineWidth={2} dashed dashSize={dash} gapSize={dash * 0.6} raycast={() => null} />
+      <Html portal={overlay as RefObject<HTMLElement>} position={[lx, y, lz]} zIndexRange={[25, 0]} style={{ pointerEvents: 'none' }}>
+        <div className="dv-viewtag">{view.title ?? 'Drawing'}{view.scale && <small>{view.scale}</small>}</div>
+      </Html>
     </group>
   )
 }

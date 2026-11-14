@@ -1,10 +1,12 @@
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as RPointerEvent, type RefObject } from 'react'
 import { Canvas } from '@react-three/fiber'
-import type { Answer, Drawing, Element } from './types'
+import type { Answer, Drawing, Element, SheetView } from './types'
 import type { Store } from './store'
 import { Scene, focusOf, measureTotals, type Insets } from './Scene'
 import { Crop } from './Crop'
 import { bbox, outline } from './geom'
+import { CLS_NAME, GLYPH, SYMBOL, type Cls } from './ink'
+import { canClean, cleanClasses, SYMBOL_COLOR } from './clean'
 
 const TIER_TEXT: Record<string, string> = {
   read: 'Read from the sheet', measured: 'Measured from geometry', detected: 'Detected by a model',
@@ -18,11 +20,15 @@ export function View({ store }: { store: Store }) {
   const photoStatus = useRef<HTMLSpanElement>(null)
   const { loaded, answer, selectedId } = s
   const selected = answer?.elements.find((e) => e.id === selectedId) ?? null
+  const vf = loaded?.views.find((v) => v.id === s.viewFocus) ?? null
   const focus = useMemo(
-    () => (selected ? focusOf([selected], 0.12) : answer?.status === 'answered' ? focusOf(answer.elements) : null),
-    [selected, answer],
+    () => (selected ? focusOf([selected], 0.12)
+      : vf ? { x0: vf.box[0], y0: vf.box[1], x1: vf.box[2], y1: vf.box[3], min: 0 }
+      : answer?.status === 'answered' ? focusOf(answer.elements) : null),
+    [selected, answer, vf],
   )
   const select = (id: string | null) => store.set({ selectedId: id })
+  const cleanOk = useMemo(() => (loaded ? canClean(loaded) : false), [loaded])
   const low = s.quality === 'low' || (s.quality === 'auto' && s.slow)
   // Room the cards take, so zoom-to-answer frames the evidence in the free part of the view (not under a card)
   const [insets, setInsets] = useState<Insets>({ l: 0, t: 0, r: 0, b: 48 })
@@ -67,6 +73,7 @@ export function View({ store }: { store: Store }) {
         e.preventDefault(); step(e.key === 'ArrowRight' ? 1 : -1)
       } else if (e.key === 'f' || e.key === 'F') store.set({ refit: st.refit + 1 })
       else if (e.key === 'm' || e.key === 'M') store.set({ measure: !st.measure, mpts: [], mclosed: false })
+      else if ((e.key === 'c' || e.key === 'C') && st.mode === '2d' && canClean(st.loaded)) store.set({ clean: !st.clean })
       else if (e.key === ' ' && !e.repeat) { e.preventDefault(); store.set({ peek: true }) }
     }
     const up = (e: KeyboardEvent) => { if (e.key === ' ' && store.get().peek) store.set({ peek: false }) }
@@ -90,7 +97,7 @@ export function View({ store }: { store: Store }) {
           <Suspense fallback={null}>
             <Scene key={loaded.drawing.key} loaded={loaded} answer={answer} selectedId={selectedId} hoverId={s.hoverId}
               dim={s.dim} showPlan={s.showPlan} mode={s.mode} photo={s.photo && s.mode === '3d'} photoStatus={photoStatus} focus={focus} fitAll={s.fitAll} insets={insets}
-              tools={{ measure: s.measure, mpts: s.mpts, mclosed: s.mclosed, peek: s.peek, hidden: s.hidden, cut: s.cut, refit: s.refit }}
+              tools={{ view: vf, measure: s.measure, mpts: s.mpts, mclosed: s.mclosed, peek: s.peek, hidden: s.hidden, cut: s.cut, refit: s.refit, clean: s.clean && cleanOk, swipe: s.swipe }}
               onMeasure={(mpts, mclosed) => store.set({ mpts, mclosed })}
               low={low} onSlow={(slow) => { if (store.get().slow !== slow) store.set({ slow }) }}
               onSelect={select} onHover={(id) => store.set({ hoverId: id })} overlay={overlay} />
@@ -99,7 +106,7 @@ export function View({ store }: { store: Store }) {
       )}
       <div ref={overlay} className="dv-overlay" />
 
-      {answer && <AnswerBadge answer={answer} boxRef={badgeRef} selectedId={selectedId} hidden={s.hidden} onStep={step}
+      {answer && <AnswerBadge answer={answer} boxRef={badgeRef} selectedId={selectedId} hidden={s.hidden} onStep={step} frameNote={loaded?.drawing.frameNote} frameBad={loaded?.drawing.frameBad}
         onToggle={(g) => store.set({ hidden: s.hidden.includes(g) ? s.hidden.filter((x) => x !== g) : [...s.hidden, g], selectedId: null })} />}
       {selected && loaded && <Detail drawing={loaded.drawing} el={selected} onClose={() => select(null)} boxRef={detailRef} />}
       {!selected && selectedId && answer?.citedIds.includes(selectedId) && (
@@ -119,7 +126,18 @@ export function View({ store }: { store: Store }) {
           {!answer && loaded.plan.length > 0 && (
             <button className={s.showPlan ? 'dv-on' : ''} onClick={() => store.set({ showPlan: !s.showPlan })}>Found plan</button>
           )}
-          <button title="Clear the selection and frame the sheet (the building in 3D)" onClick={() => store.set({ selectedId: null, fitAll: s.fitAll + 1 })}>Reset view</button>
+          {loaded.views.length >= 2 && (
+            <select className="dv-views" value={s.viewFocus ?? ''} title="This sheet holds several drawings: frame one of them"
+              onChange={(e) => store.set({ viewFocus: e.target.value || null, selectedId: null, ...(e.target.value ? {} : { fitAll: s.fitAll + 1 }) })}>
+              <option value="">All {loaded.views.length} drawings</option>
+              {loaded.views.map((v, i) => <option key={v.id} value={v.id}>{viewLabel(v, i)}</option>)}
+            </select>
+          )}
+          <button title="Clear the selection and frame the sheet (the building in 3D)" onClick={() => store.set({ selectedId: null, viewFocus: null, fitAll: s.fitAll + 1 })}>Reset view</button>
+          {cleanOk && s.mode === '2d' && (
+            <button className={s.clean ? 'dv-on' : ''} title="The plan redrawn from what was detected, next to the original: drag the divider to compare (C)"
+              onClick={() => store.set({ clean: !s.clean })}>Clean view</button>
+          )}
           <button className={s.measure ? 'dv-on' : ''} title="Measure lengths and areas on the drawing (M)" onClick={() => store.set({ measure: !s.measure, mpts: [], mclosed: false })}>Measure</button>
           <button title="Hold to see the original drawing without any highlights (or hold Space)"
             onPointerDown={() => store.set({ peek: true })} onPointerUp={() => store.set({ peek: false })} onPointerLeave={() => s.peek && store.set({ peek: false })}>Original</button>
@@ -140,6 +158,7 @@ export function View({ store }: { store: Store }) {
         <div className="dv-illustrative">3D for orientation only: wall heights are illustrative, answers come from the drawing{s.photo && <> · <span ref={photoStatus}>Path tracing…</span></>}</div>
       )}
 
+      {loaded && cleanOk && s.clean && s.mode === '2d' && !s.peek && <Swipe value={s.swipe} host={viewRef} classes={cleanClasses(loaded)} onChange={(swipe) => store.set({ swipe })} />}
       {loaded && s.measure && <MeasureReadout drawing={loaded.drawing} pts={s.mpts} closed={s.mclosed} />}
       {s.peek && <div className="dv-peek">Original drawing</div>}
       {s.loading && <div className="dv-status">Loading drawing…</div>}
@@ -147,6 +166,35 @@ export function View({ store }: { store: Store }) {
       {!loaded && !s.loading && !s.error && <div className="dv-status">Open a drawing to see it here.</div>}
     </div>
   )
+}
+
+// Swipe divider of the clean view: redrawn plan on the left, the untouched original on the right.
+function Swipe({ value, host, classes, onChange }: { value: number; host: RefObject<HTMLDivElement | null>; classes: Cls[]; onChange: (v: number) => void }) {
+  const move = (e: RPointerEvent) => {
+    const r = host.current?.getBoundingClientRect()
+    if (r) onChange(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)))
+  }
+  return (
+    <div className="dv-swipe" style={{ left: `${value * 100}%` }}>
+      <div className="dv-swipe-line" />
+      <div className="dv-swipe-handle" role="slider" aria-label="Clean view divider" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value * 100)} tabIndex={0}
+        onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); e.stopPropagation() }}
+        onPointerMove={(e) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) move(e) }}
+        onKeyDown={(e) => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); onChange(Math.min(1, Math.max(0, value + (e.key === 'ArrowLeft' ? -0.05 : 0.05)))) } }}>‹ ›</div>
+      <div className="dv-swipe-l" title="Walls, rooms and symbols as the system detected or read them (scans: walls found in the image). Check them against the original.">
+        <b>Redrawn from detections</b>
+        {classes.length > 0 && <span className="dv-swipe-key">{classes.map((c) => (
+          <span key={c} style={{ color: SYMBOL_COLOR[c] }}><Glyph cls={c} />{CLS_NAME[c][1]}</span>
+        ))}</span>}
+      </div>
+      <div className="dv-swipe-r">Original</div>
+    </div>
+  )
+}
+
+const viewLabel = (v: SheetView, i: number) => {
+  const t = `${i + 1}. ${v.title ?? 'Drawing'}`
+  return (t.length > 44 ? t.slice(0, 42) + '…' : t) + (v.scale ? ` · ${v.scale}` : '')
 }
 
 // Known technical backend messages in plain words; the original stays in the tooltip (and in the chat).
@@ -157,8 +205,8 @@ function friendly(t?: string | null) {
   return t
 }
 
-function AnswerBadge({ answer, boxRef, selectedId, hidden, onStep, onToggle }: {
-  answer: Answer; boxRef: RefObject<HTMLDivElement | null>; selectedId: string | null; hidden: string[]
+function AnswerBadge({ answer, boxRef, selectedId, hidden, onStep, onToggle, frameNote, frameBad }: {
+  answer: Answer; boxRef: RefObject<HTMLDivElement | null>; selectedId: string | null; hidden: string[]; frameNote?: string | null; frameBad?: boolean
   onStep: (d: number) => void; onToggle: (group: string) => void
 }) {
   if (answer.status === 'cannot_answer')
@@ -179,6 +227,7 @@ function AnswerBadge({ answer, boxRef, selectedId, hidden, onStep, onToggle }: {
       <div className="dv-chips">
         {answer.tier && <span className={`dv-chip dv-tier-${answer.tier.replace(' ', '-')}`}>{TIER_TEXT[answer.tier] ?? answer.tier}</span>}
         {answer.deterministic === false && <span className="dv-chip">not deterministic</span>}
+        <KindChips els={answer.elements} />
       </div>
       {answer.basis && <p className="dv-basis">{answer.basis}</p>}
       {(answer.groups.length > 1 || answer.groups.some((g) => g.value)) && (
@@ -204,9 +253,38 @@ function AnswerBadge({ answer, boxRef, selectedId, hidden, onStep, onToggle }: {
         </p>
       )}
       {answer.cited === 0 && <p className="dv-note">Nothing to highlight on the drawing for this answer.</p>}
+      {!!answer.outside && (
+        <p className="dv-warn">{frameBad
+          ? `The answer's positions do not fit this page (a rotated PDF page?), so its ${answer.outside} item${answer.outside > 1 ? 's are' : ' is'} not highlighted. Check the answer against the drawing by hand.`
+          : `${answer.outside} cited item${answer.outside > 1 ? 's lie' : ' lies'} off this page and ${answer.outside > 1 ? 'are' : 'is'} not drawn.`}</p>
+      )}
+      {frameNote && answer.elements.length > 0 && <p className="dv-note">{frameNote}</p>}
       {answer.styleWarning && <p className="dv-warn">Unfamiliar drawing style: this count may be wrong.</p>}
+      {answer.views && answer.views.length === 1 && <p className="dv-from">From the drawing <b>{answer.views[0].title}</b></p>}
+      {answer.views && answer.views.length > 1 && (
+        <p className="dv-note">The evidence comes from {answer.views.length} drawings on this sheet: {answer.views.map((v) => `${v.title} (${v.n})`).join(', ')}.
+          Check that they show different things, not the same floor twice.</p>
+      )}
+      {!!answer.dupes?.length && (
+        <p className="dv-warn">Same outline cited twice: items {answer.dupes.slice(0, 3).join(', ')}{answer.dupes.length > 3 ? ` and ${answer.dupes.length - 3} more` : ''}. Check whether one element was counted twice.</p>
+      )}
     </div>
   )
+}
+
+// What the highlighted symbols are (one chip per class, with counts when they differ: "2 showers, 1 bathtub")
+function KindChips({ els }: { els: Element[] }) {
+  const n = new Map<Cls, number>()
+  for (const e of els) if (e.cls && SYMBOL.has(e.cls as Cls)) n.set(e.cls as Cls, (n.get(e.cls as Cls) ?? 0) + 1)
+  if (!n.size) return null
+  return <>{[...n].map(([c, k]) => (
+    <span key={c} className="dv-chip dv-kind"><Glyph cls={c} />{n.size > 1 ? `${k} ` : ''}{CLS_NAME[c][n.size > 1 && k === 1 ? 0 : 1]}</span>
+  ))}</>
+}
+
+export const Glyph = ({ cls }: { cls?: string | null }) => {
+  const d = cls ? GLYPH[cls as Cls] : undefined
+  return d ? <svg className="dv-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d={d} /></svg> : null
 }
 
 const pct = (c?: number | null) => (c == null ? null : `${Math.round(c * 100)}%`)
@@ -229,6 +307,7 @@ function Detail({ drawing, el, onClose, boxRef }: { drawing: Drawing; el: Elemen
         {el.name && <><dt>Name</dt><dd>{el.name}</dd></>}
         {el.group && <><dt>Group</dt><dd><i className="dv-swatch" style={{ background: el.color }} />{el.group}</dd></>}
         {el.valueText && <><dt>Value</dt><dd>{el.valueText}</dd></>}
+        {el.cls && el.cls !== 'other' && <><dt>Symbol</dt><dd className="dv-kind"><Glyph cls={el.cls} />{CLS_NAME[el.cls as Cls]?.[0] ?? el.cls}</dd></>}
         <dt>Type</dt><dd>{el.type === 'evidence' ? HOW[el.how ?? ''] ?? 'evidence' : el.type}</dd>
         {pct(el.confidence) && <><dt>Confidence</dt><dd>{pct(el.confidence)}</dd></>}
         <dt>ID</dt><dd><code>{el.id}</code></dd>

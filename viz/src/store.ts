@@ -16,6 +16,9 @@ export interface State {
   hidden: string[] // answer groups switched off in the legend
   cut: number // 3D wall cut height, fraction of a storey (section)
   refit: number // bumped by F: frame the current selection / answer again
+  viewFocus: string | null // a drawing of a multi-drawing sheet chosen in the Drawings picker (framed + outlined)
+  clean: boolean // clean view (2D): the plan redrawn from detections, swiped against the original
+  swipe: number // divider position, fraction of the view width (clean view left, original right)
   dim: boolean
   showPlan: boolean
   fitAll: number // bumped by reset(): fit the whole sheet
@@ -25,7 +28,7 @@ export interface State {
 
 // Minimal external store: the public API writes, React reads through useSyncExternalStore.
 export class Store {
-  state: State = { loaded: null, answer: null, selectedId: null, hoverId: null, mode: '2d', photo: false, quality: 'auto', slow: false, measure: false, mpts: [], mclosed: false, peek: false, hidden: [], cut: 1, refit: 0, dim: true, showPlan: true, fitAll: 0, loading: false, error: null }
+  state: State = { loaded: null, answer: null, selectedId: null, hoverId: null, mode: '2d', photo: false, quality: 'auto', slow: false, measure: false, mpts: [], mclosed: false, peek: false, hidden: [], cut: 1, refit: 0, clean: false, swipe: 0.5, viewFocus: null, dim: true, showPlan: true, fitAll: 0, loading: false, error: null }
   private subs = new Set<() => void>()
   selectHandlers = new Set<(el: Element | null) => void>()
 

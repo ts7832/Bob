@@ -272,7 +272,7 @@ function renderLists() {
 function selectItem(div) { document.querySelectorAll(".item").forEach((x) => x.classList.toggle("on", x === div)); }
 
 async function openGold(g, div) {
-  const qs = g.questions.map((q) => ({ question: q.question, checked: q.answer, unit: q.unit, type: q.type, expected_tier: q.expected_tier, id: q.id, note: q.evidence_note, hasCheck: true }));
+  const qs = g.questions.map((q) => ({ question: q.question, checked: q.answer, unit: q.unit, type: q.type, tol: q.tolerance || 0.02, expected_tier: q.expected_tier, id: q.id, note: q.evidence_note, hasCheck: true }));
   if (g.generic) {   // open it as an unknown file, the way a judge's file arrives (no CAD sibling, no stored predictions)
     selectItem(div);
     setStatus(`<span class="spinner"></span>Reading ${esc(fileName(g.path))} as an unknown file…`);
@@ -338,7 +338,8 @@ function compare(res, q) {
   if (q.type === "count" || q.unit === "count") return { ok: v === checked, text: `Checked answer: ${fmt(checked, q.unit)}.` };
   let val = v;
   if (u && q.unit && u !== q.unit && SI[u] && SI[q.unit] && SI[u][0] === SI[q.unit][0]) val = v * SI[u][1] / SI[q.unit][1];
-  return { ok: Math.abs(val - checked) <= 0.02 * Math.abs(checked), text: `Checked answer: ${fmt(checked, q.unit)} (areas and lengths within 2%).` };
+  const tol = q.tol || 0.02;
+  return { ok: Math.abs(val - checked) <= tol * Math.abs(checked), text: `Checked answer: ${fmt(checked, q.unit)} (within ${Math.round(tol * 100)}%${tol > 0.02 ? ", a hand measurement" : ""}).` };
 }
 
 async function ask() {

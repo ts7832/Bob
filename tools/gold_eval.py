@@ -79,7 +79,7 @@ def parse_answer(pred, pred_unit):
     return float(m.group(1).replace(",", "")), pred_unit or (m.group(2) or "").strip() or None, f"parsed {pred!r}"
 
 
-def value_ok(pred, pred_unit, expected, exp_unit, qtype):
+def value_ok(pred, pred_unit, expected, exp_unit, qtype, tol=TOL):
     """(ok, note). expected None = refusal is correct."""
     raw = pred
     pred, pred_unit, note = parse_answer(pred, pred_unit)
@@ -97,7 +97,7 @@ def value_ok(pred, pred_unit, expected, exp_unit, qtype):
                 return False, str(e)
             if norm_unit(pred_unit) != norm_unit(exp_unit):
                 note = (note + "; " if note else "") + f"converted {pred_unit} -> {exp_unit}"
-        return abs(pred - expected) <= TOL * abs(expected), note
+        return abs(pred - expected) <= tol * abs(expected), note
     return pred == expected, note
 
 
@@ -105,7 +105,8 @@ def grade(q, r, draft):
     expected = q["proposed_answer"] if draft else q["answer"]
     tier = (r.get("honesty") or {}).get("tier")
     pred = r.get("answer")
-    ok, note = value_ok(pred, r.get("unit"), expected, q.get("unit"), q.get("type"))
+    # a hand measurement (e.g. an area taken off a scan with a ruler) carries its own tolerance; else the 2% rule
+    ok, note = value_ok(pred, r.get("unit"), expected, q.get("unit"), q.get("type"), float(q.get("tolerance") or TOL))
     if ok:
         outcome = "correct"
     elif expected is None:

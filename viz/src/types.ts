@@ -15,6 +15,8 @@ export interface Drawing {
   fromPx: (p: Pt) => Pt // sheet pixels -> source coordinates, for showing positions
   units: 'px' | 'm' | 'svg' // units of the source coordinates
   mPerPx: number | null // real-world metres per sheet pixel, when the source has units
+  frameNote?: string | null // the backend's positions were turned to match a rotated PDF page (said in the answer card)
+  frameBad?: boolean // the backend's positions do not fit this page and could not be matched: highlight nothing
   note?: string
 }
 
@@ -33,6 +35,9 @@ export interface Element {
   value?: string | null
   confidence?: number | null
   how?: string | null // detector | linework | read | inferred | outline | exact | guid
+  cls?: string | null // normalised class (door, window, wc, ...; ink.ts normCls): glyph and symbol style
+  markup?: string | null // BIM: the element's own SVG nodes, so its symbol can be drawn exactly
+  ext?: Pt[] | null // BIM: bounding ring of all the element's drawn paths (sheet px)
 }
 
 export interface Answer {
@@ -51,22 +56,33 @@ export interface Answer {
   groups: { name: string; color: string; count: number; value?: string | null }[] // legend, in backend order
   cited: number // evidence items in the answer, including ones not on this sheet
   citedIds: string[] // ids of all cited evidence (to explain a selection that is not on this sheet)
+  views?: { id: string; title: string; n: number }[] // drawings the placed evidence lies in (multi-drawing sheets)
+  outside?: number // cited items whose position lies off this page (not drawn)
+  dupes?: string[] // count answers: evidence items with the same outline, as 'mark & mark' (possible double count)
 }
 
 // Geometry for the 3D lift (M3). Display only; never used to answer anything.
 export interface Context {
   walls: Pt[][] // computed on first read for scans (image wall finder), so 2D-only use never pays for it
   wallsDisjoint?: boolean // rectangles from the image: they never nest, skip the containment test
-  rooms: { id: string; name?: string | null; type?: string | null; polygon: Pt[] }[]
+  rooms: {
+    id: string; name?: string | null; type?: string | null; polygon: Pt[]
+    number?: string | null; area?: number | null; areaSource?: string | null // as the backend gives them (clean view labels)
+  }[]
   openings: { cls: 'door' | 'window'; polygon: Pt[] }[] // window/door rectangles in the wall line: sills, glass, lintels
   fixtures: { cls: string; polygon: Pt[] }[] // wc, washbasin, bathtub, kitchen_unit, ... shown as low volumes
 }
+
+// One drawing on a multi-drawing sheet (sheet px box), with its printed title and scale when the sheet has them
+export interface SheetView { id: string; title: string | null; scale: string | null; kind: string; box: [number, number, number, number] }
 
 export interface Loaded {
   drawing: Drawing
   plan: Element[] // what the backend found on the sheet (detector boxes etc.), drawn faintly
   context: Context
   guids: Map<string, Element> // svg sheets: every element with a data-guid, for evidence lookup
+  classes: Map<string, string> // sheet room / opening / fixture id -> its class (evidence ids are the same ids)
+  views: SheetView[] // the separate drawings on this sheet (empty when it is one drawing)
 }
 
 // Raw responses from the demo server, typed only as far as the view reads them.
@@ -90,10 +106,11 @@ export interface PlanJSON {
 }
 
 export interface SheetJSON {
+  texts?: { text: string; bbox: number[]; bold?: boolean; id?: string }[]
   units?: string
   y_flip?: boolean
-  scale?: { m_per_px?: number | null }
-  rooms?: { id: string; name?: string | null; number?: string | null; cls?: string | null; polygon?: Pt[]; bbox?: number[] }[]
+  scale?: { m_per_px?: number | null; source?: string | null; candidates?: { denominator?: number; text?: string; bbox?: number[] }[] }
+  rooms?: { id: string; name?: string | null; number?: string | null; cls?: string | null; polygon?: Pt[]; bbox?: number[]; area_m2?: number | null; area_source?: string | null }[]
   openings?: { id: string; cls: string; polygon?: Pt[]; bbox?: number[] }[]
   fixtures?: { id: string; cls: string; bbox?: number[] }[]
   walls?: { id: string; polygon?: Pt[] }[]

@@ -143,6 +143,20 @@ async function synthetic(kind: string) {
 }
 
 async function main() {
+  // ?path=<server path>[&ask=question]: any drawing the demo server knows, asked live (rotated PDF pages, gold sheets)
+  const path = P.get('path')
+  if (path) {
+    await view.open(path)
+    $('drawing').innerHTML = `<option>${esc(path)}</option>`
+    const q = P.get('ask')
+    if (q) {
+      const r = await (await fetch('/api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path, question: q }) })).json()
+      view.showAnswer(r, q); renderAnswer(r, null)
+    }
+    if (P.has('clean')) view.setClean(true, Number(P.get('clean') || 0.5))
+    if (P.get('mode') === '3d') view.setMode('3d')
+    return
+  }
   // ?img=<url>: any image as a raster sheet (no backend data), e.g. the judges' example sheets in judge/
   const img = P.get('img')
   if (img) {
@@ -159,6 +173,7 @@ async function main() {
   if (P.get('synthetic')) await synthetic(P.get('synthetic')!)
   if (P.get('sel')) view.select(P.get('sel'))
   if (P.get('mode') === '3d') view.setMode('3d')
+  if (P.has('clean')) view.setClean(true, Number(P.get('clean') || 0.5)) // ?clean=0.5: clean view, divider position
   if (P.has('photo')) setTimeout(() => (document.querySelector('.dv-tools button[title^="Path"]') as HTMLButtonElement | null)?.click(), 1500)
 }
 main()

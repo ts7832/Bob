@@ -50,7 +50,8 @@ def gold_drawings(data_root):
                                             abs_path=abs_path, topic=q.get("topic"), questions=[]))
             g["generic"] = g["generic"] or bool(q.get("generic"))
             g["questions"].append(dict(id=q["id"], question=q["question"], answer=q["answer"], unit=q["unit"], type=q["type"],
-                                       expected_tier=q.get("expected_tier"), status=q["status"], evidence_note=q.get("evidence_note")))
+                                       expected_tier=q.get("expected_tier"), status=q["status"], evidence_note=q.get("evidence_note"),
+                                       tolerance=q.get("tolerance")))
     return list(groups.values())
 
 

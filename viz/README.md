@@ -43,6 +43,18 @@ What the view shows:
   - PDF pages get no walls. The image path works on full A1/A2 sheets too (the filter is sized from the sheet's own hairlines; 67-138 megapixel PNGs are decoded downscaled).
   - Door openings come from the sources themselves, so walls already have gaps there.
 
+## How evidence is drawn
+
+- **Symbols** (doors, windows, WCs, sinks, showers, bathtubs, stairs, columns, fixtures): the drawn symbol itself glows in the answer colour, taken from the drawing (`src/ink.ts`). The box stays as a thin outline, and the tag shows the symbol's glyph and number beside the box, never over it.
+  - Scans, PDF pages and Swiss sheets: dark thin strokes inside the evidence box, with thick wall fill removed. Doors also follow the strokes connected to their opening (leaf and swing), across the wall only.
+  - BIM plans: the element's own SVG paths, exact.
+  - If a box holds no linework, it keeps the filled style. The glow is display only and never counts anything.
+- In 3D, a symbol's own model (WC, basin, tub, shower, door leaf) lights up in the answer colour.
+- **Rotated PDF pages:** if the backend's positions are in the unrotated page frame, the view turns them to match the page image (tested against the ink) and says so; if it cannot, it highlights nothing.
+- **Rooms, units, areas:** filled outline. **Lengths:** lines. Tier styles as below.
+- **The class of each item** comes from the sheet's own record for that evidence id (`fx75` → wc), the IFC class, the matching `/api/plan` box, or the id's prefix (`door21`). The answer card names it ("doors", or "2 showers, 1 bathtub").
+- **Possible double counts:** when a count cites two items with the same outline, the card says which ("items 1 & 21"), so a reviewer can check.
+
 ## Checking an answer (built-in tools)
 
 Modelled on takeoff and BIM viewers (Bluebeam markups list and measure, Autodesk Measure and isolate, xeokit section planes, Matterport dollhouse), aimed at Stoa's "verify in seconds":
@@ -54,6 +66,8 @@ Modelled on takeoff and BIM viewers (Bluebeam markups list and measure, Autodesk
 | **F** | Frame the selection (or the whole answer) again |
 | **Original** (hold), or hold **Space** | Hide every highlight and show the untouched drawing |
 | **Measure**, or **M** | Click points to measure lengths; click the first point again to close an area. Points snap to the drawing's corners. Units come from the sheet: metres on CAD sheets, paper millimetres on BIM plans, pixels when there is no scale. The readout says which. **Esc** clears. |
+| **Clean view**, or **C** (2D) | The plan redrawn from what the system detected or read, left of a divider, with the untouched original on the right. Drag the divider (or focus it and use ← →). Walls, rooms tinted by type with their names, numbers and areas, and one symbol set (doors and windows cut into the walls, fixtures as boxes with their glyph; BIM symbols from their own paths). Labelled "Redrawn from detections", with a symbol key. Hidden in 3D and on sheets with nothing detected. `view.setClean(on, swipe)` |
+| **Drawings** picker | On sheets with several drawings: frame one, outlined with its printed title and scale. The answer card says which drawing the evidence comes from, or how it splits across drawings. |
 | **Legend rows** | Switch a category of a breakdown answer on or off |
 | **Walls** slider (3D) | Cut the walls lower to see into the rooms (heights are illustrative) |
 | **Reset view**, **Esc** | Frame the sheet, clear the selection |
@@ -114,4 +128,4 @@ python3 tests/interact.py http://localhost:5180 && python3 tests/features.py htt
 
 ## Files
 
-`src/index.tsx` public API · `src/adapter.ts` demo JSON to sheet pixels (image px / Swiss DXF metres, y-flip of `/api/sheet` / BIM SVG guid outlines) · `src/View.tsx` badge, detail card, tools · `src/Scene.tsx` three.js scene (camera, walls, lift) · `src/walls.ts` walls from scan images · `src/harness.ts` dev page (`?mode=3d`).
+`src/index.tsx` public API · `src/adapter.ts` demo JSON to sheet pixels (image px / Swiss DXF metres, y-flip of `/api/sheet` / BIM SVG guid outlines) · `src/View.tsx` badge, detail card, tools · `src/Scene.tsx` three.js scene (camera, walls, lift) · `src/walls.ts` walls from scan images · `src/views.ts` drawings on a multi-drawing sheet · `src/fixtures3d.ts` 3D fixture models and door leaves · `src/clean.ts` clean view (plan redrawn from detections) · `src/ink.ts` symbol glow (drawn strokes per evidence item), class names and glyphs · `src/harness.ts` dev page (`?mode=3d`).

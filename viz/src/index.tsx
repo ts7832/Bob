@@ -24,6 +24,7 @@ export interface DrawViewHandle {
   select(id: string | null): void
   setMode(mode: '2d' | '3d'): void
   setQuality(q: 'auto' | 'high' | 'low'): void // auto (default) drops AO/shadows/resolution when 3D runs slow
+  setClean(on: boolean, swipe?: number): void // clean view (2D): redrawn plan left of the divider, original right; swipe 0..1
   onSelect(cb: (el: Element | null) => void): () => void
   onLoad(cb: (info: { render: RenderJSON; plan: PlanJSON | null; sheet: SheetJSON | null }) => void): () => void
   destroy(): void
@@ -63,7 +64,7 @@ export function mount(el: HTMLElement, opts: MountOptions = {}): DrawViewHandle 
   }
 
   const apply = (loaded: Loaded) => {
-    store.set({ loaded, answer: null, selectedId: null, hoverId: null, loading: false, error: null, mpts: [], mclosed: false, hidden: [] })
+    store.set({ loaded, answer: null, selectedId: null, hoverId: null, loading: false, error: null, mpts: [], mclosed: false, hidden: [], viewFocus: null })
     if (pending) { const [a, q] = pending; pending = null; handle.showAnswer(a, q) }
   }
 
@@ -110,13 +111,14 @@ export function mount(el: HTMLElement, opts: MountOptions = {}): DrawViewHandle 
       ensureAttached()
       const { loaded, loading } = store.get()
       if (!loaded || loading) { pending = [ask, question]; return }
-      store.set({ answer: toAnswer(ask, loaded, question), selectedId: null, hoverId: null, hidden: [] })
+      store.set({ answer: toAnswer(ask, loaded, question), selectedId: null, hoverId: null, hidden: [], viewFocus: null })
     },
     clear() { pending = null; store.set({ answer: null, selectedId: null, hoverId: null }) },
     reset() { store.set({ selectedId: null, fitAll: store.get().fitAll + 1 }) },
     select(id) { store.set({ selectedId: id }) },
     setMode(mode) { store.set({ mode }) },
     setQuality(quality) { store.set({ quality }) },
+    setClean(clean, swipe) { store.set({ clean, ...(swipe != null ? { swipe: Math.min(1, Math.max(0, swipe)) } : {}) }) },
     onSelect(cb) { store.selectHandlers.add(cb); return () => { store.selectHandlers.delete(cb) } },
     onLoad(cb) { loadSubs.add(cb); return () => { loadSubs.delete(cb) } },
     destroy() { seq++; root.unmount(); host.remove() },
