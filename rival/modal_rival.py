@@ -199,6 +199,43 @@ def prep(limit: int = 0):
                 svg_count_equals_answer={kd: f"{a}/{n}" for kd, (a, n) in agree.items()})
 
 
+def _boxes_one(folder):
+    """True window and door boxes of one plan, in pixels of the original image (for the crop checker)."""
+    from xml.dom import minidom
+    from PIL import Image
+    src = f"{D}/cubicasa5k{folder}"
+    try:
+        w, h = Image.open(src + "F1_original.png").size
+        ws, hs = Image.open(src + "F1_scaled.png").size
+        dom = minidom.parse(src + "model.svg")
+    except Exception:
+        return None
+    sx, sy = w / ws, h / hs
+    out = dict(w=w, h=h, window=[], door=[], doorway=[])
+    for g in dom.getElementsByTagName("g"):
+        gid = g.getAttribute("id")
+        if gid not in ("Door", "Window"):
+            continue
+        X, Y = _poly(g)
+        if len(X) < 2:
+            continue
+        toks = g.getAttribute("class").split()
+        kind = "window" if gid == "Window" else "doorway" if len(toks) > 1 and toks[1] == "None" else "door"
+        out[kind].append([round(min(X) * sx, 1), round(min(Y) * sy, 1), round(max(X) * sx, 1), round(max(Y) * sy, 1)])
+    return folder.strip("/").replace("/", "-"), out
+
+
+@APP.function(image=image, volumes={D: VOL}, timeout=3600, cpu=16, memory=16384)
+def boxes():
+    from multiprocessing import Pool
+    folders = [l.strip() for f in ("train", "val", "test") for l in open(f"{D}/cubicasa5k/{f}.txt") if l.strip()]
+    with Pool(16) as pool:
+        done = dict(r for r in pool.imap_unordered(_boxes_one, folders, chunksize=16) if r)
+    json.dump(done, open(f"{D}/rival/boxes.json", "w"))
+    VOL.commit()
+    return dict(plans=len(done), windows=sum(len(v["window"]) for v in done.values()), doors=sum(len(v["door"]) for v in done.values()))
+
+
 def _model():
     import timm, torch
     import torch.nn as nn
@@ -462,6 +499,8 @@ def main(stage: str = "download", run: str = "r1", epochs: int = 30, batch: int 
     elif stage == "train":
         call = train.spawn(run, epochs, batch, lr, limit)   # spawn: survives a network drop on the laptop
         print("started", call.object_id, "-> progress in /rival/runs/%s/log.json on the volume" % run)
+    elif stage == "boxes":
+        print(boxes.remote())
     elif stage == "predict":
         r = predict.remote(run, weights)
         os.makedirs(ROOT / "answers", exist_ok=True)
