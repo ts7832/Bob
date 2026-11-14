@@ -25,6 +25,12 @@ REPO = os.path.dirname(HERE)
 sys.path.insert(0, REPO)
 ROOT = os.path.join(REPO, "junction-dataset-preview")
 GOLD = os.path.join(REPO, "gold", "gold.jsonl")
+EXTRA = os.path.join(REPO, "gold", "extra")  # sheets that are not in the dataset (e.g. the setters' examples); git-ignored
+
+
+def resolve_path(p):
+    """A gold line's path: 'extra/<file>' lives in gold/extra/, anything else in the dataset preview."""
+    return os.path.join(EXTRA, p[len("extra/"):]) if p.startswith("extra/") else os.path.join(ROOT, p)
 OUT = os.path.join(REPO, "gold", "reports")
 
 TOL = 0.02
@@ -138,9 +144,19 @@ def main():
     ap.add_argument("--only", help="comma-separated ids")
     ap.add_argument("--origin", help="dataset | judge-style | honesty")
     ap.add_argument("--gold", default=GOLD)
+    ap.add_argument("--code", help="score another checkout's drawqa (e.g. a worktree of a teammate's branch); "
+                                   "the gold set, dataset and reports stay this checkout's")
+    ap.add_argument("--label", help="name for this run in the report (e.g. the branch)")
     a = ap.parse_args()
 
+    if a.code:  # import drawqa from the other checkout, never silently from this one
+        code = os.path.abspath(a.code)
+        if not os.path.isfile(os.path.join(code, "drawqa", "solve.py")):
+            raise SystemExit(f"--code {code}: no drawqa/solve.py there")
+        sys.path.insert(0, code)
     from drawqa.solve import solve  # heavy import after argument errors
+    import drawqa
+    print(f"drawqa from {os.path.dirname(os.path.abspath(drawqa.__file__))}")
 
     gold = load_gold(a.gold)
     picked = []
@@ -159,11 +175,15 @@ def main():
         raise SystemExit(f"nothing to score in {a.gold} (statuses: {dict(collections.Counter(q['status'] for q in gold))}); "
                          "verify some lines or pass --drafts")
 
-    results = []
+    results, missing = [], []
     t_all = time.time()
     for q, draft in picked:
-        path = os.path.join(ROOT, q["path"])
+        path = resolve_path(q["path"])
         if not os.path.exists(path):
+            if q["path"].startswith("extra/"):  # a file outside the dataset that this machine does not have: say so, do not score
+                missing.append(q["id"])
+                print(f"- {q['id']:6s} not scored: {q['path']} is not in gold/extra/ on this machine")
+                continue
             raise SystemExit(f"{q['id']}: file not found: {path}")
         t0 = time.time()
         try:
@@ -194,9 +214,11 @@ def main():
         if g["outcome"] == "error":
             print("   " + g["error"])
 
+    if not results:
+        raise SystemExit(f"nothing scored: every picked line's file is missing ({len(missing)} in gold/extra/)")
     summary = summarize(results)
     summary.update(seconds=round(time.time() - t_all, 1), llm=a.llm, drafts_included=a.drafts,
-                   not_scored=dict(skipped))
+                   not_scored=dict(skipped, **({"file not on this machine": len(missing)} if missing else {})), label=a.label, code=os.path.dirname(os.path.dirname(os.path.abspath(drawqa.__file__))))
     write_reports(results, summary)
 
 
@@ -219,10 +241,11 @@ def write_reports(results, s):
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     with open(os.path.join(OUT, f"{stamp}.json"), "w", encoding="utf-8") as f:
         json.dump(dict(summary=s, results=results), f, ensure_ascii=False, indent=1)
-    L = [f"# Gold scoreboard {stamp}", "",
+    L = [f"# Gold scoreboard {stamp}" + (f" ({s['label']})" if s.get("label") else ""), "", f"drawqa code: `{s.get('code')}`", "",
          f"**{s['correct']}/{s['n']} correct ({100 * s['accuracy']:.1f}%)**"
          + (f", of which {s['drafts']} scored against unchecked drafts" if s["drafts"] else "")
-         + f". Tier as expected: {s['tier_match']}. {s['seconds']} s, llm={'on' if s['llm'] else 'off'}.", "",
+         + f". Tier as expected: {s['tier_match']}. {s['seconds']} s, llm={'on' if s['llm'] else 'off'}."
+         + (f" Not scored: {s['not_scored']}." if s.get("not_scored") else ""), "",
          "| outcome | n |", "|---|---|"]
     L += [f"| {k} | {v} |" for k, v in sorted(s["outcomes"].items())]
     L += ["", "By origin: " + ", ".join(f"{k} {v}" for k, v in s["by_origin"].items()), "",

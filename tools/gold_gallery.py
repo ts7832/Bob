@@ -124,7 +124,7 @@ def main():
     cache, cards = {}, []
     for r in results:
         q = gold.get(r["id"], {})
-        path = os.path.join(ROOT, r["path"])
+        path = os.path.join(REPO, "gold", "extra", r["path"][6:]) if r["path"].startswith("extra/") else os.path.join(ROOT, r["path"])
         page_no = int(q.get("page") or 1)
         key = (path, page_no)
         if key not in cache:

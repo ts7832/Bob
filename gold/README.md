@@ -39,6 +39,10 @@ Owner: the evaluation / demo pair (not Session A or B). Files here and `tools/go
 Optional fields: `"generic": true` (solve the file as an unknown file, no DXF sibling or stored predictions, the way a
 judge's file arrives), `"page": 7` (1-based page of a multi-page PDF the question is about), `"topic"` (e.g. `piping`).
 
+A path starting with `extra/` is a sheet outside the dataset, kept in `gold/extra/` (git-ignored, e.g. the setters'
+DfE sample from `~/BOB/STOA-extra_examples`). A machine without the file reports those lines as not scored; the UI
+leaves the drawing out of its list.
+
 Status `exact`: the answer was computed from a CAD source by `tools/gold_swiss.py` (Swiss DXF: room areas, baseboard
 lengths, door and window counts), cross-checked against printed areas and dataset labels. Scored like `verified`.
 
@@ -64,6 +68,7 @@ Rules:
 .venv/bin/python tools/gold_eval.py                 # verified lines only
 .venv/bin/python tools/gold_eval.py --drafts        # also score proposed values (marked as drafts in the report)
 .venv/bin/python tools/gold_eval.py --llm           # let solve() use the language model for free wording
+.venv/bin/python tools/gold_eval.py --code <checkout> --label <branch>   # score a teammate's branch (a worktree)
 .venv/bin/python tools/gold_gallery.py              # newest report -> gold/reports/<stamp>-gallery/index.html (wrong answers)
 .venv/bin/python tools/gold_gallery.py --all        # every answer: the page to check draft answers against the sheet
 ```
