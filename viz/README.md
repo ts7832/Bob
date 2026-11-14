@@ -64,6 +64,7 @@ Modelled on takeoff and BIM viewers (Bluebeam markups list and measure, Autodesk
 | **F** | Frame the selection (or the whole answer) again |
 | **Original** (hold), or hold **Space** | Hide every highlight and show the untouched drawing |
 | **Measure**, or **M** | Click points to measure lengths; click the first point again to close an area. Points snap to the drawing's corners. Units come from the sheet: metres on CAD sheets, paper millimetres on BIM plans, pixels when there is no scale. The readout says which. **Esc** clears. |
+| **Clean view**, or **C** (2D) | The plan redrawn from what the system detected or read, left of a divider, with the untouched original on the right. Drag the divider (or focus it and use ← →). Walls, rooms tinted by type with their names, numbers and areas, and one symbol set (doors and windows cut into the walls, fixtures as boxes with their glyph; BIM symbols from their own paths). Labelled "Redrawn from detections", with a symbol key. Hidden in 3D and on sheets with nothing detected. `view.setClean(on, swipe)` |
 | **Legend rows** | Switch a category of a breakdown answer on or off |
 | **Walls** slider (3D) | Cut the walls lower to see into the rooms (heights are illustrative) |
 | **Reset view**, **Esc** | Frame the sheet, clear the selection |
@@ -124,4 +125,4 @@ python3 tests/interact.py http://localhost:5180 && python3 tests/features.py htt
 
 ## Files
 
-`src/index.tsx` public API · `src/adapter.ts` demo JSON to sheet pixels (image px / Swiss DXF metres, y-flip of `/api/sheet` / BIM SVG guid outlines) · `src/View.tsx` badge, detail card, tools · `src/Scene.tsx` three.js scene (camera, walls, lift) · `src/walls.ts` walls from scan images · `src/ink.ts` symbol glow (drawn strokes per evidence item), class names and glyphs · `src/harness.ts` dev page (`?mode=3d`).
+`src/index.tsx` public API · `src/adapter.ts` demo JSON to sheet pixels (image px / Swiss DXF metres, y-flip of `/api/sheet` / BIM SVG guid outlines) · `src/View.tsx` badge, detail card, tools · `src/Scene.tsx` three.js scene (camera, walls, lift) · `src/walls.ts` walls from scan images · `src/clean.ts` clean view (plan redrawn from detections) · `src/ink.ts` symbol glow (drawn strokes per evidence item), class names and glyphs · `src/harness.ts` dev page (`?mode=3d`).

@@ -133,3 +133,23 @@
 .dv-tag-down { position: relative; top: 14px; }
 .dv-kind { display: inline-flex; align-items: center; gap: 5px; }
 .dv-chip.dv-kind .dv-glyph { width: 13px; height: 13px; }
+
+/* clean view: swipe divider (redrawn plan left, original right) */
+.dv-swipe { position: absolute; top: 0; bottom: 0; width: 0; z-index: 4; pointer-events: none; }
+.dv-swipe-line { position: absolute; top: 0; bottom: 0; left: -1px; width: 2px; background: var(--dv-ink); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7); }
+.dv-swipe-handle {
+  position: absolute; top: 50%; left: 0; transform: translate(-50%, -50%); pointer-events: auto; cursor: ew-resize; touch-action: none;
+  background: var(--dv-ink); color: #fff; font: 600 13px/1 system-ui, -apple-system, sans-serif; padding: 8px 7px; border-radius: 99px;
+  box-shadow: 0 0 0 2px #fff, 0 2px 6px rgba(29, 35, 48, 0.3); user-select: none; white-space: nowrap;
+}
+.dv-swipe-handle:focus-visible { outline: 3px solid var(--dv-accent); outline-offset: 2px; }
+.dv-swipe-l, .dv-swipe-r {
+  position: absolute; bottom: 64px; font: 600 12px/1 system-ui, -apple-system, sans-serif; padding: 5px 8px; border-radius: 6px;
+  white-space: nowrap; pointer-events: auto; background: var(--dv-panel); border: 1px solid var(--dv-line); color: var(--dv-ink);
+}
+.dv-swipe-l { right: 10px; }
+.dv-swipe-r { left: 10px; color: var(--dv-muted); }
+.dv-swipe-l { display: grid; gap: 6px; justify-items: end; }
+.dv-swipe-key { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 9px; max-width: 300px; font-weight: 500; font-size: 11.5px; }
+.dv-swipe-key span { display: inline-flex; align-items: center; gap: 3px; }
+.dv-swipe-key .dv-glyph { width: 13px; height: 13px; }

@@ -61,7 +61,10 @@ export interface Answer {
 export interface Context {
   walls: Pt[][] // computed on first read for scans (image wall finder), so 2D-only use never pays for it
   wallsDisjoint?: boolean // rectangles from the image: they never nest, skip the containment test
-  rooms: { id: string; name?: string | null; type?: string | null; polygon: Pt[] }[]
+  rooms: {
+    id: string; name?: string | null; type?: string | null; polygon: Pt[]
+    number?: string | null; area?: number | null; areaSource?: string | null // as the backend gives them (clean view labels)
+  }[]
   openings: { cls: 'door' | 'window'; polygon: Pt[] }[] // window/door rectangles in the wall line: sills, glass, lintels
   fixtures: { cls: string; polygon: Pt[] }[] // wc, washbasin, bathtub, kitchen_unit, ... shown as low volumes
 }
@@ -98,7 +101,7 @@ export interface SheetJSON {
   units?: string
   y_flip?: boolean
   scale?: { m_per_px?: number | null }
-  rooms?: { id: string; name?: string | null; number?: string | null; cls?: string | null; polygon?: Pt[]; bbox?: number[] }[]
+  rooms?: { id: string; name?: string | null; number?: string | null; cls?: string | null; polygon?: Pt[]; bbox?: number[]; area_m2?: number | null; area_source?: string | null }[]
   openings?: { id: string; cls: string; polygon?: Pt[]; bbox?: number[] }[]
   fixtures?: { id: string; cls: string; bbox?: number[] }[]
   walls?: { id: string; polygon?: Pt[] }[]

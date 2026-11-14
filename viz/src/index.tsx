@@ -24,6 +24,7 @@ export interface DrawViewHandle {
   select(id: string | null): void
   setMode(mode: '2d' | '3d'): void
   setQuality(q: 'auto' | 'high' | 'low'): void // auto (default) drops AO/shadows/resolution when 3D runs slow
+  setClean(on: boolean, swipe?: number): void // clean view (2D): redrawn plan left of the divider, original right; swipe 0..1
   onSelect(cb: (el: Element | null) => void): () => void
   onLoad(cb: (info: { render: RenderJSON; plan: PlanJSON | null; sheet: SheetJSON | null }) => void): () => void
   destroy(): void
@@ -117,6 +118,7 @@ export function mount(el: HTMLElement, opts: MountOptions = {}): DrawViewHandle 
     select(id) { store.set({ selectedId: id }) },
     setMode(mode) { store.set({ mode }) },
     setQuality(quality) { store.set({ quality }) },
+    setClean(clean, swipe) { store.set({ clean, ...(swipe != null ? { swipe: Math.min(1, Math.max(0, swipe)) } : {}) }) },
     onSelect(cb) { store.selectHandlers.add(cb); return () => { store.selectHandlers.delete(cb) } },
     onLoad(cb) { loadSubs.add(cb); return () => { loadSubs.delete(cb) } },
     destroy() { seq++; root.unmount(); host.remove() },
