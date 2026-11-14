@@ -14,6 +14,9 @@ const esc = (t: unknown) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&
 const getJSON = (u: string) => fetch(u).then((r) => r.json())
 
 const view = mount($('viewer'))
+// ?quality=high|low pins the 3D quality (headless test browsers are slow and would otherwise drop to low)
+const q = P.get('quality')
+if (q === 'high' || q === 'low') view.setQuality(q)
 ;(window as unknown as { view: typeof view }).view = view
 $('mode').textContent = live ? 'live server' : 'replay'
 

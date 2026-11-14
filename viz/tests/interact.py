@@ -16,6 +16,10 @@ with sync_playwright() as p:
     print("after pan drag still selected:", has()); ok &= has()
     page.mouse.click(700, 250); page.wait_for_timeout(800)  # open sheet, away from the cards, no movement
     print("after plain click cleared:", not has()); ok &= not has()
+    page.goto(f"{base}/?d=colorful-11397&q=0&sel=window4"); page.wait_for_load_state("networkidle"); page.wait_for_timeout(2500)
+    page.keyboard.press("Escape"); page.wait_for_timeout(500)
+    print("Esc cleared the selection:", not has()); ok &= not has()
+    print("button renamed:", page.get_by_role("button", name="Reset view").count() == 1); ok &= page.get_by_role("button", name="Reset view").count() == 1
     print("page errors:", len(errs)); ok &= not errs
     b.close()
 print("PASS" if ok else "FAIL"); sys.exit(0 if ok else 1)

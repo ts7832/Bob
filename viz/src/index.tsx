@@ -23,6 +23,7 @@ export interface DrawViewHandle {
   reset(): void
   select(id: string | null): void
   setMode(mode: '2d' | '3d'): void
+  setQuality(q: 'auto' | 'high' | 'low'): void // auto (default) drops AO/shadows/resolution when 3D runs slow
   onSelect(cb: (el: Element | null) => void): () => void
   onLoad(cb: (info: { render: RenderJSON; plan: PlanJSON | null; sheet: SheetJSON | null }) => void): () => void
   destroy(): void
@@ -112,6 +113,7 @@ export function mount(el: HTMLElement, opts: MountOptions = {}): DrawViewHandle 
     reset() { store.set({ selectedId: null, fitAll: store.get().fitAll + 1 }) },
     select(id) { store.set({ selectedId: id }) },
     setMode(mode) { store.set({ mode }) },
+    setQuality(quality) { store.set({ quality }) },
     onSelect(cb) { store.selectHandlers.add(cb); return () => { store.selectHandlers.delete(cb) } },
     onLoad(cb) { loadSubs.add(cb); return () => { loadSubs.delete(cb) } },
     destroy() { seq++; root.unmount(); host.remove() },

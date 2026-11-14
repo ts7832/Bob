@@ -12,6 +12,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("base"); ap.add_argument("out")
 ap.add_argument("--only"); ap.add_argument("--size", default="1600x900")
 ap.add_argument("--live", action="store_true")
+ap.add_argument("--extra", action="store_true", help="also the judges' sheets in viz/judge/ (if present) and the synthetic answers")
 a = ap.parse_args()
 w, h = map(int, a.size.split("x"))
 FX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fixtures")
@@ -30,7 +31,15 @@ for f in json.load(open(os.path.join(FX, "index.json"))):
         i, e = first_ev
         cases.append((f"{s[:24]}_2sel", dict(d=s, q=i, sel=e.get("id"))))
     cases.append((f"{s[:24]}_3cannot", dict(d=s, q=len(asks) - 1)))
-    cases.append((f"{s[:24]}_4q0_3d", dict(d=s, q=0, mode="3d")))
+    cases.append((f"{s[:24]}_4q0_3d", dict(d=s, q=0, mode="3d", quality="high")))
+
+if a.extra:
+    for k in ("areas", "baseboards", "slabs", "pipes"):
+        cases.append((f"synthetic_{k}_2d", dict(d="site11692_bldg18240_floor48820", synthetic=k)))
+        cases.append((f"synthetic_{k}_3d", dict(d="site11692_bldg18240_floor48820", synthetic=k, mode="3d", quality="high")))
+    for n in ("school", "dorm", "piping", "slab"):
+        if os.path.exists(os.path.join(FX, "..", "judge", f"{n}.png")):
+            cases.append((f"judge_{n}_3d", {"img": f"/judge/{n}.png", "mode": "3d", "quality": "high"}))
 
 bad = 0
 with sync_playwright() as p:
@@ -44,7 +53,7 @@ with sync_playwright() as p:
         page.on("pageerror", lambda e: errs.append(f"pageerror: {e}"))
         page.goto(f"{a.base}/?{urlencode(q)}")
         page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(3000 if q.get('mode') == '3d' else 1800)
+        page.wait_for_timeout(14000 if 'img' in q else 3000 if q.get('mode') == '3d' else 1800)
         out = os.path.join(a.out, name + ".png")
         page.screenshot(path=out)
         info = page.evaluate("""() => ({

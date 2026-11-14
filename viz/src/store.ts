@@ -7,6 +7,8 @@ export interface State {
   hoverId: string | null
   mode: '2d' | '3d'
   photo: boolean // path-traced photo mode (3D only)
+  quality: 'auto' | 'high' | 'low' // auto drops AO, shadows and resolution when 3D runs slow
+  slow: boolean // set by the performance monitor
   dim: boolean
   showPlan: boolean
   fitAll: number // bumped by reset(): fit the whole sheet
@@ -16,7 +18,7 @@ export interface State {
 
 // Minimal external store: the public API writes, React reads through useSyncExternalStore.
 export class Store {
-  state: State = { loaded: null, answer: null, selectedId: null, hoverId: null, mode: '2d', photo: false, dim: true, showPlan: true, fitAll: 0, loading: false, error: null }
+  state: State = { loaded: null, answer: null, selectedId: null, hoverId: null, mode: '2d', photo: false, quality: 'auto', slow: false, dim: true, showPlan: true, fitAll: 0, loading: false, error: null }
   private subs = new Set<() => void>()
   selectHandlers = new Set<(el: Element | null) => void>()
 

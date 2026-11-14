@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
-import { CameraControls, Html, Line } from '@react-three/drei'
+import { CameraControls, Html, Line, PerformanceMonitor } from '@react-three/drei'
 import CameraControlsImpl from 'camera-controls'
 import { Building, Effects, Floors, Lighting, drawingUV, useBuilding, useLifted, type Lift } from './Model'
 import { Photo } from './Photo'
@@ -92,6 +92,8 @@ interface Props {
   mode: '2d' | '3d'
   photo: boolean
   photoStatus: RefObject<HTMLSpanElement | null>
+  low: boolean // reduced quality: no AO, no shadows (set by the performance monitor or forced)
+  onSlow: (slow: boolean) => void
   focus: Focus
   fitAll: number
   onSelect: (id: string | null) => void
@@ -99,7 +101,7 @@ interface Props {
   overlay: RefObject<HTMLDivElement | null> // DOM layer over the canvas; Html labels portal here (fiber 9 + React 19)
 }
 
-export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode, photo, photoStatus, focus, fitAll, onSelect, onHover, overlay }: Props) {
+export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode, photo, photoStatus, low, onSlow, focus, fitAll, onSelect, onHover, overlay }: Props) {
   const drawing = loaded.drawing
   const max = Math.max(drawing.width, drawing.height)
   const L = max / 2500 // height step between flat layers, so they never z-fight
@@ -133,8 +135,10 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
     <>
       <CameraControls makeDefault />
       <CameraRig drawing={drawing} focus={focus} fitAll={fitAll} mode={mode} home={home} />
-      <Lighting drawing={drawing} active={lifted} catcherY={2.5 * L} />
-      {lifted && !photo && <Effects wallH={wallH} />}
+      <Lighting drawing={drawing} active={lifted && !low} catcherY={2.5 * L} />
+      {lifted && !photo && !low && <Effects wallH={wallH} />}
+      {/* 3D only: if the frame rate stays low, drop AO, shadows and resolution (2D is cheap and never degrades) */}
+      {lifted && !photo && <PerformanceMonitor flipflops={3} onDecline={() => onSlow(true)} onIncline={() => onSlow(false)} onFallback={() => onSlow(true)} />}
       {lifted && photo && <Photo loaded={loaded} b={building} tex={tex} wallH={wallH} answer={answer} baseY={0.5 * L} status={photoStatus} />}
 
       {/* the original drawing: always visible */}

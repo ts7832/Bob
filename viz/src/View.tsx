@@ -1,4 +1,4 @@
-import { Suspense, useMemo, useRef, useSyncExternalStore } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { Canvas } from '@react-three/fiber'
 import type { Answer, Drawing, Element } from './types'
 import type { Store } from './store'
@@ -22,15 +22,22 @@ export function View({ store }: { store: Store }) {
     [selected, answer],
   )
   const select = (id: string | null) => store.set({ selectedId: id })
+  const low = s.quality === 'low' || (s.quality === 'auto' && s.slow)
+  useEffect(() => { // Esc clears the selection
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape' && store.get().selectedId) store.set({ selectedId: null }) }
+    window.addEventListener('keydown', k)
+    return () => window.removeEventListener('keydown', k)
+  }, [store])
 
   return (
     <div className="dv-view">
       {loaded && (
-        <Canvas flat shadows="percentage" dpr={[1, 2]} camera={{ fov: 30, near: 1, far: 1e6, position: [0, 1e4, 0] }} onPointerMissed={() => select(null)}>
+        <Canvas flat shadows="percentage" dpr={low ? 1 : [1, 2]} camera={{ fov: 30, near: 1, far: 1e6, position: [0, 1e4, 0] }} onPointerMissed={() => select(null)}>
           <color attach="background" args={['#1a1f2b']} />
           <Suspense fallback={null}>
             <Scene key={loaded.drawing.key} loaded={loaded} answer={answer} selectedId={selectedId} hoverId={s.hoverId}
               dim={s.dim} showPlan={s.showPlan} mode={s.mode} photo={s.photo && s.mode === '3d'} photoStatus={photoStatus} focus={focus} fitAll={s.fitAll}
+              low={low} onSlow={(slow) => { if (store.get().slow !== slow) store.set({ slow }) }}
               onSelect={select} onHover={(id) => store.set({ hoverId: id })} overlay={overlay} />
           </Suspense>
         </Canvas>
@@ -48,7 +55,7 @@ export function View({ store }: { store: Store }) {
           {!answer && loaded.plan.length > 0 && (
             <button className={s.showPlan ? 'dv-on' : ''} onClick={() => store.set({ showPlan: !s.showPlan })}>Found plan</button>
           )}
-          <button onClick={() => store.set({ selectedId: null, fitAll: s.fitAll + 1 })}>Fit sheet</button>
+          <button title="Clear the selection and frame the sheet (the building in 3D)" onClick={() => store.set({ selectedId: null, fitAll: s.fitAll + 1 })}>Reset view</button>
           {s.mode === '3d' && (
             <button className={s.photo ? 'dv-on' : ''} title="Path-traced render: refines while the camera rests" onClick={() => store.set({ photo: !s.photo })}>Photo</button>
           )}
@@ -68,13 +75,21 @@ export function View({ store }: { store: Store }) {
   )
 }
 
+// Known technical backend messages in plain words; the original stays in the tooltip (and in the chat).
+function friendly(t?: string | null) {
+  if (!t) return 'The drawing does not contain what this question needs.'
+  if (/language model (is )?(not available|switched off)|ModuleNotFoundError|DRAWQA_LLM|no ANTHROPIC_API_KEY/i.test(t))
+    return 'This question needs the language model, which is not running in this demo. Try asking with the wording of a listed question.'
+  return t
+}
+
 function AnswerBadge({ answer }: { answer: Answer }) {
   if (answer.status === 'cannot_answer')
     return (
       <div className="dv-badge dv-cannot">
         <div className="dv-eyebrow">Can't answer from this drawing</div>
         {answer.question && <div className="dv-q">{answer.question}</div>}
-        <p>{answer.explanation ?? 'The drawing does not contain what this question needs.'}</p>
+        <p title={answer.explanation ?? undefined}>{friendly(answer.explanation)}</p>
       </div>
     )
   const off = answer.cited - answer.elements.length

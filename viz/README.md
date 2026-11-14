@@ -27,6 +27,7 @@ The left 75% of the demo: the drawing, with the answer to a question shown on it
 | `view.clear()` / `view.reset()` | Remove the answer / fit the whole sheet. |
 | `view.select(id)` / `view.onSelect(cb)` | Select an evidence item (zooms to it, shows the crop) / get told when the user does. |
 | `view.onLoad(cb)` | Called with `{render, plan, sheet}` after a drawing loads (e.g. to build a legend without fetching twice). |
+| `view.setQuality("auto" \| "high" \| "low")` | 3D quality. `auto` (default) turns off ambient occlusion and shadows and lowers resolution when the frame rate stays low. |
 | `view.setMode("2d" \| "3d")` | Lifts the sheet into 3D and back (also a 2D/3D button in the view). Heights are illustrative only, never used for answers. |
 | `view.destroy()` | Unmounts. |
 
