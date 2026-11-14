@@ -22,6 +22,9 @@ The drawing view (`viz/`): what exists, and what changed when. Newest first. Usa
 | Evidence that isn't on this sheet (BIM model-wide answers) | yes | says "N of M on this sheet"; selecting one says "Not on this drawing" |
 | Light theme matching the demo page | yes | default |
 
+## 2026-11-14 22:20: clean view keeps highlighted areas clean
+- **Fix:** in clean view, a highlighted area (a room, a corridor) showed the original drawing inside it, even on the clean side. It now shows the clean drawing on the clean side and the original on the other, split exactly at the divider. The crop panel still shows the untouched original, for checking.
+
 ## 2026-11-14 22:05: Photo mode gets the real fixtures; BIM door leaves as drawn; TEAM.md
 - **Photo mode** (path tracing) now renders the same fixture models as 3D: toilets, basins, tubs, showers, kitchens and door leaves. The counted object is a glowing model that lights its room. The old blocks are gone; clearcoat and alpha glass, which path-traced black, are replaced.
 - **BIM door leaves:** each IfcDoor's own leaf rectangle from the model's plan is extruded to door height, open as drawn. A counted BIM door lights up as that exact leaf.

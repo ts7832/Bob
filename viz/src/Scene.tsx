@@ -134,6 +134,7 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
     return { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1, min: 0 }
   }, [loaded, want3d])
   const lifted = useLifted(lift)
+  const clean = useClean(loaded, tools.clean && mode === '2d' && !tools.peek, tools.swipe)
   // a selected symbol (WC, tub, door...) in 3D: walls drop to 45% so the object is never hidden behind its room's walls
   const selEl = els.find((e) => e.id === selectedId)
   const cut = mode === '3d' && selEl?.cls && SYMBOL.has(selEl.cls as Cls) ? Math.min(tools.cut, 0.45) : tools.cut
@@ -190,7 +191,7 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
       </mesh>
 
       {/* clean view (2D): the plan redrawn from detections, left of the swipe divider; the original stays on the right */}
-      <CleanLayer loaded={loaded} on={tools.clean && mode === '2d' && !tools.peek} swipe={tools.swipe} y={0.8 * L} />
+      <CleanLayer drawing={drawing} clean={clean} y={0.8 * L} />
 
       {showPlan && !answer && !tools.peek && !tools.clean && loaded.plan.map((el) => <PlanMark key={el.id} el={el} drawing={drawing} y={L} />)}
 
@@ -206,7 +207,7 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
       {want3d && <Fixtures loaded={loaded} wallH={wallH} lift={lift} y={0.5 * L} />}
 
       {shown.map((el) => (
-        <Highlight key={el.id} el={el} loaded={want3d ? loaded : null} drawing={drawing} tex={tex} hatch={hatch} tier={tier} measure={answer?.measure ?? 'other'} crowded={shown.length > 12} glyphs={shown.length <= 24} L={L} wallH={wallH} lift={lift}
+        <Highlight key={el.id} el={el} loaded={want3d ? loaded : null} drawing={drawing} tex={tex} clean={clean} hatch={hatch} tier={tier} measure={answer?.measure ?? 'other'} crowded={shown.length > 12} glyphs={shown.length <= 24} L={L} wallH={wallH} lift={lift}
           selected={el.id === selectedId} hovered={el.id === hoverId} interactive={!tools.measure}
           onSelect={onSelect} onHover={onHover} onZoom={zoomAt} overlay={overlay} />
       ))}
@@ -216,8 +217,11 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
   )
 }
 
-function CleanLayer({ loaded, on, swipe, y }: { loaded: Loaded; on: boolean; swipe: number; y: number }) {
-  const d = loaded.drawing
+// Clean view (2D): the plan redrawn from detections, kept left of the swipe divider. The texture and the two clip planes
+// (left = clean side, right = original side) are shared with the highlights, so a highlighted area shows the clean
+// drawing on the clean side too, instead of punching a hole of original drawing into it.
+type CleanState = { tex: THREE.Texture; left: THREE.Plane; right: THREE.Plane } | null
+function useClean(loaded: Loaded, on: boolean, swipe: number): CleanState {
   const [tex, setTex] = useState<THREE.Texture | null>(null)
   const [want, setWant] = useState(on) // built on first use, kept while the drawing stays open
   useEffect(() => { if (on) setWant(true) }, [on])
@@ -234,20 +238,24 @@ function CleanLayer({ loaded, on, swipe, y }: { loaded: Loaded; on: boolean; swi
   }, [loaded, want])
   const gl = useThree((s) => s.gl)
   useEffect(() => { gl.localClippingEnabled = true }, [gl])
-  // keep x <= the ground point under the divider (camera looks straight down in 2D, so that is a vertical screen line)
-  const clip = useMemo(() => new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0), [])
+  // the ground point under the divider (camera looks straight down in 2D, so that is a vertical screen line)
+  const planes = useMemo(() => ({ left: new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0), right: new THREE.Plane(new THREE.Vector3(1, 0, 0), 0) }), [])
   const tmp = useMemo(() => ({ ray: new THREE.Raycaster(), ground: new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit: new THREE.Vector3(), ndc: new THREE.Vector2() }), [])
   useFrame(({ camera }) => {
     if (!on) return
     tmp.ndc.set(2 * swipe - 1, 0)
     tmp.ray.setFromCamera(tmp.ndc, camera)
-    if (tmp.ray.ray.intersectPlane(tmp.ground, tmp.hit)) clip.constant = tmp.hit.x
+    if (tmp.ray.ray.intersectPlane(tmp.ground, tmp.hit)) { planes.left.constant = tmp.hit.x; planes.right.constant = -tmp.hit.x }
   })
-  if (!tex || !on) return null
+  return useMemo(() => (on && tex ? { tex, ...planes } : null), [on, tex, planes])
+}
+
+function CleanLayer({ drawing, clean, y }: { drawing: Drawing; clean: CleanState; y: number }) {
+  if (!clean) return null
   return (
     <mesh rotation-x={-Math.PI / 2} position-y={y} renderOrder={1} raycast={() => null}>
-      <planeGeometry args={[d.width, d.height]} />
-      <meshBasicMaterial map={tex} toneMapped={false} clippingPlanes={[clip]} />
+      <planeGeometry args={[drawing.width, drawing.height]} />
+      <meshBasicMaterial map={clean.tex} toneMapped={false} clippingPlanes={[clean.left]} />
     </mesh>
   )
 }
@@ -295,8 +303,8 @@ function useInk(d: Drawing, el: Element, on: boolean, color: string) {
   return ink
 }
 
-function Highlight({ el, loaded, drawing, tex, hatch, tier, measure, crowded, glyphs, L, wallH, lift, selected, hovered, interactive, onSelect, onHover, onZoom, overlay }: {
-  el: Element; loaded: Loaded | null; drawing: Drawing; tex: THREE.Texture; hatch: THREE.Texture; tier: Tier | null; measure: Answer['measure']; crowded: boolean; glyphs: boolean
+function Highlight({ el, loaded, drawing, tex, clean, hatch, tier, measure, crowded, glyphs, L, wallH, lift, selected, hovered, interactive, onSelect, onHover, onZoom, overlay }: {
+  el: Element; loaded: Loaded | null; drawing: Drawing; tex: THREE.Texture; clean: CleanState; hatch: THREE.Texture; tier: Tier | null; measure: Answer['measure']; crowded: boolean; glyphs: boolean
   L: number; wallH: number; lift: RefObject<Lift>
   selected: boolean; hovered: boolean; interactive: boolean; onSelect: (id: string) => void; onHover: (id: string | null) => void
   onZoom: (p: THREE.Vector3) => void; overlay: RefObject<HTMLDivElement | null>
@@ -374,9 +382,15 @@ function Highlight({ el, loaded, drawing, tex, hatch, tier, measure, crowded, gl
 
   return (
     <group>
+      {/* the highlighted area shown undimmed: the original drawing, or in clean view the clean drawing on its side */}
       {geo && (
         <mesh geometry={geo} rotation-x={-Math.PI / 2} position-y={3 * L} {...events}>
-          <meshBasicMaterial map={tex} toneMapped={false} />
+          <meshBasicMaterial map={tex} toneMapped={false} clippingPlanes={clean ? [clean.right] : []} />
+        </mesh>
+      )}
+      {geo && clean && (
+        <mesh geometry={geo} rotation-x={-Math.PI / 2} position-y={3 * L} raycast={() => null}>
+          <meshBasicMaterial map={clean.tex} toneMapped={false} clippingPlanes={[clean.left]} />
         </mesh>
       )}
       {geo && !linear && (
