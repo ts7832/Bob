@@ -283,6 +283,7 @@ def web():
             q("UPDATE sheets SET superseded_by=%s WHERE id=%s", (sid, supersedes))
         if convert_seconds or convert_cost_usd:
             q("INSERT INTO ledger (workspace_id, sheet_id, kind, cost_usd, seconds) VALUES (%s,%s,'convert',%s,%s)", (w, sid, convert_cost_usd, convert_seconds))
+        VOL.commit()                                   # the engine reads the file next: make it visible on the volume now
         dirty.set()
         return dict(id=sid, project_id=pid, width=im.width, height=im.height)
 

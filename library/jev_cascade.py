@@ -46,7 +46,8 @@ def predict(question, path=None):
     return top[0][0], top[0][1], top
 
 
-QUOTES = re.compile(r"[\"'“”„«»‚‘’]\s*([^\"'“”„«»‚‘’]+?)\s*[\"'“”„«»‚‘’]")
+# a quote opens after a space or start (not inside a word: What's, l'étage) and closes before a non-letter
+QUOTES = re.compile(r"(?<![\w])[\"'“”„«»‚‘’]\s*([^\"“”„«»]+?)\s*[\"'“”«»‘’](?![\w])")
 
 
 def _quoted(q):

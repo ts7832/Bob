@@ -7,7 +7,9 @@ which then shows it on the phone and keeps it for the next time.
 
     MODAL_PROFILE=oliver-universitapps modal deploy library/modal_engine.py
 
-Language model for free wording: off unless BOB_LLM=1 is set in the `bob-engine` secret (it spends API credits).
+Question reading: the pattern router and the Jev-style router (router2, library/jev_cascade.py) read every question; the
+router's reading wins a disagreement at >= 90%. A question neither reads goes to Claude (llm_router: the model picks the
+tool, code computes the number), Opus first and Haiku if Opus fails. Key and BOB_LLM=1: the `bob-anthropic` secret.
 """
 import os, pathlib
 
@@ -22,23 +24,42 @@ LIBRARY_URL = "https://oliver-universityapps--bob-library-web.us-east.modal.run"
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("libgl1", "libglib2.0-0")
-    .pip_install("ifcopenshell", "pymupdf", "opencv-python-headless", "numpy<2", "pillow", "ezdxf", "anthropic")
+    .pip_install("ifcopenshell", "pymupdf", "opencv-python-headless", "numpy<2", "pillow", "ezdxf", "anthropic",
+                 "torch==2.5.1", "transformers==4.47.1", "sentencepiece")
     .add_local_dir(str(REPO / "drawqa"), "/root/app/drawqa", ignore=["__pycache__"])
+    .add_local_file(str(REPO / "library" / "jev_cascade.py"), "/root/app/jev_cascade.py")
     .add_local_dir(str(REPO / "data" / "predictions"), "/root/app/data/predictions")
 )
 
 
+_INDEX = {}
+
+
 def _find(file_name):
-    """The dataset copy of a file, by name (data/<source>/<file>), or None."""
-    for src in os.listdir("/ds/data"):
-        p = f"/ds/data/{src}/{file_name}"
-        if os.path.exists(p):
-            return p
-    return None
+    """The dataset copy of a file, by name, anywhere under /ds/data (drawing sets keep their own folders), or None."""
+    if not _INDEX:
+        for root, _, files in os.walk("/ds/data"):
+            for f in files:
+                _INDEX.setdefault(f, os.path.join(root, f))
+    return _INDEX.get(file_name)
+
+
+def _library_copy(sheet_id, file_name):
+    """The library's stored copy of an uploaded file (waits briefly for a just-written upload to reach the volume)."""
+    import shutil, time
+    src = f"/lib/library/files/{sheet_id}/original"
+    for _ in range(6):
+        LIB.reload()
+        if os.path.exists(src):
+            break
+        time.sleep(2)
+    path = f"/tmp/sheet{sheet_id}{os.path.splitext(file_name)[1] or '.pdf'}"
+    shutil.copy(src, path)
+    return path
 
 
 @app.function(image=image, volumes={"/ds": DATA, "/lib": LIB}, cpu=2, memory=4096, timeout=600, scaledown_window=600,
-              secrets=[modal.Secret.from_dict({"BOB_PASSWORD": os.environ.get("BOB_PASSWORD", "123456789")})])
+              secrets=[modal.Secret.from_dict({"BOB_PASSWORD": os.environ.get("BOB_PASSWORD", "123456789")}), modal.Secret.from_name("bob-anthropic")])
 def answer(answer_id: int, sheet_id: int, file_name: str, question: str):
     import json, shutil, sys, time, urllib.request
     sys.path.insert(0, "/root/app")
@@ -46,11 +67,7 @@ def answer(answer_id: int, sheet_id: int, file_name: str, question: str):
     from drawqa.solve import solve
     path, generic = _find(file_name), False
     if path is None:                                   # not from the dataset: the library's own copy, read as an unknown file
-        LIB.reload()
-        ext = os.path.splitext(file_name)[1] or ".pdf"
-        path = f"/tmp/sheet{sheet_id}{ext}"
-        shutil.copy(f"/lib/library/files/{sheet_id}/original", path)
-        generic = True
+        path, generic = _library_copy(sheet_id, file_name), True
     t0 = time.time()
     try:
         r = solve(path, question, generic=generic, llm=os.environ.get("BOB_LLM") == "1")
@@ -85,13 +102,49 @@ def _audit(r, question, seconds, generic):
         steps.append(dict(stage="Question read", actor="pattern router (no language model)", detail=f"{qr.get('note') or 'matched a known question pattern'}; intent {json_intent(r)}"))
     else:
         steps.append(dict(stage="Question read", actor=f"language model ({qr.get('model') or 'Claude'})",
-                          detail=f"used because no known pattern matched this wording; it only chose the tool and its arguments "
-                                 f"(intent {json_intent(r)}), the number itself comes from the step below. {qr.get('note') or ''}".strip()))
+                          detail=f"the engine asked a language model to read the wording (no pattern fitted, or a building-model question it "
+                                 f"double-checks); it only chose the tool and its arguments (intent {json_intent(r)}), the number itself comes "
+                                 f"from the step below. {qr.get('note') or ''}".strip()))
     steps.append(dict(stage="Answer produced", actor=r.get("method") or "engine",
                       detail=f"{len(ev)} evidence item(s) marked on the blueprint" + (f"; item confidence {confs[0]:.0%} to {confs[-1]:.0%}" if confs else ""),
                       confidence=r.get("confidence")))
     steps.append(dict(stage="Honesty", actor=h.get("tier") or "unknown", detail=h.get("basis") or "", confidence=r.get("confidence")))
     return dict(question=question, seconds=seconds, language_model_used=by != "pattern", steps=steps)
+
+
+def _router_audit(r, how, fallback):
+    """Both routers' readings, whether they agreed, and the combined confidence (engine x router, halved on a
+    disagreement: measured to separate right from wrong answers better than the engine's confidence alone)."""
+    if not how:
+        return
+    p, agree = how.get("probability"), how.get("agree")
+    by = how.get("by") or ""
+    pat = how.get("pattern_meaning")
+    if by.startswith("jev router"):
+        actor = "Jev-style router (router2)" + (" overrides the pattern router" if "override" in by else "")
+    elif by == "pattern router":
+        actor = "pattern router" + (", Jev-style router agrees" if agree else ", Jev-style router disagrees (pattern reading kept)" if agree is False else "")
+    else:
+        actor = "neither router could read it" + (" -> language model" if r.get("question_read", {}).get("by") == "language model" else "")
+    detail = f"Jev-style router: {how.get('label')} at {p:.0%}" if p is not None else ""
+    if pat:
+        detail += f"; pattern router: {pat}"
+    top = how.get("top") or []
+    if len(top) > 1:
+        detail += "; next: " + ", ".join(f"{l} {v:.0%}" for l, v in top[1:])
+    r["audit"]["steps"].insert(1, dict(stage="Question read", actor=actor, detail=detail, confidence=p))
+    r["audit"]["steps"] = [s for i, s in enumerate(r["audit"]["steps"]) if not (s["stage"] == "Question read" and i > 1 and s["actor"].startswith("pattern router (no"))]
+    conf = r.get("confidence")
+    if isinstance(conf, (int, float)) and p is not None:
+        comb = conf * p * (0.5 if agree is False else 1.0)
+        r["confidence_engine"] = conf
+        r["confidence"] = round(comb, 4)
+        r["audit"]["steps"].append(dict(stage="Overall confidence", actor="engine x question reading",
+                                        detail=f"engine {conf:.0%} x reading {p:.0%}" + (" x 0.5 (the routers disagree)" if agree is False else ""),
+                                        confidence=round(comb, 4)))
+    r["audit"]["routers"] = dict(by=by, jev_label=how.get("label"), jev_probability=p, pattern_meaning=pat, agree=agree)
+    if fallback:
+        r["audit"]["steps"].append(dict(stage="Fallback", actor=fallback, detail="the main language model (Opus) did not answer, so Haiku read the question"))
 
 
 def _watch_model_calls():
@@ -119,35 +172,49 @@ def json_intent(r):
     return ", ".join(f"{k}={v}" for k, v in i.items() if v not in (None, "", [])) or "unknown"
 
 
-@app.function(image=image, volumes={"/ds": DATA, "/lib": LIB}, cpu=2, memory=4096, timeout=600, scaledown_window=900, min_containers=1)
+@app.function(image=image, volumes={"/ds": DATA, "/lib": LIB}, cpu=2, memory=6144, timeout=600, scaledown_window=900, min_containers=1,
+              secrets=[modal.Secret.from_name("bob-anthropic")])
 def solve_full(sheet_id: int, file_name: str, question: str):
     """Synchronous: the engine's whole result (evidence included, for the blueprint view) plus its audit trail."""
-    import shutil, sys, time
+    import re, shutil, sys, time
     sys.path.insert(0, "/root/app")
     os.chdir("/root/app")
+    import jev_cascade
+    jev_cascade.install("/ds/jev/router2")
     from drawqa.solve import solve
+    from drawqa import llm_router
     path, generic = _find(file_name), False
     if path is None:
-        LIB.reload()
-        path = f"/tmp/sheet{sheet_id}{os.path.splitext(file_name)[1] or '.pdf'}"
-        shutil.copy(f"/lib/library/files/{sheet_id}/original", path)
-        generic = True
+        path, generic = _library_copy(sheet_id, file_name), True
     calls = _watch_model_calls()
+    use_llm = os.environ.get("BOB_LLM") == "1" and bool(os.environ.get("ANTHROPIC_API_KEY"))
     t0 = time.time()
+    fallback = None
     try:
-        r = solve(path, question, generic=generic, llm=os.environ.get("BOB_LLM") == "1")
+        r = solve(path, question, generic=generic, llm=use_llm)
+        how = jev_cascade.last() or {}
+        basis = str((r.get("honesty") or {}).get("basis") or "") + str(r.get("explanation") or "")
+        if use_llm and r.get("answer") is None and how.get("by") == "nobody" and re.search(r"(?i)language model|anthropic|model call", basis):
+            fallback, main_model = "claude-haiku-5-5", llm_router.MODEL     # Opus failed: try Haiku once, and say so
+            llm_router.MODEL = fallback
+            try:
+                r = solve(path, question, generic=generic, llm=True)
+            finally:
+                llm_router.MODEL = main_model
     except Exception as e:
         r = dict(answer=None, honesty=dict(tier="cannot determine", basis=f"the engine failed on this blueprint: {type(e).__name__}: {e}"[:300]))
+    how = jev_cascade.last() or {}
     sec = round(time.time() - t0, 3)
     r = {k: v for k, v in r.items() if k != "cost"}
     r["audit"] = _audit(r, question, sec, generic)
+    _router_audit(r, how, fallback)
     if calls:
         tin, tout = sum(c["in"] for c in calls), sum(c["out"] for c in calls)
         r["audit"]["language_model_used"] = True
         r["audit"]["model_calls"] = list(calls)
         r["audit"]["steps"].insert(2, dict(stage="Language model", actor=", ".join(sorted({c["model"] for c in calls})),
-                                           detail=f"{len(calls)} call(s), {tin} tokens in, {tout} tokens out. Used because no known question pattern "
-                                                  f"matched; it turned the wording into tool calls, the numbers are computed by code."))
+                                           detail=f"{len(calls)} call(s), {tin} tokens in, {tout} tokens out. It turned the wording into tool calls; "
+                                                  f"the numbers are computed by code."))
     return dict(result=r, seconds=sec)
 
 
