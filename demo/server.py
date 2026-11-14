@@ -148,6 +148,21 @@ def sheet_tables(f):
     return _TABLES[f]
 
 
+def names_a_table(f, question):
+    """True when the question uses the title of a table that is on this sheet (at least two of its words, most of them)."""
+    import re
+    try:
+        tabs = sheet_tables(f)
+    except Exception:
+        return False
+    q = set(re.findall(r"[a-z0-9]+", question.lower()))
+    for t in tabs:
+        words = [w for w in re.findall(r"[a-z]+", t["title"].lower()) if len(w) > 2]
+        if len(words) >= 2 and len(q & set(words)) >= 2 and len(q & set(words)) >= 0.6 * len(set(words)):
+            return True
+    return False
+
+
 def table_answer(f, question):
     """A question about a schedule: a language model writes the query, code runs it on the table read from the PDF."""
     from drawqa import schedule
@@ -276,9 +291,15 @@ class H(BaseHTTPRequestHandler):
         try:
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             path, question = body["path"], body["question"].strip()
-            res = solve(resolve(path), question, path in OPENED, llm=True)  # free wording: a language model picks the tool
-            if res.get("answer") is None:  # not answerable from the drawing itself: is it a question about a table on the sheet?
-                res = table_answer(resolve(path), question) or res
+            res = None
+            if names_a_table(resolve(path), question):  # "…in the door schedule…": the table on the sheet answers, not the drawing
+                res = table_answer(resolve(path), question)
+                if res is not None and res.get("answer") is None:
+                    res = None
+            if res is None:
+                res = solve(resolve(path), question, path in OPENED, llm=True)  # free wording: a language model picks the tool
+                if res.get("answer") is None:  # not answerable from the drawing itself: maybe a table still can
+                    res = table_answer(resolve(path), question) or res
             truth = next((q for q in QUESTIONS if q["path"] == path and q["question"].strip() == question), None)
             if truth is not None:
                 res["dataset_answer"] = truth["answer"]

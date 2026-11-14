@@ -136,6 +136,15 @@ def load(path):
     xs = [p[0] for it in items if it["k"] == "poly" for p in it["pts"]]
     ys = [p[1] for it in items if it["k"] == "poly" for p in it["pts"]]
 
+    if not xs:  # a DXF that does not follow the layer convention this reader knows: say so instead of failing
+        import collections
+        ents = E
+        layers = collections.Counter(e["layer"] for e in ents)
+        kinds = collections.Counter(e["type"] for e in ents)
+        return dict(source=path, source_type="unknown", kind="cad dxf (unknown layout)", rooms=[], openings=[], fixtures=[], render=dict(type="none"),
+                    note=f"This DXF has {len(ents)} entities ({', '.join(f'{n} {k}' for k, n in kinds.most_common(4))}) on layers "
+                         f"{', '.join(repr(l) for l, _ in layers.most_common(5))}. The exact DXF reader only knows drawings with DOOR, WINDOW, FIXTURE and "
+                         f"ROOM_OUTLINE layers, and block contents are not expanded, so nothing can be counted or measured here yet.")
     return dict(source=path, source_type="vector-dxf", units="m", y_flip=True,
                 rooms=rooms, units_list=units, openings=openings, fixtures=fixtures,
                 render=dict(type="vector", items=items, bounds=[min(xs), min(ys), max(xs), max(ys)]))
