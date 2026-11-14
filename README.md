@@ -42,9 +42,9 @@ DRAWQA_SWISS=pdf .venv/bin/python -m drawqa.eval --source swiss_dwellings    # S
 | source | score | notes |
 |---|---|---|
 | swiss_dwellings, DXF | 2326/2358 = **98.6%** | exact CAD rules |
-| swiss_dwellings, PDF only | 1976/2358 = **83.8%** | text and linework exact; symbols by a detector that had not seen this style |
+| swiss_dwellings, PDF only | 2298/2358 = **97.5%** | text and linework exact; symbols by the detector, doors and windows snapped to the PDF's own rectangles (rule developed on these same plans) |
 | ifc_models | 1025/1049 = **97.7%** | misses need a model that is not in the preview |
-| cubicasa5k (scans) | 3622/4270 = **84.8%** | trained detector, all 241 plans; was 27.9% with the 2019 model |
+| cubicasa5k (scans) | 3628/4270 = **85.0%** | trained detector, all 241 plans; was 27.9% with the 2019 model |
 
 See `HANDOFF.md` for per-question numbers, training details, what did not work, and open issues.
 

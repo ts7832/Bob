@@ -75,7 +75,7 @@ def snap_to_linework(dets, quads, classes=("door", "window"), min_iou=0.4):
       1. each detection is matched to the closed four-sided paths that coincide with it;
       2. the drawing style (stroke colour, width, filled or not) most of those paths share is this sheet's style for
          that element;
-      3. if the detections and that style agree (most detections hit it, and most paths of that style and size are
+      3. if the detections and that style agree (most detections hit it, and most paths of that style are
          hit by a detection), the element list becomes ALL paths of that style: exact geometry, and one element per
          path even where two rectangles overlap or the detector missed one;
       4. otherwise each detection only takes the geometry of the paths it coincides with.
