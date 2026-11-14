@@ -417,6 +417,34 @@ def _finalize(res, question, plan=None):
     return res
 
 
+def _names_beat_type(sheet, intent, question):
+    """A room-TYPE pattern ("hall" = entry type) on a sheet that prints a room name containing the question's words
+    ("the area of the Multi-Purpose Hall"): the named rooms answer it, not every room of a type. The same rule the
+    language-model route applies (llm_router._fill_room_names)."""
+    it = intent.get("intent")
+    if it == "unknown":  # no pattern fits, but "how many X" / "area of X" with X a printed room name needs no model
+        if re.search(router.ARITHMETIC, question, re.I) or re.search(r"perimeter|skirting|wall|paint|tile", question, re.I):
+            return intent  # arithmetic or another measure: the model reads it
+        if re.search(router.COUNT_WORDS, question, re.I):
+            it = "count_rooms_class"
+        elif re.search(router.AREA_WORDS, question, re.I):
+            it = "class_area"
+        else:
+            return intent
+    if it not in ("class_area", "count_rooms_class"):
+        return intent
+    names = sorted({r["name"] for r in sheet.get("rooms", []) if r.get("name")}
+                   | {n["label"] for n in sheet.get("printed_names", []) if n.get("label")})
+    if not names:
+        return intent
+    match = router.names_matching(router.room_phrase(question), names)
+    if not match:
+        return intent
+    if it == "class_area":
+        return dict(intent="label_area", labels=match, label=match[0], from_type=intent.get("cls"))
+    return dict(intent="count_rooms_label", labels=match, label=match[0], from_type=intent.get("cls"))
+
+
 def _model_plan(question, sheet):
     from . import llm_router
     return llm_router.parse(question, sheet)
@@ -452,6 +480,7 @@ def solve(path, question, generic=False, llm=False):
         from . import convert
         convert.attach_printed_names(sheet)
     read_by = dict(by="pattern", note="matched a known question pattern")
+    intent = _names_beat_type(sheet, intent, question)
     plan = None
     # on a building model, a question the patterns read as a plain drawing count ("doors on the second floor") may
     # name a storey those patterns ignore: let the model read it, and keep the pattern's reading if it cannot

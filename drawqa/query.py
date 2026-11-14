@@ -259,11 +259,13 @@ def _names_of(r):
     return {n.strip().lower() for n in (r.get("names") or ([r["name"]] if r.get("name") else [])) if n and n.strip()}
 
 
-def _printed_label_count(sheet, label):
-    """An image whose printed names were read: count the names themselves (each printed name is one room)."""
+def _printed_label_count(sheet, label, labels=None):
+    """An image whose printed names were read: count the names themselves (each printed name is one room). Several
+    names ('Secondary Classroom', 'Secondary Classroom (Severe Needs)') are counted together."""
     from .convert import name_key
-    want = name_key(label)
-    hits = [n for n in sheet.get("printed_names", []) if name_key(n["label"]) == want]
+    want = {name_key(l) for l in (labels or [label])}
+    label = ", ".join(labels) if labels else label
+    hits = [n for n in sheet.get("printed_names", []) if name_key(n["label"]) in want]
     ev = [dict(id=f"name{i}", shape="box", bbox=n["bbox"], label=n["label"]) for i, n in enumerate(hits)]
     if not hits:
         return dict(answer=0, unit="count", evidence=[], read_names=True,
@@ -431,7 +433,7 @@ def execute(sheet, intent):
     if it in TEXT_TOOLS:
         return _text_tool(sheet, intent)
     if it == "count_rooms_label" and sheet.get("printed_names"):
-        return _printed_label_count(sheet, intent["label"])
+        return _printed_label_count(sheet, intent["label"], intent.get("labels"))
     if it == "opening_width":
         return _opening_widths(sheet, intent)
     if it == "room_perimeter":
@@ -467,7 +469,8 @@ def execute(sheet, intent):
         units = [u for u in sheet.get("units_list", []) if u.get("residential")]
         return _count(sheet, units, "apartment")
     if it == "count_rooms_label":
-        return _count(sheet, [r for r in rooms if r.get("name") == intent["label"]], f"room labelled '{intent['label']}'")
+        want = set(intent.get("labels") or [intent["label"]])
+        return _count(sheet, [r for r in rooms if r.get("name") in want], "room labelled " + ", ".join(f"'{l}'" for l in sorted(want)))
     if it == "count_rooms_class" and intent["cls"] == "sauna" and sheet["source_type"] == "raster":
         # answer-key rule: a sauna = a stove, or benches without a stove, or a room marked as sauna
         stoves = [f for f in sheet.get("fixtures", []) if f["cls"] == "sauna_stove"]
