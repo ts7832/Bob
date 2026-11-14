@@ -56,6 +56,12 @@ function mergeCapsSides(geos: THREE.BufferGeometry[]): [THREE.BufferGeometry, TH
   return res
 }
 
+// A rectangle along an oriented box's long axis, from u0 to u1, at a fraction of its depth (window frame pieces)
+function rectAlong(o: ReturnType<typeof obb>, u0: number, u1: number, depScale: number): Pt[] {
+  const hd = (o.dep * depScale) / 2
+  return [[u0, -hd], [u1, -hd], [u1, hd], [u0, hd]].map(([a, b]) => [o.cx + a * o.ux + b * o.vx, o.cy + a * o.uy + b * o.vy] as Pt)
+}
+
 // Each wall piece carries its own centre, so the cutaway lowers a whole wall evenly (no sloped tops)
 function centred(g: THREE.BufferGeometry) {
   g.computeBoundingBox()
@@ -108,13 +114,96 @@ const bboxPts = (pts: Pt[]) => {
   return [x0, y0, x1, y1]
 }
 
+// Wet rooms (bath, WC, shower) get a tiled band on their walls, 1.2 m high, only where a wall really is (doorways stay
+// open). Built in the Building group's space (z = storey fraction) so it follows the wall cut and the cutaway exactly:
+// each piece carries the centre of the wall it stands against.
+const BAND_M = 1.2
+// A counted window's pane in the answer colour, in the walls' own space (z = storey fraction) and with the window's centre
+// for the cutaway, so it sits exactly where the glass is however low the walls are cut
+export function windowPane(d: Drawing, poly: Pt[]) {
+  const b = obb(poly)
+  if (b.len < 1 || b.dep < 0.5) return null
+  const g = new THREE.ExtrudeGeometry(shapeOf(d, obbRect(b, 0.42)), { depth: HEAD - SILL + 0.02, bevelEnabled: false })
+  g.translate(0, 0, SILL - 0.01)
+  g.computeBoundingBox()
+  const c = new THREE.Vector3(); g.boundingBox!.getCenter(c)
+  g.translate(-c.x, -c.y, 0).scale(1.04, 1.04, 1).translate(c.x, c.y, 0)
+  return centred(g)
+}
+
+export function useWainscot(loaded: Loaded, enabled: boolean, pxPerM: number) {
+  const g = useMemo(() => {
+    const d = loaded.drawing, walls = loaded.context.walls
+    if (!enabled || d.kind === 'image' || !walls.length) return null // scans: rooms are only detector boxes
+    const centres = walls.map((w) => { const b = bboxPts(w); return [(b[0] + b[2]) / 2 - d.width / 2, d.height / 2 - (b[1] + b[3]) / 2] })
+    const near = (p: Pt) => { // nearest wall: distance and index
+      let best = Infinity, bi = -1
+      for (let i = 0; i < walls.length; i++) {
+        const w = walls[i]
+        for (let j = 0; j < w.length; j++) { const dd = segDist(p, w[j], w[(j + 1) % w.length]); if (dd < best) { best = dd; bi = i } }
+      }
+      return [best, bi] as const
+    }
+    const pos: number[] = [], uv: number[] = [], cen: number[] = [], top = BAND_M / 2.6, tile = 1.2 * pxPerM, reach = 0.3 * pxPerM
+    for (const r of loaded.context.rooms) {
+      if (r.polygon.length < 3 || floorKind(r.name, r.type) !== 'tile') continue
+      const P = r.polygon, ccw = ringSign(P) > 0
+      for (let i = 0; i < P.length; i++) {
+        const a = P[i], b = P[(i + 1) % P.length], len = Math.hypot(b[0] - a[0], b[1] - a[1])
+        if (len < 2) continue
+        // inward offset (1.5 px) so the band sits on the wall face, inside the room
+        const nx = ((ccw ? -1 : 1) * (b[1] - a[1])) / len, ny = ((ccw ? 1 : -1) * (b[0] - a[0])) / len
+        const steps = Math.max(2, Math.ceil(len / Math.max(4, 0.15 * pxPerM)))
+        let run: { t: number; c: number[] } | null = null
+        const flush = (t1: number) => {
+          if (!run || t1 - run.t < 1e-6) { run = null; return }
+          const p0 = [a[0] + (b[0] - a[0]) * run.t + nx * 1.5, a[1] + (b[1] - a[1]) * run.t + ny * 1.5]
+          const p1 = [a[0] + (b[0] - a[0]) * t1 + nx * 1.5, a[1] + (b[1] - a[1]) * t1 + ny * 1.5]
+          const s0 = [p0[0] - d.width / 2, d.height / 2 - p0[1]], s1 = [p1[0] - d.width / 2, d.height / 2 - p1[1]]
+          const u0 = (run.t * len) / tile, u1 = (t1 * len) / tile, v1 = BAND_M / 1.2
+          pos.push(s0[0], s0[1], 0, s1[0], s1[1], 0, s1[0], s1[1], top, s0[0], s0[1], 0, s1[0], s1[1], top, s0[0], s0[1], top)
+          uv.push(u0, 0, u1, 0, u1, v1, u0, 0, u1, v1, u0, v1)
+          for (let k = 0; k < 6; k++) cen.push(run.c[0], run.c[1])
+          run = null
+        }
+        for (let k = 0; k <= steps; k++) {
+          const t = k / steps, [dist, wi] = near([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])
+          if (dist <= reach && wi >= 0) { if (!run) run = { t, c: centres[wi] } }
+          else flush(Math.max(0, t - 1 / steps))
+        }
+        flush(1)
+      }
+    }
+    if (!pos.length) return null
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+    geo.setAttribute('center', new THREE.Float32BufferAttribute(cen, 2))
+    geo.computeVertexNormals()
+    return geo
+  }, [loaded, enabled, pxPerM])
+  useEffect(() => () => g?.dispose(), [g])
+  return g
+}
+function segDist(p: Pt, a: Pt, b: Pt) {
+  const vx = b[0] - a[0], vy = b[1] - a[1], l2 = vx * vx + vy * vy
+  const t = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / l2)) : 0
+  return Math.hypot(p[0] - a[0] - t * vx, p[1] - a[1] - t * vy)
+}
+const ringSign = (p: Pt[]) => { let s = 0; for (let i = 0; i < p.length; i++) { const [x1, y1] = p[i], [x2, y2] = p[(i + 1) % p.length]; s += x1 * y2 - x2 * y1 } return s }
+let tileCache: THREE.Texture | null = null
+const tileTex = () => { // wall tile: the floor tile texture, its own copy so it can repeat on its own UVs
+  if (!tileCache) { tileCache = floorTexture('tile').clone(); tileCache.wrapS = tileCache.wrapT = THREE.RepeatWrapping; tileCache.needsUpdate = true }
+  return tileCache
+}
+
 export type BuildingGeo = ReturnType<typeof useBuilding>
 
 export function useBuilding(loaded: Loaded, enabled = true) {
   return useMemo(() => {
-    if (!enabled) return { solid: null, glass: null, fixtures: null } // 2D only so far: build nothing
+    if (!enabled) return { solid: null, glass: null, fixtures: null, frame: null } // 2D only so far: build nothing
     const d = loaded.drawing, ctx = loaded.context
-    const solid: THREE.BufferGeometry[] = [], glass: THREE.BufferGeometry[] = [], fixtures: THREE.BufferGeometry[] = []
+    const solid: THREE.BufferGeometry[] = [], glass: THREE.BufferGeometry[] = [], fixtures: THREE.BufferGeometry[] = [], frame: THREE.BufferGeometry[] = []
     for (const s of shapesFromRings(d, ctx.walls, ctx.wallsDisjoint)) solid.push(centred(drawingUV(extrude(s, 1), d)))
     for (const o of ctx.openings) {
       if (o.polygon.length < 3) continue
@@ -125,6 +214,17 @@ export function useBuilding(loaded: Loaded, enabled = true) {
         solid.push(centred(drawingUV(extrude(rect, SILL), d))) // sill wall
         solid.push(centred(drawingUV(extrude(rect, 1 - HEAD, HEAD), d))) // lintel
         glass.push(centred(extrude(shapeOf(d, obbRect(b, 0.18)), HEAD - SILL, SILL)))
+        // frame: head and sill rails, two jambs and a centre mullion around the glass (one wall centre, so they cut together)
+        const t = Math.max(0.6, 0.06 * b.len), fd = 0.34, rail = 0.025, c0 = new THREE.Vector3()
+        const pieces = [
+          extrude(shapeOf(d, rectAlong(b, -b.len / 2, b.len / 2, fd)), rail, SILL),
+          extrude(shapeOf(d, rectAlong(b, -b.len / 2, b.len / 2, fd)), rail, HEAD - rail),
+          extrude(shapeOf(d, rectAlong(b, -b.len / 2, -b.len / 2 + t, fd)), HEAD - SILL, SILL),
+          extrude(shapeOf(d, rectAlong(b, b.len / 2 - t, b.len / 2, fd)), HEAD - SILL, SILL),
+          ...(b.len > 6 * t ? [extrude(shapeOf(d, rectAlong(b, -t / 2, t / 2, fd)), HEAD - SILL, SILL)] : []),
+        ]
+        const ref = centred(extrude(rect, 1)); ref.computeBoundingBox(); ref.boundingBox!.getCenter(c0); ref.dispose()
+        for (const p of pieces) { const n = p.attributes.position.count, a = new Float32Array(2 * n); for (let i = 0; i < n; i++) { a[2 * i] = c0.x; a[2 * i + 1] = c0.y } p.setAttribute('center', new THREE.Float32BufferAttribute(a, 2)); frame.push(p) }
       } else {
         solid.push(centred(drawingUV(extrude(rect, 1 - DOOR_HEAD, DOOR_HEAD), d)))
       }
@@ -133,19 +233,22 @@ export function useBuilding(loaded: Loaded, enabled = true) {
     return {
       solid: mergeCapsSides(solid),
       glass: glass.length ? mergeGeometries(glass) : null,
+      frame: frame.length ? mergeGeometries(frame.map((g) => (g.index ? g.toNonIndexed() : g))) : null,
       fixtures: fixtures.length ? mergeGeometries(fixtures) : null,
     }
   }, [loaded, enabled])
 }
 
-export function Building({ b, tex, wallH, lift, y, cut }: { b: BuildingGeo; tex: THREE.Texture; wallH: number; lift: RefObject<Lift>; y: number; cut: CutU }) {
-  useEffect(() => () => { b.solid?.forEach((g) => g.dispose()); b.glass?.dispose(); b.fixtures?.dispose() }, [b])
+export function Building({ b, tex, wallH, lift, y, cut, band }: { b: BuildingGeo; tex: THREE.Texture; wallH: number; lift: RefObject<Lift>; y: number; cut: CutU; band?: THREE.BufferGeometry | null }) {
+  useEffect(() => () => { b.solid?.forEach((g) => g.dispose()); b.glass?.dispose(); b.fixtures?.dispose(); b.frame?.dispose() }, [b])
   const mats = useMemo(() => ({
     cap: cutaway(new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }), cut, true), // wall tops: the drawing itself
-    wall: cutaway(new THREE.MeshStandardMaterial({ color: '#efebe4', roughness: 0.92, envMapIntensity: 0.9 }), cut, true),
+    wall: cutaway(new THREE.MeshStandardMaterial({ color: '#efe8dd', roughness: 0.9, envMapIntensity: 0.85 }), cut, true), // warm plaster
+    band: cutaway(new THREE.MeshStandardMaterial({ map: tileTex(), roughness: 0.32, envMapIntensity: 1.1, side: THREE.DoubleSide }), cut, true),
     glass: cutaway(new THREE.MeshStandardMaterial({ color: '#b9d3e2', roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.38, envMapIntensity: 1.6, depthWrite: false }), cut, true),
     ceramic: new THREE.MeshStandardMaterial({ color: '#f7f7f5', roughness: 0.28, envMapIntensity: 1.1 }),
     depth: cutaway(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }), cut, true), // shadows follow the cut
+    frame: cutaway(new THREE.MeshStandardMaterial({ color: '#f4f2ee', roughness: 0.5, envMapIntensity: 1 }), cut, true), // window frames
   }), [tex, cut])
   useEffect(() => () => Object.values(mats).forEach((m) => m.dispose()), [mats])
   const group = useRef<THREE.Group>(null)
@@ -161,6 +264,8 @@ export function Building({ b, tex, wallH, lift, y, cut }: { b: BuildingGeo; tex:
         <mesh geometry={b.solid[0]} material={mats.cap} raycast={() => null} />
         <mesh geometry={b.solid[1]} material={mats.wall} customDepthMaterial={mats.depth} castShadow receiveShadow raycast={() => null} />
       </>}
+      {band && <mesh geometry={band} material={mats.band} receiveShadow raycast={() => null} />}
+      {b.frame && <mesh geometry={b.frame} material={mats.frame} castShadow receiveShadow raycast={() => null} />}
       {b.fixtures && <mesh geometry={b.fixtures} material={mats.ceramic} castShadow receiveShadow raycast={() => null} />}
       {b.glass && <mesh geometry={b.glass} material={mats.glass} raycast={() => null} />}
     </group>
@@ -200,7 +305,7 @@ export function Lighting({ drawing, active, catcherY }: { drawing: Drawing; acti
     const pmrem = new THREE.PMREMGenerator(gl)
     const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
     scene.environment = env
-    scene.environmentIntensity = 0.7
+    scene.environmentIntensity = 0.62
     return () => { scene.environment = null; env.dispose(); pmrem.dispose() }
   }, [gl, scene])
   const light = useRef<THREE.DirectionalLight>(null)
@@ -219,8 +324,9 @@ export function Lighting({ drawing, active, catcherY }: { drawing: Drawing; acti
   }, [max])
   return (
     <>
-      <hemisphereLight args={['#ffffff', '#a39b90', 0.5]} />
-      <directionalLight ref={light} position={[-0.55 * max, 1.25 * max, -0.42 * max]} intensity={2.1} color="#fff6ea" castShadow={active} />
+      <hemisphereLight args={['#fff8ee', '#8f857a', 0.55]} />
+      {/* warm, slightly low sun: soft long shadows across the rooms */}
+      <directionalLight ref={light} position={[-0.62 * max, 1.1 * max, -0.4 * max]} intensity={2.3} color="#ffe9cc" castShadow={active} />
       {/* soft shadows on the sheet without changing the drawing: a shadow-only layer just above it */}
       {active && (
         <mesh rotation-x={-Math.PI / 2} position-y={catcherY} receiveShadow renderOrder={3} raycast={() => null}>

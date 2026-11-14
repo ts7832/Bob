@@ -65,11 +65,11 @@ export function floorTexture(kind: FloorKind): THREE.Texture {
     const n = kind === 'tile' ? 4 : 3, s = N / n
     for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
       const t = (rnd() - 0.5) * 10
-      g.fillStyle = kind === 'tile' ? `rgb(${226 + t},${228 + t},${226 + t})` : `rgb(${214 + t},${204 + t},${188 + t})`
+      g.fillStyle = kind === 'tile' ? `rgb(${207 + t},${214 + t},${218 + t})` : `rgb(${214 + t},${204 + t},${188 + t})`
       g.fillRect(i * s, j * s, s, s)
     }
     noise(kind === 'tile' ? 0.05 : 0.09)
-    g.fillStyle = kind === 'tile' ? 'rgb(176,180,180)' : 'rgb(170,160,146)'
+    g.fillStyle = kind === 'tile' ? 'rgb(172,182,188)' : 'rgb(170,160,146)'
     for (let i = 0; i <= n; i++) { g.fillRect(i * s - 1.5, 0, 3, N); g.fillRect(0, i * s - 1.5, N, 3) }
   } else {
     g.fillStyle = 'rgb(186,184,178)'
