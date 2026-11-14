@@ -161,6 +161,10 @@ drawqa/convert.py      any file -> unified sheet (content sniffing; scale estima
 drawqa/pdfsheet.py     vector PDF without CAD: text, metric + imperial scales, room outlines, dashed apartment outlines
 drawqa/detect.py       trained detector locally: whole-sheet / tile rule, four-orientation fusion, thresholds
 drawqa/postprocess.py  thresholds + merge rules shared by training-time tuning and the engine
+drawqa/segment.py      images only: wall segments (polygon, centre line, thickness) and room outlines from a second
+                       trained model (models/segmenter.pt); attaches each door/window to its wall; gives the
+                       detector's typed room boxes their outlines (unclaimed outlines stay as 'unlabelled' rooms)
+drawqa/ocr.py          images only: printed text via RapidOCR (optional `pip install rapidocr`); printed room areas
 drawqa/scan.py         scanned plans from a predictions file (data/predictions/active.txt names the default)
 drawqa/swiss.py, dxf.py, geom.py   Swiss DXF rules (window boxes fixed: one 4-point rectangle per window)
 drawqa/ifc.py          BIM queries
@@ -215,7 +219,9 @@ its dataset to local disk with 64 threads first. `--detach` keeps a run alive if
    on this machine, so it has only been tested with stubbed model replies. Without a key the answer says the question
    was not understood. To use an open model instead, replace `_ask` in that file (the only provider-specific part).
 3. **DWG** files cannot be read (no converter installed).
-4. **Scans have no area method.** The detector gives room boxes, not outlines; the dataset asks no area questions on
+4. **Scans now have an area method, not yet scored against a key** (section 11): room outlines from the segmentation
+   model, scale from printed room areas when at least three agree, else from door width. Before that:
+   the detector gives room boxes, not outlines; the dataset asks no area questions on
    scans, but a judge might. Scale on a scan can only be estimated (door width: about 5% typical error, up to 25%,
    measured on 1,777 Swiss doors).
 5. **Hand-drawn archive scans** (374 files, no questions, no labels) are untested.
@@ -275,3 +281,66 @@ top-level stairs. All 24 misses need the FZK-Haus model, which is in the full se
 
 Unverified notes from the first handoff: about 35 of the 374 archive scans are not measurable drawings (photos, sheet
 music, maps, renders); `ifc_models/resbim-388_model.ifc` is essentially empty.
+
+## 11. Walls, room outlines, areas and scale on images; counting rules; free-form questions (2026-11-14, afternoon)
+
+Written by the session that owns `drawqa/convert.py, segment.py, ocr.py, llm_router.py, router.py, query.py, solve.py`
+and the `*_seg` stages of `tools/modal_train.py`. The three scoreboards were re-run after every change in this
+section and did not move: scans 3,628 / 4,270, Swiss DXF 2,326 / 2,358, BIM 1,025 / 1,049.
+
+**Why (research, same day).** Published specialist models and frontier vision models were compared with ours.
+Counting doors and windows exactly: Gemini 3 Pro 0.39 / 0.34, GPT-5.2 0.28 / 0.27, Claude Opus 4.5 0.16 / 0.16
+(AECV-Bench, 120 plans, table read from the paper's PDF; other data and counting rules than ours). Raster2Seq and
+RoomFormer report window+door F1 of 77.8 / 78.5 on CubiCasa5K. Conclusion: keep the detector; what current formats
+have and ours lacked is walls with openings attached, and counts are a convention that must be stated.
+
+**Counting rules.** Every door/window count carries `counting`: the count under the rule used (each separately
+drawn symbol once) and under two others (symbols on top of each other once; symbols touching in a row along one wall
+as one). Example: Swiss preview plan `site1102_bldg2242_floor10281`: 21 doors, 18 if overlapping rectangles count
+once. The gaps for "touching" (`TOUCH_GAP` in `query.py`) were chosen by hand, not tuned.
+
+**Free-form questions.** `llm_router.py` (Claude API, structured output, `claude-opus-5-5` by default,
+`DRAWQA_LLM_MODEL` to change): the model gets the question and the names that exist on the sheet and returns one of
+the tools and its arguments; it never sees the image. Its reply is checked against the tool list. **Never run
+against the live API: this machine has no key.** Tested only with stubbed replies. New pattern-routed questions:
+"what is the scale", "area of the <room type>", "total length of the walls".
+
+**Segmentation model for walls and room outlines** (`--stage convert_seg`, `train_seg`, `resume_seg`, `seg_eval`,
+`seg_keep_val`). YOLO26-m-seg, classes wall / room / outdoor, labels = CubiCasa's own wall and room polygons, 6,545
+training images (4,376 plans + 2,169 style variants), 383 held-out plans, 1280 px, mask ratio 2.
+- Run `seg1`: started on an H100, cut off at epoch 9 of 30 at 13:17 when this Mac's network dropped (the `--detach`
+  run stopped with the local client), resumed at 13:20 with `--stage resume_seg` (spawned, so it no longer depends on
+  the local client). **Check `modal app list` / `runs/seg1/results.csv` for whether it finished.**
+- `models/segmenter.pt` is currently the **interim** checkpoint (about epoch 10). Scores on 200 held-out plans with
+  the local path's settings (`models/segmenter.eval.json`): 84.9% of annotated rooms outlined (IoU >= 0.7); outlines
+  run 3.4% small (median); after dividing areas by that shortfall, fitted on 100 plans and scored on the other 100,
+  room-area error is 2.2% median, 9.7% at the 90th percentile; summed indoor area per plan is off by 5.7% median and
+  22% at the 90th percentile (missed rooms); wall pixel IoU 0.665. Re-run `--stage seg_eval --run seg1` and
+  `--stage weights --run seg1` when training ends, then copy `models/seg1.pt` and `models/seg1.eval.json` to
+  `models/segmenter.pt` / `.eval.json`.
+- On 20 random preview scans the interim model changed none of the 240 count answers, attached 417 of 424 doors and
+  windows to a wall and gave all 98 typed room boxes an outline.
+
+**What `convert()` now adds on an image or scanned PDF** (only when `models/segmenter.pt` exists; `DRAWQA_OUTLINES=0`
+switches it off): `texts` from RapidOCR (`pip install rapidocr`); `walls` (polygon, centre line, thickness); each
+door and window gets `wall`, `along_px`, `width_px`, `width_m`; the detector's typed room boxes get their outline,
+unclaimed outlines become rooms with `cls="unlabelled"`; an untyped outline holding a detected sauna stove becomes
+`sauna_room` (`type_source` says it was inferred). Peak memory on the largest preview scan (4000 x 3000): 1.4 GB.
+
+**Scale and areas on images.**
+- Printed room areas come from the vision-model reader's cached result when there is one (`drawqa/reader.py`, the
+  other session's) and from OCR otherwise. Tesseract read 2 of about 17 printed areas on one scan; RapidOCR 16.
+- With three or more rooms whose printed area and outline give the same scale (within 5% on lengths), their median
+  is the sheet's scale and their spread is its stated error; otherwise the door-width estimate stays and the printed
+  areas are reported as a cross-check. In a sample of 30 preview scans only 2 printed three or more areas.
+- A room with a printed area takes the printed number; its source says whether the outline confirms it, contradicts
+  it, or is missing. Rooms without a printed area use the outline at the sheet's scale.
+- Checked on one scan only: `high_quality_architectural-16` (15 printed areas, read correctly by the vision reader):
+  total floor area 139.5 m2 = the sum of the printed areas; 11 of 15 confirmed by their outlines. Not checked on a
+  sample: printed areas that no outline confirms are taken as read, so a misread digit goes into the sum.
+- Area answers on images are tier "read" (all printed, not deterministic because a reader can misread) or
+  "estimated" (any outline at an estimated scale), and quote the held-out scores above.
+
+**Not done.** Walls and outlines are not produced for vector PDFs (they carry exact outlines; the model was trained
+on scans read whole). No question yet uses the per-opening widths. The licence question in section 7 now also
+covers RapidOCR (Apache-2.0) and the Anthropic SDK (MIT), which are fine, and still Ultralytics (AGPL).

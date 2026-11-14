@@ -10,6 +10,8 @@ Unified sheet (format "drawqa-sheet/1"), all coordinates in pixels of the page i
     texts     [{id, text, bbox}]                          everything printed on the sheet
     rooms     [{id, name, number, type, bbox|polygon, area_m2, area_source}]
     floors    [{id, bbox}]                                separate storey drawings on one sheet
+    walls     [{id, polygon, axis, thickness_px, conf, length_m, thickness_m}]   images only: wall segments with their
+              centre lines (drawqa/segment.py); doors and windows then carry wall, along_px, width_px, width_m
 `openings` / `fixtures` are views of `elements` kept for the question engine.
 """
 import json, os
@@ -177,7 +179,237 @@ def convert(path, page=0, use_detector=True):
         sheet["detector_classes"] = sorted(detect.thresholds()) or None  # what this detector was trained to find
         if not (sheet.get("scale") or {}).get("m_per_px"):
             sheet["scale"] = estimate_scale_from_doors(sheet) or sheet.get("scale")
+    from . import segment
+    # walls and room outlines: only where the sheet has none of its own (images, scanned PDFs). The model was trained
+    # on scanned apartment plans read whole, so it is not run on vector sheets, which carry exact outlines anyway.
+    if img is not None and use_detector and segment.available() and sheet.get("kind") in ("image", "scanned pdf") \
+            and os.environ.get("DRAWQA_OUTLINES", "1") == "1":
+        from . import ocr
+        if ocr.available() and not sheet.get("texts"):  # an image has no text layer: read what is printed on it
+            sheet["texts"] = [dict(id=f"t{i}", found_by="ocr", **t) for i, t in enumerate(raw_texts(path, page, img))]
+        add_outlines(sheet, raw_outlines(path, page, img))
     sheet["format"] = "drawqa-sheet/1"
+    return sheet
+
+
+def raw_outlines(path, page, img):
+    """Segmentation output, cached on disk per file + weights like the detector's."""
+    import hashlib
+    from . import segment
+    st = os.stat(path)
+    key = hashlib.sha1(f"seg|{os.path.abspath(path)}|{st.st_mtime_ns}|{st.st_size}|{page}|{os.stat(segment.WEIGHTS).st_mtime_ns}|{segment.area_bias()}|{segment.FILL}".encode()).hexdigest()
+    cache = os.path.join(os.path.dirname(__file__), "..", "data", "cache")
+    f = os.path.join(cache, key + ".json")
+    if os.path.exists(f):
+        return json.load(open(f))
+    found = segment.outlines(img)
+    os.makedirs(cache, exist_ok=True)
+    json.dump(found, open(f, "w"))
+    return found
+
+
+def raw_texts(path, page, img):
+    """OCR output for an image, cached on disk per file."""
+    import hashlib
+    from . import ocr
+    st = os.stat(path)
+    key = hashlib.sha1(f"ocr|{os.path.abspath(path)}|{st.st_mtime_ns}|{st.st_size}|{page}".encode()).hexdigest()
+    cache = os.path.join(os.path.dirname(__file__), "..", "data", "cache")
+    f = os.path.join(cache, key + ".json")
+    if os.path.exists(f):
+        return json.load(open(f))
+    T = ocr.texts(img)
+    os.makedirs(cache, exist_ok=True)
+    json.dump(T, open(f, "w"))
+    return T
+
+
+OUTLINE_SOURCE = "outline found by the segmentation model"
+# A room's printed area and its outline must give the same scale within this share of length (twice that on area).
+# Chosen by hand, not tuned: on the one preview scan checked in detail, the 10 agreeing rooms were within 4%.
+AREA_AGREE = 0.05
+
+
+def printed_areas(sheet):
+    """Room areas printed on an image, from two readers: the vision-model reader's cached result for this file when
+    there is one (drawqa/reader.py; this function never calls the service), and OCR for everything it did not read.
+    Each is dict(area_m2, bbox, text, by)."""
+    from . import ocr
+    out = []
+    try:
+        from . import reader
+        hit = (reader.rooms(sheet["source"]) if sheet.get("source") and os.path.exists(sheet["source"])
+               and os.environ.get("DRAWQA_READER", "1") == "1" else None)  # DRAWQA_READER=0: OCR only
+    except (ImportError, AttributeError):
+        hit = None
+    for r in hit or []:
+        if r.get("area") is not None and r.get("bbox"):
+            out.append(dict(area_m2=float(r["area"]), bbox=r["bbox"], text=f"{r.get('label', '')} {r['area']}".strip(), by="vision model", sure=True))
+    # the same printed number seen by both readers: the vision model boxes the room's name, OCR boxes the number
+    # next to it, so "the same" = equal value and close by (within 12% of the sheet's larger side)
+    reach = 0.12 * max(sheet.get("width_px") or 0, sheet.get("height_px") or 0, 400)
+    dist = lambda a, b: (((a[0] + a[2]) - (b[0] + b[2])) ** 2 + ((a[1] + a[3]) - (b[1] + b[3])) ** 2) ** 0.5 / 2
+    seen = list(out)
+    for a in ocr.room_areas(sheet.get("texts", [])):
+        if not any(abs(a["area_m2"] - o["area_m2"]) < 0.051 and dist(a["bbox"], o["bbox"]) <= reach for o in seen):
+            out.append(dict(a, by="OCR"))
+    return out
+
+
+def name_saunas(sheet):
+    """An untyped outline that holds a detected sauna stove is the sauna room. (The detector rarely finds sauna rooms
+    itself: CubiCasa labels most of them as 'Undefined' spaces, 133 'Sauna' spaces against 2,877 stoves.) Without any
+    stove, the one untyped outline holding the most sauna benches is. So inferred sauna rooms never outnumber the
+    stoves, or one when there are only benches, and the answer-key rule for counting saunas gives the same number."""
+    from . import segment
+    fx = sheet.get("fixtures", [])
+    centre = lambda e: ((e["bbox"][0] + e["bbox"][2]) / 2, (e["bbox"][1] + e["bbox"][3]) / 2)
+    stoves = [centre(f) for f in fx if f["cls"] == "sauna_stove"]
+    benches = [centre(f) for f in fx if f["cls"] == "sauna_bench"]
+    blank = [r for r in sheet.get("rooms", []) if r.get("cls") == "unlabelled" and r.get("polygon")]
+    holds = lambda r, pts: sum(1 for p in pts if segment._inside(*p, r["polygon"]))
+    if stoves:
+        picked = [r for r in blank if holds(r, stoves)]
+    else:
+        best = max(blank, key=lambda r: holds(r, benches), default=None)
+        picked = [best] if best is not None and holds(best, benches) else []
+    for r in picked:
+        r.update(cls="sauna_room", type_source="inferred: this outline holds a detected sauna " + ("stove" if stoves else "bench"))
+
+
+OUTDOOR_WORDS = ("parveke", "terassi", "kuisti", "patio", "balcon", "balkon", "terras", "loggia", "veranda", "porch")
+
+
+def add_rooms_without_outline(sheet, areas):
+    """A printed room area that lies in no outline is a room the segmentation model missed (it misses large open
+    rooms most often). It still counts in area sums, with its printed value and a source that says it could not be
+    checked against an outline."""
+    from . import segment
+    polys = [r["polygon"] for r in sheet.get("rooms", []) if r.get("polygon")]
+    centre = lambda b: ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)
+    loose = [a for a in areas if not any(segment._inside(*centre(a["bbox"]), P) for P in polys)]
+    for i, a in enumerate(loose):
+        src = f"printed area read by {a['by']} (no outline found to check it against)"
+        cx, cy = centre(a["bbox"])
+        boxes = [r for r in sheet["rooms"] if not r.get("polygon") and r.get("area_m2") is None and r.get("bbox")
+                 and r["bbox"][0] <= cx <= r["bbox"][2] and r["bbox"][1] <= cy <= r["bbox"][3]]
+        if boxes:  # the detector's typed room box for this room: it takes the printed area
+            r = min(boxes, key=lambda r: (r["bbox"][2] - r["bbox"][0]) * (r["bbox"][3] - r["bbox"][1]))
+            r.update(area_m2=a["area_m2"], area_source=src, printed_text=a["text"], outdoor=r.get("cls") in ("balcony", "terrace"))
+            continue
+        sheet["rooms"].append(dict(id=f"printed{i}", cls="unlabelled", bbox=a["bbox"], area_m2=a["area_m2"], printed_text=a["text"],
+                                   area_source=src, outdoor=any(w in a["text"].lower() for w in OUTDOOR_WORDS)))
+
+
+def calibrate_scale_from_areas(sheet):
+    """Images with room areas printed in the rooms.
+
+    Scale: every room whose outline holds exactly one printed area gives its own scale, sqrt(printed m2 / outline
+    px2). A reader can misread a digit and an outline can be off, so no single room is trusted: with three or more
+    rooms that agree (within AREA_AGREE of their median) the median becomes the sheet's scale and the spread among
+    them is its stated error. With fewer, the door-based estimate stays and the printed areas are a cross-check.
+
+    Areas: a room with a printed area takes the printed number (the sum, if its outline holds several: the outline
+    then covers several rooms). Its source says whether the outline confirms it. Outlines are wrong more often than a
+    printed number is misread (held-out: one outlined room in ten is off by more than 10%), and an outline that leaks
+    into the next room would otherwise be counted on top of that room's own printed area."""
+    from . import segment
+    areas = printed_areas(sheet)
+    sure = [a for a in areas if a.get("sure", True)]
+    if len(sure) >= 3:  # a number bigger than all the others together is a total (apartment area in a title), not a room
+        tot = sum(a["area_m2"] for a in sure)
+        big = [a for a in sure if a["area_m2"] > tot - a["area_m2"]]
+        if big:
+            sheet["printed_total_m2"] = big[0]["area_m2"]
+            areas = [a for a in areas if a is not big[0]]
+    if not areas:
+        return
+    add_rooms_without_outline(sheet, [a for a in areas if a.get("sure", True)])  # a bare number with no outline proves nothing
+    centre = lambda b: ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)
+    held = []  # (room, the printed areas inside its outline)
+    for r in sheet.get("rooms", []):
+        if r.get("polygon") and r.get("area_px"):
+            inside = [a for a in areas if segment._inside(*centre(a["bbox"]), r["polygon"])]
+            if any(a.get("sure", True) for a in inside):  # numbers read with their unit win over bare ones in the same room
+                inside = [a for a in inside if a.get("sure", True)]
+            if inside:
+                held.append((r, inside))
+    pairs = [(r, ins[0], (ins[0]["area_m2"] / r["area_px"]) ** 0.5) for r, ins in held if len(ins) == 1]
+    sc = sheet.get("scale") or {}
+    doors = sc.get("m_per_px")
+    if pairs:
+        vals = sorted(p[2] for p in pairs)
+        med = vals[len(vals) // 2]
+        good = [p for p in pairs if abs(p[2] / med - 1) <= AREA_AGREE]
+        if len(good) >= 3 and len(good) >= 0.6 * len(pairs):
+            gv = sorted(p[2] for p in good)
+            med = gv[len(gv) // 2]
+            spread = max(abs(v / med - 1) for v in gv)
+            note = f"; the door-based estimate differs by {abs(doors / med - 1) * 100:.0f}%" if doors else ""
+            sheet["scale"] = dict(m_per_px=med, denominator=None, estimated=True, length_error=f"the {len(good)} rooms agree within {spread * 100:.0f}%",
+                                  source=f"calibrated from {len(good)} printed room areas read by {' and '.join(sorted({a['by'] for _, a, _ in good}))} and matched to room outlines"
+                                         + (f" ({len(pairs) - len(good)} more disagreed and were left out)" if len(pairs) > len(good) else "") + note)
+        elif doors:
+            sc["cross_check"] = (f"{len(pairs)} printed room area(s) were read; their median implies a scale "
+                                 f"{abs(med / doors - 1) * 100:.0f}% {'larger' if med > doors else 'smaller'} than the door-based estimate "
+                                 f"(too few agreeing rooms to replace it)")
+    mpp = (sheet.get("scale") or {}).get("m_per_px")
+    confirmed_bare, used = 0, set()
+    for r, ins in held:
+        printed = round(sum(a["area_m2"] for a in ins), 2)
+        by = " and ".join(sorted({a["by"] for a in ins}))
+        outline_m2 = round(r["area_px"] * mpp * mpp, 2) if mpp else None
+        if outline_m2 is None:
+            how = "no scale to check it against its outline"
+        elif abs((printed / outline_m2) ** 0.5 - 1) <= AREA_AGREE:
+            how = "agrees with its outline"
+        else:
+            how = f"its outline gives {outline_m2:g} m2, which disagrees"
+        if not all(a.get("sure", True) for a in ins):  # bare numbers: an area only if the outline says so
+            if how != "agrees with its outline":
+                continue
+            how = "its unit was not read; taken as the area because it agrees with the outline"
+            confirmed_bare += 1
+        used.update(id(a) for a in ins)
+        r.update(area_m2=printed, area_source=f"printed area read by {by} ({how})", printed_text=" + ".join(a["text"] for a in ins), outline_area_m2=outline_m2)
+    if confirmed_bare >= 3:  # bare numbers are room areas on this sheet: the ones that found no room are probably rooms too
+        loose = [x["area_m2"] for x in areas if not x.get("sure", True) and id(x) not in used]  # in no outline, or in a
+        if loose:                                             # room whose outline contradicts them or holds another area
+            sheet["unplaced_areas_m2"] = sorted(loose)
+
+
+def add_outlines(sheet, found):
+    """Walls into the sheet, each door and window attached to its wall, room boxes given their outlines; lengths and
+    areas in metres when the sheet has a scale (on an image that scale is itself an estimate, and the answer says so)."""
+    from . import segment
+    walls = [dict(id=f"wall{i}", **w) for i, w in enumerate(found["walls"])]
+    openings = sheet.get("openings", [])
+    attached = segment.attach_openings(openings, walls)
+    typed = len(sheet.get("rooms", []))
+    sheet["rooms"], outlined = segment.outline_rooms(sheet.get("rooms", []), found["rooms"])
+    name_saunas(sheet)
+    calibrate_scale_from_areas(sheet)
+    mpp = (sheet.get("scale") or {}).get("m_per_px")
+    if mpp:
+        for w in walls:
+            x0, y0, x1, y1 = w["axis"]
+            w["length_m"], w["thickness_m"] = round(((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5 * mpp, 2), round(w["thickness_px"] * mpp, 2)
+        for o in openings:
+            if o.get("width_px"):
+                o["width_m"] = round(o["width_px"] * mpp, 2)
+        for r in sheet["rooms"]:
+            if r.get("area_px") and r.get("area_m2") is None:
+                r["area_m2"], r["area_source"] = round(r["area_px"] * mpp * mpp, 2), OUTLINE_SOURCE
+    by_id = {o["id"]: o for o in openings}
+    for e in sheet.get("elements", []):  # the unified element list carries the same wall attachment
+        o = by_id.get(e["id"])
+        if o and "wall" in o:
+            e.update({k: o[k] for k in ("wall", "along_px", "width_px", "width_m") if k in o})
+    sheet["walls"] = walls
+    sheet["outline_notes"] = dict(model="wall and room-outline segmentation model", walls=len(walls),
+                                  openings_attached=f"{attached} of {len(openings)}",
+                                  rooms_outlined=f"{outlined} of {typed} typed rooms",
+                                  untyped_outlines=len(sheet["rooms"]) - typed, measured=segment.measured())
     return sheet
 
 

@@ -85,6 +85,8 @@ def parse(question):
     elem = "wall" if re.search(r"walls|vægge|Wände", q, re.I) else "slab" if re.search(r"slabs|dæk|Decken", q, re.I) else None
     if qty and elem and quoted:
         return dict(intent="ifc_quantity", quantity=qty, cls=elem, storey=quoted[0])
+    if qty == "length" and elem == "wall":  # no storey named: a plain drawing, walls from the segmentation model
+        return dict(intent="wall_length")
 
     # drawing questions
     if is_count and (m := re.search(r"labelled|denominazione|Bezeichnung|désign", q)) and quoted:
@@ -100,6 +102,10 @@ def parse(question):
             return dict(intent="room_area", number=m.group(1))
         if quoted and re.search(r"labelled|denominati|Bezeichnung|désign|named", q, re.I):
             return dict(intent="label_area", label=quoted[0])
+        for intent, cls, rx in COUNT_RULES:  # "area of the bedrooms": rooms known by type (images)
+            # room words inside brackets are qualifiers ("... (excluding balconies, terraces ...)"), not the subject
+            if intent == "count_rooms_class" and cls != "sauna" and re.search(rx, re.sub(r"\(.*?\)", "", q), re.I):
+                return dict(intent="class_area", cls=cls)
         if re.search(r"total|gesamte|totale", q, re.I):
             return dict(intent="floor_area")
     if re.search(r"\b(scale|ma(ss|ß)stab|[ée]chelle|scala|mittakaava)\b", q, re.I) and not is_count and not is_area:

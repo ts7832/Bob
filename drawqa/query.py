@@ -17,6 +17,12 @@ def _shape(sheet, el, label=None):
 
 def _count(sheet, els, what):
     ev = [_shape(sheet, e, str(i + 1)) for i, e in enumerate(els)]
+    if not els:  # a zero must say what was looked for: "0" reads as "there are none"
+        looked = {"door": "door drawn with a leaf (plain openings without a leaf are not counted)",
+                  "window": "window symbol"}.get(what, f"{what} symbol")
+        how = ("the detector marked" if sheet.get("source_type") == "raster" or sheet.get("model") == "element detector" else "the file contains")
+        return dict(answer=0, unit="count", evidence=ev, elements_used=els,
+                    explanation=f"0: no {looked} was found among what {how} on this drawing. That is not proof that none exists.")
     return dict(answer=len(els), unit="count", evidence=ev, elements_used=els,
                 explanation=f"Counted {len(els)} {what} element(s); each one is numbered on the drawing.")
 
@@ -66,8 +72,19 @@ def _sum_areas(sheet, rooms, what):
     total = round(sum(r["area_m2"] for r in rooms), 2)
     ev = [_shape(sheet, r, f"{r.get('number', '')} {r['area_m2']:.2f}") for r in rooms if r.get("polygon")]
     terms = " + ".join(f"{r['area_m2']:.2f}" for r in rooms)
-    return dict(answer=total, unit="m2", evidence=ev, area_sources=[r.get("area_source") for r in rooms],
-                explanation=f"{what}: {terms} = {total:.2f} m²")
+    left_out = (f" {named - len(rooms)} of {named} matching room(s) have no outline and no printed area, so they are not in this sum:"
+                f" the true value is larger." if named > len(rooms) else "")
+    if sheet.get("source_type") == "raster":
+        by = {}
+        for r in rooms:
+            s = r.get("area_source") or ""
+            k = ("printed area that its outline contradicts" if "disagrees" in s else "printed area confirmed by the outline" if "agrees" in s
+                 else "printed area with no outline to check" if s.startswith("printed") else "outline at the sheet's scale")
+            by[k] = by.get(k, 0) + 1
+        left_out += (" Rooms by source: " + ", ".join(f"{n} from {k}" for k, n in by.items())
+                     + ". On an image only rooms that were found can be summed; a room with no outline and no printed area would be missing.")
+    return dict(answer=total, unit="m2", evidence=ev, area_sources=[r.get("area_source") for r in rooms], elements_used=rooms,
+                explanation=f"{what}: {terms} = {total:.2f} m².{left_out}")
 
 
 def execute(sheet, intent):
@@ -84,7 +101,17 @@ def execute(sheet, intent):
         den = sc.get("denominator")
         ans = f"1:{den:g}" if den else f"{sc['m_per_px'] * 1000:.1f} mm per pixel"
         return dict(answer=ans, unit=None, scale_estimated=bool(sc.get("estimated")),
-                    explanation=f"Scale {ans}; source: {sc.get('source')}" + (f"; error {sc['length_error']}" if sc.get("length_error") else "") + ".")
+                    explanation=f"Scale {ans}; source: {sc.get('source')}" + (f"; error {sc['length_error']}" if sc.get("length_error") else "")
+                                + (f". Cross-check: {sc['cross_check']}" if sc.get("cross_check") else "") + ".")
+    if it == "wall_length":
+        walls = [w for w in sheet.get("walls", []) if w.get("length_m") is not None]
+        if not walls:
+            return dict(answer=None, explanation="Wall length cannot be determined: no walls with a length were found on this drawing"
+                                                 + ("" if sheet.get("walls") else " (walls are only found on images, by the segmentation model)") + ".")
+        total = round(sum(w["length_m"] for w in walls), 2)
+        return dict(answer=total, unit="m", evidence=[_shape(sheet, w, None) for w in walls], elements_used=walls,
+                    area_sources=["wall centre lines found by the segmentation model"],
+                    explanation=f"Sum of the centre-line lengths of {len(walls)} wall segments = {total:.2f} m. Segments meeting at a corner each run to the corner, so corners are counted from both sides.")
     if it == "count_fixtures":
         want = FIXTURE_ALIASES.get(intent["cls"], {intent["cls"]})
         return _count(sheet, [f for f in sheet.get("fixtures", []) if f["cls"] in want], "/".join(sorted(want)))
@@ -113,11 +140,28 @@ def execute(sheet, intent):
             return dict(answer=None, explanation=f"Room {intent['number']} not found on this sheet.")
         return dict(answer=r["area_m2"], unit="m2", evidence=[_shape(sheet, r, f"{r['number']} {r['area_m2']:.2f} m²")], area_sources=[r.get("area_source")],
                     explanation=f"Room {r['number']} ({r.get('name')}): {r['area_m2']:.2f} m², from {r['area_source']}.")
-    if it == "label_area":
-        return _sum_areas(sheet, [r for r in rooms if r.get("name") == intent["label"]], f"Rooms labelled '{intent['label']}'")
+    if it == "label_area":  # one printed name (pattern route) or several (a language model's reading of "the toilets")
+        labels = intent.get("labels") or [intent["label"]]
+        want = {l.strip().lower() for l in labels}
+        return _sum_areas(sheet, [r for r in rooms if (r.get("name") or "").strip().lower() in want],
+                          "Rooms labelled " + ", ".join(f"'{l}'" for l in labels))
     if it == "unit_area":
         return _sum_areas(sheet, [r for r in rooms if r.get("unit") == intent["unit"] and not r.get("outdoor")],
                           f"Apartment {intent['unit']} (indoor rooms)")
+    if it == "class_area":  # rooms known by type (found by the detector on an image), e.g. "area of the bedrooms"
+        classes = intent.get("classes") or [intent["cls"]]
+        classes = [("sauna_room" if c == "sauna" else c) for c in classes]
+        if not sheet.get("room_classes_available"):
+            return dict(answer=None, explanation="Rooms on this drawing are known by their printed names, not by type; ask for the area of rooms labelled with a name.")
+        return _sum_areas(sheet, [r for r in rooms if r.get("cls") in classes], " + ".join(ROOM_WORDS.get(c, c) for c in classes) + " rooms")
     if it == "floor_area":
-        return _sum_areas(sheet, [r for r in rooms if not r.get("outdoor")], "All indoor rooms")
+        res = _sum_areas(sheet, [r for r in rooms if not r.get("outdoor")], "All indoor rooms")
+        if sheet.get("unplaced_areas_m2") and res.get("answer") is not None:
+            u = sheet["unplaced_areas_m2"]
+            res["explanation"] += (f" Warning: {len(u)} more printed number(s) that look like room areas ({', '.join(f'{v:g}' for v in u)}; "
+                                   f"{sum(u):g} m² together) could not be matched to a room of their own and are NOT in this sum, so the true total is probably larger.")
+        if sheet.get("printed_total_m2") and res.get("answer") is not None:  # a total printed on the sheet: say how it compares
+            t = sheet["printed_total_m2"]
+            res["explanation"] += f" The sheet also prints a total of {t:g} m²; this sum differs from it by {abs(res['answer'] - t) / t * 100:.0f}%."
+        return res
     return dict(answer=None, explanation=f"Not supported for this drawing type yet ({it}).")

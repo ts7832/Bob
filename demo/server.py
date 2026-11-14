@@ -68,7 +68,18 @@ def open_file(f):
         raise FileNotFoundError(f)
     key = "file:" + f
     OPENED[key] = f
+    cad_info = None
     sheet = load_sheet(f, True)
+    if sheet.get("source_type") == "unknown" and str(sheet.get("kind", "")).startswith(("dwg", "cad dxf")):
+        # a DWG, or a DXF the exact reader does not know: draw it onto a PDF page (drawqa/cad.py) and read that page
+        from drawqa import cad
+        try:
+            cad_info = cad.to_pdf(f)
+        except cad.CadError as e:
+            OPENED.pop(key, None)
+            raise ValueError(f"This CAD file could not be read: {e}.")
+        OPENED[key] = cad_info["pdf"]
+        sheet = load_sheet(cad_info["pdf"], True)
     if sheet.get("source_type") == "unknown":
         OPENED.pop(key, None)
         raise ValueError(sheet.get("note") or "This file type cannot be read yet.")
@@ -81,6 +92,10 @@ def open_file(f):
         qs.append(f"What is the net floor area of room {r['number']} in m²?")
     scale = (sheet.get("scale") or {}).get("source", "")
     title = f"{os.path.basename(f)} ({sheet.get('kind', sheet.get('source_type'))})"
+    if cad_info:
+        title = f"{os.path.basename(f)} ({'DWG' if cad_info['was_dwg'] else 'DXF'} drawn to a page: {cad_info['entities']} entities, {cad_info['texts']} texts)"
+        if cad_info.get("m_per_pt"):
+            scale = f"exact, from the CAD file's own units ({cad_info['units']}): 1 page point = {cad_info['m_per_pt'] * 1000:.2f} mm (not yet used for measuring)"
     return dict(path=key, title=title, source=sheet.get("kind", "file"), note=f"scale: {scale}" if scale else "",
                 questions=[dict(question=q, answer=None, unit=None) for q in qs])
 
