@@ -332,7 +332,7 @@ def job_ask(jid, question):
             "(doors, windows, fixtures, walls, rooms, text). If the question needs anything else, answer 'cannot determine' "
             "and say the full reading is still in progress."])
     r = ask(J["path"], question, layer=L)
-    out = {k: r.get(k) for k in ("answer", "unit", "tier", "basis", "evidence", "notes", "route", "model", "seconds")}
+    out = {k: r.get(k) for k in ("answer", "unit", "tier", "basis", "evidence", "context", "notes", "route", "model", "seconds")}
     if busy:
         out["notes"] = (out.get("notes") or []) + [f"Claude is still reading the whole drawing ({round(time.time() - J['reading_started'])} s so far): "
                                                    "furniture and other details are added when it finishes; answered from our models' reading"]

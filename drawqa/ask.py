@@ -26,7 +26,7 @@ TOOLS = [
     {"type": "function", "function": {"name": "python", "description": "Run Python over the layer and print results. Preloaded: layer (dict), M (metres per pixel or None), items(name) -> list, area_m2(item), center(item) -> (x, y), inside(item, room_item) -> bool, dist_m(a, b), length_m(item). No network, no file writes, 20 s.",
      "parameters": {"type": "object", "properties": {"code": {"type": "string"}}, "required": ["code"]}}},
     {"type": "function", "function": {"name": "answer", "description": "Your final answer. value: a plain number (no unit or words inside it) when the answer is a quantity, otherwise a short text; names go in the explanation. unit: e.g. count, m2, m, or empty. tier: read | measured | detected | estimated | cannot determine. evidence: the ids of the items (or the texts) the answer rests on. explanation: one or two sentences on how you got it, including any assumption.",
-     "parameters": {"type": "object", "properties": {"value": {}, "unit": {"type": "string"}, "tier": {"type": "string"}, "evidence": {"type": "array", "items": {"type": "string"}}, "explanation": {"type": "string"}},
+     "parameters": {"type": "object", "properties": {"value": {}, "unit": {"type": "string"}, "tier": {"type": "string"}, "evidence": {"type": "array", "items": {"type": "string"}, "description": "ids of the items that ARE the answer (highlighted on the drawing)"}, "context": {"type": "array", "items": {"type": "string"}, "description": "ids you mention only as context (neighbouring rooms, a room's contents, landmarks): listed, not highlighted"}, "explanation": {"type": "string"}},
                     "required": ["value", "tier", "explanation"]}}},
 ]
 
@@ -43,7 +43,10 @@ Rules:
   number, add the inside total in the explanation, and cite the 'wall perimeter' items you used. A room's perimeter =
   its inside face. "Wall length" = the walls' length_m (whole walls through their doors and windows, as in quantity
   take-offs); give the solid length (solid_length_m) in the explanation. Say which measure you give.
-- Cite the ids your answer rests on in answer(evidence=...). Be brief. You have at most {turns} tool calls."""
+- answer(evidence=...) holds only the items that ARE the answer; the page highlights them. "Show me / where is the
+  kitchen": the kitchen room only. A count: exactly the counted items. Anything else you mention (neighbouring rooms,
+  what is inside, landmarks) goes in answer(context=...), never in evidence. Answer what was asked; describe a room's
+  contents only when asked. Be brief. You have at most {turns} tool calls."""
 
 
 def _summary(layer):
@@ -298,12 +301,13 @@ def _agent_answer(L, question, note, backend, t0):
     tier = str(a.get("tier", "")).lower().strip()
     tier = tier if tier in TIERS else "estimated"
     ev = [dict(id=i, cls=ids[i][0], bbox=ids[i][1]) for i in a.get("evidence") or [] if i in ids]
+    ctx = [dict(id=i, cls=ids[i][0], bbox=ids[i][1]) for i in a.get("context") or [] if i in ids and i not in (a.get("evidence") or [])]
     notes = []
     if tier in ("detected", "measured") and not ev:
         tier = "estimated"
         notes.append("no item of the layer was cited as evidence")
-    return dict(answer=a.get("value"), unit=a.get("unit"), tier=tier, basis=a.get("explanation"), evidence=ev, notes=notes,
-                route="agent", model=model, log=log, seconds=round(time.time() - t0, 1))
+    return dict(answer=a.get("value"), unit=a.get("unit"), tier=tier, basis=a.get("explanation"), evidence=ev, context=ctx,
+                notes=notes, route="agent", model=model, log=log, seconds=round(time.time() - t0, 1))
 
 
 CLI_TASK = """{system}
@@ -316,7 +320,7 @@ length_m(item). texts = layer["texts"]. Use Bash to run python ({python}) with t
 {note}
 Question: {question}
 
-Finish by writing answer.json in this folder: {{"value": ..., "unit": "...", "tier": "read|measured|detected|estimated|cannot determine", "evidence": ["id", ...], "explanation": "..."}}"""
+Finish by writing answer.json in this folder: {{"value": ..., "unit": "...", "tier": "read|measured|detected|estimated|cannot determine", "evidence": ["id", ...], "context": ["id", ...], "explanation": "..."}}"""
 
 
 def _claude_cli_agent(L, question, note, model):

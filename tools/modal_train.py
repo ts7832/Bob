@@ -333,6 +333,41 @@ def door_kinds():
                 share_of_door_labels=round(sum(tot[k] for k in RARE_DOORS) / max(1, sum(tot.values())), 4))
 
 
+def _preview_doors_one(args):
+    from xml.dom import minidom
+    from PIL import Image
+    name, w, h = args
+    folder = "/" + name.replace("-", "/", 1) + "/"
+    try:
+        ws, hs = Image.open(f"{D}/cubicasa5k{folder}F1_scaled.png").size
+        dom = minidom.parse(f"{D}/cubicasa5k{folder}model.svg")
+    except Exception:
+        return name, None
+    sx, sy = w / ws, h / hs
+    out = []
+    for g in dom.getElementsByTagName("g"):
+        if g.getAttribute("id") != "Door":
+            continue
+        ps = g.getElementsByTagName("polygon")
+        if not ps:
+            continue
+        pts = [tuple(map(float, q.split(","))) for q in ps[0].getAttribute("points").split()]
+        t = g.getAttribute("class").split()
+        out.append([t[1] if len(t) > 1 else "?", [round(min(p[0] for p in pts) * sx, 1), round(min(p[1] for p in pts) * sy, 1),
+                                                   round(max(p[0] for p in pts) * sx, 1), round(max(p[1] for p in pts) * sy, 1)]])
+    return name, out
+
+
+@APP.function(image=image, volumes={D: VOL}, timeout=1800, cpu=8)
+def preview_doors(plans: list):
+    """EVALUATION ONLY: each preview (test) plan's doors with their kind (Swing, Slide, Zfold, ...) in the preview
+    image's pixels, to measure how many sliding and folding doors a detector finds. Never used for training."""
+    from multiprocessing import Pool
+    VOL.reload()
+    with Pool(8) as p:
+        return {k: v for k, v in p.map(_preview_doors_one, plans, chunksize=8) if v is not None}
+
+
 @APP.function(image=image, volumes={D: VOL}, timeout=900)
 def rfs_lists(t: float, tag: str):
     """Repeat-factor sampling (as for rare classes in LVIS): every training image with a rare door kind is listed
@@ -1273,6 +1308,13 @@ def main(stage: str = "smoke", run: str = "v1", epochs: int = 60, imgsz: int = 1
     if stage == "mix_lists":  # dry run of the mixing: how many images each split would get
         print(json.dumps(mix_lists.remote(os.environ["DRAWQA_EXTRA"], "all_" + os.path.basename(os.environ["DRAWQA_EXTRA"].rstrip("/")).replace("yolo_", ""),
                                           int(os.environ.get("DRAWQA_EXTRA_MAX", 0))), indent=1))
+    if stage == "preview_doors":  # -> data/eval/preview_doors.json (evaluation only)
+        from PIL import Image
+        plans = [(os.path.basename(f)[:-4], *Image.open(f).size) for f in sorted(glob.glob(str(ROOT / "junction-dataset-preview/data/cubicasa5k/*.png")))]
+        res = preview_doors.remote(plans)
+        os.makedirs(ROOT / "data" / "eval", exist_ok=True)
+        json.dump(res, open(ROOT / "data" / "eval" / "preview_doors.json", "w"))
+        print(f"{len(res)} plans -> data/eval/preview_doors.json")
     if stage == "door_kinds":
         print(json.dumps(door_kinds.remote(), indent=1))
     if stage == "rfs_lists":  # dry run: DRAWQA_RFS=0.3
