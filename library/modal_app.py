@@ -118,7 +118,8 @@ def web():
     for stmt in SCHEMA.split(";"):
         if stmt.strip():
             q(stmt)
-    for stmt in ("ALTER TABLE sheets ADD COLUMN IF NOT EXISTS kind VARCHAR(40) DEFAULT ''",
+    for stmt in ("ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS counter_since DATETIME NULL",
+                 "ALTER TABLE sheets ADD COLUMN IF NOT EXISTS kind VARCHAR(40) DEFAULT ''",
                  "ALTER TABLE sheets ADD COLUMN IF NOT EXISTS level_name VARCHAR(120) DEFAULT ''",
                  "ALTER TABLE sheets ADD COLUMN IF NOT EXISTS level_order INT NULL",
                  "ALTER TABLE sheets ADD COLUMN IF NOT EXISTS title VARCHAR(255) DEFAULT ''",
@@ -1113,18 +1114,27 @@ Reply with JSON only:
     @api.get("/api/savings")
     def savings(request: Request, eur_per_hour: float = 60.0, minutes_per_answer: float = 6.0):
         w = ws(request)
+        since = q("SELECT counter_since FROM workspaces WHERE id=%s", (w,), one=True)["counter_since"]
         t = q("SELECT COALESCE(SUM(cost_usd),0) spent, SUM(kind='answer') computed, SUM(kind='reuse') reused, SUM(kind='scan') scans, "
-              "SUM(kind='opus note') notes FROM ledger WHERE workspace_id=%s", (w,), one=True)
+              "SUM(kind='opus note') notes FROM ledger WHERE workspace_id=%s AND created_at >= COALESCE(%s, '1970-01-01')", (w, since), one=True)
         n_ans = int(t["computed"] or 0) + int(t["reused"] or 0)
         per_q = call_cost("claude-opus-5-5", OPUS_PER_QUESTION["input_tokens"], OPUS_PER_QUESTION["output_tokens"])
         spent = float(t["spent"] or 0)
         hours = n_ans * minutes_per_answer / 60
-        return dict(answers=n_ans, computed=int(t["computed"] or 0), reused=int(t["reused"] or 0), scans=int(t["scans"] or 0),
+        return dict(answers=n_ans, computed=int(t["computed"] or 0), reused=int(t["reused"] or 0), scans=int(t["scans"] or 0), since=str(since) if since else None,
                     person=dict(hours_saved=round(hours, 2), eur_saved=round(hours * eur_per_hour, 2), eur_per_hour=eur_per_hour, minutes_per_answer=minutes_per_answer,
                                 assumption=f"a person takes {minutes_per_answer:g} minutes to count or measure one item on a plan, at EUR {eur_per_hour:g}/hour"),
                     ai=dict(spent_usd=round(spent, 4), opus_for_everything_usd=round(n_ans * per_q, 4), saved_usd=round(n_ans * per_q - spent, 4), per_question_usd=round(per_q, 4),
                             assumption=f"sending every question to Claude Opus 5.5 with the blueprint: about {OPUS_PER_QUESTION['input_tokens']} input and "
                                        f"{OPUS_PER_QUESTION['output_tokens']} output tokens at $4/$20 per million = ${per_q:.3f} each; we spent what the ledger shows"))
+
+    @api.post("/api/savings/start")
+    def savings_start(request: Request):
+        """Count from now on (the ledger keeps everything; only the counter's start moves)."""
+        w = ws(request)
+        q("UPDATE workspaces SET counter_since=NOW() WHERE id=%s", (w,))
+        save_now()
+        return dict(ok=True)
 
     # ---- revisions ----------------------------------------------------------------------------------------------------
     SHEET_NO = re.compile(r"\b([A-Z]{1,2}[-.]?\d{1,3}(?:\.\d{1,2})?)\b")

@@ -44,7 +44,7 @@
       <p class="muted">Assumption: ${esc(sv.person.assumption)}.</p><hr>
       <div class="big">$${money(sv.ai.saved_usd)}</div><p>AI cost avoided: all of it through Opus would cost $${money(sv.ai.opus_for_everything_usd)}; we spent
       $${sv.ai.spent_usd.toFixed(2)} (most answers come from code, at $0, and repeats from the library).</p>
-      <p class="muted">Assumption: ${esc(sv.ai.assumption)}.</p><p class="muted">${sv.scans} phone scans.</p>`;
+      <p class="muted">Assumption: ${esc(sv.ai.assumption)}.</p><p class="muted">${sv.scans} phone scans.${sv.since ? ` Counting since ${esc(sv.since.slice(0, 16))} (earlier use stays in the ledger).` : ""}</p>`;
   }
   savings();
   setInterval(savings, 30000);
