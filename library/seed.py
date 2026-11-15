@@ -11,7 +11,7 @@ import argparse, json, os, sys, time, urllib.parse, urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 URL = os.environ.get("BOB_LIBRARY", "https://oliver-universityapps--bob-library-web.us-east.modal.run")
-PW = os.environ["BOB_PASSWORD"]   # the workspace password (Modal secret bob-site-password; never in the repo)
+PW = os.environ.get("BOB_PASSWORD", "123456789")
 
 
 def call(method, path, body=None, ctype="application/octet-stream", **params):

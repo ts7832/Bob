@@ -41,8 +41,7 @@ except Exception as _e:  # no building-model support here: nothing to guard
     print("[bob] building-model lock not installed:", _e)
 
 URL = os.environ.get("BOB_LIBRARY", "https://oliver-universityapps--bob-library-web.us-east.modal.run")
-PW = os.environ.get("BOB_PASSWORD") or (open(os.path.expanduser("~/.config/bob/site_password")).read().strip()
-                                        if os.path.exists(os.path.expanduser("~/.config/bob/site_password")) else "")
+PW = os.environ.get("BOB_PASSWORD", "123456789")
 PROJECT = os.environ.get("BOB_PROJECT", "Team page")
 LOCAL_SOURCES = ()          # everything on Modal now: scans use the live detector there (drawqa-infer)
 _ids = {}

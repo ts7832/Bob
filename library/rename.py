@@ -5,7 +5,7 @@
 import json, os, re, urllib.parse, urllib.request
 
 URL = os.environ.get("BOB_LIBRARY", "https://oliver-universityapps--bob-library-web.us-east.modal.run")
-PW = os.environ["BOB_PASSWORD"]   # the workspace password (Modal secret bob-site-password; never in the repo)
+PW = os.environ.get("BOB_PASSWORD", "123456789")
 BUILDINGS = {"bsc-esplanades": "Esplanades", "bsc-molio": "Molio", "bimspeed-warmond": "Warmond", "bimspeed-vitoria": "Vitoria",
              "tuwien-escape-route": "TU Wien", "rwth-digitalhub": "DigitalHub", "kit-fzk-haus": "FZK-Haus", "kit-smiley-west": "Smiley West"}
 STOREYS = {"fundament": "Foundation", "klder": "Basement", "kaelder": "Basement", "grundplan": "Ground floor", "basement": "Basement",

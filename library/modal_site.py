@@ -9,7 +9,7 @@ open it in a browser without running anything: same code as on the laptop, one a
 - answers: the library on Modal (bob-library), as on the laptop
 - Opus live reading: Claude Code in this container. Here it bills an API key (no Claude plan in the cloud): the first key
   of the bob-anthropic-pool secret, else the team key (bob-anthropic)
-- one shared password: BOB_SITE_PASSWORD and BOB_PASSWORD from the bob-site-password secret (never in the repo)
+- one shared password: BOB_SITE_PASSWORD (default: the demo workspace password)
 """
 import os, pathlib, subprocess, time
 
@@ -51,7 +51,7 @@ def _keys():
 
 @app.function(image=image, volumes={"/ds": DATA, "/site": SITE}, cpu=4, memory=8192, min_containers=1, max_containers=1,
               timeout=86400, secrets=[modal.Secret.from_name("bob-anthropic"), modal.Secret.from_name("bob-anthropic-pool"),
-                                      modal.Secret.from_name("bob-site-password")])
+                                      modal.Secret.from_dict({"BOB_SITE_PASSWORD": os.environ.get("BOB_SITE_PASSWORD", "123456789")})])
 @modal.concurrent(max_inputs=200)
 @modal.web_server(port=8770, startup_timeout=300)
 def web():

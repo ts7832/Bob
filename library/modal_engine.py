@@ -66,7 +66,7 @@ def _library_copy(sheet_id, file_name):
 
 
 @app.function(image=image, volumes={"/ds": DATA, "/lib": LIB}, cpu=2, memory=4096, timeout=600, scaledown_window=600,
-              secrets=[modal.Secret.from_name("bob-site-password"), modal.Secret.from_name("bob-anthropic"), modal.Secret.from_name("bob-anthropic-pool")])
+              secrets=[modal.Secret.from_dict({"BOB_PASSWORD": os.environ.get("BOB_PASSWORD", "123456789")}), modal.Secret.from_name("bob-anthropic"), modal.Secret.from_name("bob-anthropic-pool")])
 def answer(answer_id: int, sheet_id: int, file_name: str, question: str):
     import json, shutil, sys, time, urllib.request
     sys.path.insert(0, "/root/app")
