@@ -26,7 +26,7 @@ DISCOVER_TIMEOUT = int(os.environ.get("DRAWQA_DISCOVER_TIMEOUT", "600"))  # seco
 DISCOVER_EFFORT = os.environ.get("DRAWQA_DISCOVER_EFFORT", "medium")  # user's choice (15 Nov): medium for the reading step
 
 
-LAYER_VERSION = 5  # v5: windows completed from exact repeats (drawqa/repeats.py); v4: walls kept out of the Claude step and merged back; bump when the reading changes (v2: no whole-sheet wall/room model on big sheets; v3: tiled walls, 4-way detector on big sheets, rooms as whole spaces)
+LAYER_VERSION = 10  # v10: detector e27; joined-wall perimeters as citable items; v9: wall perimeters (outside face, inside faces) in the notes; v8: wall ends trimmed to ink, collinear pieces merged, one outline for drawing; v7: walls as clean rectangles, overlapping pieces dropped; v6: walls cut at their doors and windows; v5: windows completed from exact repeats (drawqa/repeats.py); v4: walls kept out of the Claude step and merged back; bump when the reading changes (v2: no whole-sheet wall/room model on big sheets; v3: tiled walls, 4-way detector on big sheets, rooms as whole spaces)
 
 
 def _key(path, page):
@@ -90,9 +90,21 @@ def _start_layer(sheet):
         if not w.get("axis"):
             continue
         it = dict(polyline=[r1(w["axis"][:2]), r1(w["axis"][2:])], thickness_px=round(float(w.get("thickness_px", 0)), 1))
+        if w.get("run") and w["run"] != w.get("id"):
+            it["wall_run"] = w["run"]  # one piece of a wall that a door or window interrupts
         if w.get("polygon") and len(w["polygon"]) >= 3:
             it["polygon"] = [r1(p) for p in w["polygon"]]
         add("wall", it, "wall and room-outline model", "polyline")
+    wp = sheet.get("wall_perimeters") or {}
+    if wp.get("outside_ring"):  # the joined walls as citable items: a perimeter answer highlights what it measured
+        k = mpp or 0
+        add("wall perimeter", dict(polygon=wp["outside_ring"], face="outside", perimeter_m=wp.get("outside_m")),
+            "wall and room-outline model (walls joined)", "polygon")
+        for ring, m in zip(wp.get("inside_rings") or [], wp.get("inside_m") or []):
+            add("wall perimeter", dict(polygon=ring, face="inside", perimeter_m=m), "wall and room-outline model (walls joined)", "polygon")
+        classes["wall perimeter"]["hidden"] = True  # shown when an answer cites it
+    if sheet.get("wall_outline") and "wall" in classes:  # drawn as one connected shape; the pieces stay for answers
+        classes["wall"]["outline"] = sheet["wall_outline"]
     for c in classes.values():
         c["count"] = len(c["items"])
     scale = sheet.get("scale") or {}
@@ -191,7 +203,7 @@ def ingest(path, page=0, discover=True, refresh=False, progress=None):
     from PIL import Image
     Image.MAX_IMAGE_PIXELS = None
     w, h = Image.open(png).size
-    for k in ("legend_note", "detector_note", "outline_note", "repeat_note"):
+    for k in ("legend_note", "detector_note", "outline_note", "repeat_note", "wall_note", "perimeter_note"):
         if sheet.get(k):
             notes.append(sheet[k])
     layer = dict(source=os.path.abspath(path), page=page, kind=sheet.get("kind"), picture=os.path.abspath(png), width=w, height=h,

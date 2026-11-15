@@ -461,7 +461,8 @@ def execute(sheet, intent):
         total = round(sum(w["length_m"] for w in walls), 2)
         return dict(answer=total, unit="m", evidence=[_shape(sheet, w, None) for w in walls], elements_used=walls,
                     area_sources=["wall centre lines found by the segmentation model"],
-                    explanation=f"Sum of the centre-line lengths of {len(walls)} wall segments = {total:.2f} m. Segments meeting at a corner each run to the corner, so corners are counted from both sides.")
+                    explanation=f"Sum of the centre-line lengths of {len(walls)} wall segments = {total:.2f} m. Segments meeting at a corner each run to the corner, so corners are counted from both sides."
+                                + (f" Note: {sheet['wall_note']}." if sheet.get("wall_note") else ""))
     if it == "count_fixtures":
         want = FIXTURE_ALIASES.get(intent["cls"], {intent["cls"]})
         return _count(sheet, [f for f in sheet.get("fixtures", []) if f["cls"] in want], "/".join(sorted(want)))

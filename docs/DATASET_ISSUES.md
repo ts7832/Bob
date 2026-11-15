@@ -85,6 +85,12 @@ plan (site2294) had been "right" by luck: a counter piece in the kitchen was cou
     and from the whole plan only on 13137, 9775, 11319, 11602, 12943 and 6212. So the key is **not** corrected here.
     What this supports is honest reporting: on a plan with glazed doors or cut-off units, say what was counted
     ("windows, not counting glazed balcony doors").
+- **Window counts on architectural drawings: the key counts things that are not windows (checked 15 Nov).** With
+  detector e27, 105 of 241 preview plans have a wrong window count, 76 of them under the key; all 20 plans 4 or more
+  under are `high_quality_architectural`. The three worst, checked against CubiCasa's own labels: 11426 (key 18, ours
+  8): 8 "windows" are the railing segments along a stair void (big X, open to below); 13843 (key 22, ours 12): 10 are
+  the glass panels of an outdoor terrace (ULKOTERASSI); 13048 (key 20, ours 11): all 20 key boxes lie inside our 11
+  windows, no duplicates, so the key splits each window into about two. Our counts are the real windows on all three.
 
 ## 7. IFC models: no duplicates
 

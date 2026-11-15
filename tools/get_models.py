@@ -2,22 +2,22 @@
 
     python tools/get_models.py            # needs the GitHub CLI (gh) logged in with access to ts7832/Bob
 
-Files come from the GitHub release v0.1-models of ts7832/Bob and are checked against the checksums below. Files that
+Files come from the GitHub release v0.2-models of ts7832/Bob and are checked against the checksums below. Files that
 are already present with the right checksum are kept. Without these files the code still runs: by default our models
 run on Modal (app 'drawqa-infer', DRAWQA_INFER=modal), which only needs access to that Modal workspace.
 
 Models:
-  detector.pt (+ detector.thresholds.json)   element detector e26l: YOLO26-l, doors, windows, fixtures, room types
+  detector.pt (+ detector.thresholds.json)   element detector e27: YOLO26-l (e26l fine-tuned), doors, windows, fixtures, room types
   segmenter.pt (+ segmenter.eval.json)       walls and room outlines (YOLO segmentation)
 Licence: trained with Ultralytics (AGPL-3.0) on CubiCasa5k (CC BY-NC-SA 4.0), Swiss Dwellings (CC BY 4.0) and BIM
 sample models; treat the weights as non-commercial, share-alike (CC BY-NC-SA 4.0).
 """
 import hashlib, os, shutil, subprocess, sys
 
-REPO, TAG = "ts7832/Bob", "v0.1-models"
+REPO, TAG = "ts7832/Bob", "v0.2-models"  # v0.1-models: detector e26l
 FILES = {
-    "detector.pt": "f4ea8e0c1a31d0cb9fbd982193049cbabdd4cca7a1d85f456ebfcb910f4b954b",
-    "detector.thresholds.json": "1ed52573538f7a22a7bfdcc6b1c47015f70ddbaa8eb9d3a95493c89c4428bbaa",
+    "detector.pt": "0c8e8af6a17d699cbe25a11031a9f9c796d91b3ce1f838a08e9898895c98ae2e",
+    "detector.thresholds.json": "782782cedb03ca6aa90b89798e61f69d82d804187da037df9f68e75ffb17ef74",
     "segmenter.pt": "de5374c9560a0551dafc33b6c91e7f1b2c206f92acf938dc2fe08d908b43b2ac",
     "segmenter.eval.json": "998649c3fd4573b28d9f41a9cf59d3d7d60febafe55c96627723945bbdc6cbc6",
 }

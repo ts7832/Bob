@@ -744,13 +744,28 @@ def train(run: str, model: str, epochs: int, imgsz: int, batch: int, fraction: f
     for f in glob.glob(f"{L}/*.txt") + glob.glob(f"{L}/*.yaml"):
         txt = open(f).read().replace(f"{D}/yolo", L)
         open(f, "w").write(txt)
-    m = (RTDETR if "rtdetr" in model else YOLO)(model)
-    m.add_callback("on_fit_epoch_end", lambda tr: VOL.commit() if (tr.epoch + 1) % 5 == 0 else None)  # keep checkpoints
-    m.train(data=f"{L}/data_{data}.yaml", epochs=epochs, imgsz=imgsz, batch=batch, project=f"{D}/runs", name=run,
-            exist_ok=True, fliplr=0.5, flipud=0.5, mosaic=mosaic, degrees=0, scale=float(os.environ.get("DRAWQA_SCALE", "0.3")), translate=0.1,
-            save_period=int(os.environ.get("DRAWQA_SAVE_PERIOD", "-1")),
-            hsv_h=0.0, hsv_s=0.4, hsv_v=0.35, close_mosaic=10, patience=20, fraction=fraction, workers=8, plots=False,
-            classes=list(range(8)) if symbols_only else None)  # symbols_only: drop room/floor labels (classes 8-14)
+    # Modal moves a preempted call to a new machine and runs it again from the start; that cost run e27 13 of 15
+    # epochs (15 Nov). So: save to the volume after every epoch, and a run that is unfinished (a last.pt, no
+    # summary.json) continues from its last epoch instead of starting over. Pick a new run name to start fresh.
+    last = f"{D}/runs/{run}/weights/last.pt"
+    resumed = False
+    if os.path.exists(last) and not os.path.exists(f"{D}/runs/{run}/summary.json"):
+        try:
+            m = (RTDETR if "rtdetr" in model else YOLO)(last)
+            m.add_callback("on_fit_epoch_end", lambda tr: VOL.commit())
+            print(f"resuming {run} from {last}")
+            m.train(resume=True)
+            resumed = True
+        except Exception as e:  # e.g. the saved run had already reached its last epoch
+            print(f"could not resume {run} ({type(e).__name__}: {e}); training from {model}")
+    if not resumed:
+        m = (RTDETR if "rtdetr" in model else YOLO)(model)
+        m.add_callback("on_fit_epoch_end", lambda tr: VOL.commit())  # every epoch: a restart loses at most one
+        m.train(data=f"{L}/data_{data}.yaml", epochs=epochs, imgsz=imgsz, batch=batch, project=f"{D}/runs", name=run,
+                exist_ok=True, fliplr=0.5, flipud=0.5, mosaic=mosaic, degrees=0, scale=float(os.environ.get("DRAWQA_SCALE", "0.3")), translate=0.1,
+                save_period=int(os.environ.get("DRAWQA_SAVE_PERIOD", "-1")),
+                hsv_h=0.0, hsv_s=0.4, hsv_v=0.35, close_mosaic=10, patience=20, fraction=fraction, workers=8, plots=False,
+                classes=list(range(8)) if symbols_only else None)  # symbols_only: drop room/floor labels (classes 8-14)
     VOL.commit()
     best = (RTDETR if "rtdetr" in model else YOLO)(f"{D}/runs/{run}/weights/best.pt")
     res = best.val(data=f"{L}/data_{data}.yaml", imgsz=imgsz, split="val", plots=False)

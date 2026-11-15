@@ -13,7 +13,11 @@ import modal
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 GPU = os.environ.get("DRAWQA_INFER_GPU", "L4")
-APP = modal.App("drawqa-infer")
+# DRAWQA_INFER_APP / DRAWQA_INFER_DETECTOR at deploy time give a second service with other detector weights, e.g.
+#   DRAWQA_INFER_APP=drawqa-infer-e27 DRAWQA_INFER_DETECTOR=e27 modal deploy tools/modal_infer.py   (models/e27.pt)
+# and the client picks it with DRAWQA_INFER_APP=drawqa-infer-e27.
+DET = os.environ.get("DRAWQA_INFER_DETECTOR", "detector")
+APP = modal.App(os.environ.get("DRAWQA_INFER_APP", "drawqa-infer"))
 app = APP  # the name `modal deploy` looks for
 
 image = (
@@ -24,8 +28,8 @@ image = (
     .run_commands("python -c \"from rapidocr import RapidOCR; RapidOCR()\"")  # the OCR models download at build time, not per call
     .env({"DRAWQA_IN_MODAL": "1", "DRAWQA_WEIGHTS": "/root/models/detector.pt", "DRAWQA_SEG_WEIGHTS": "/root/models/segmenter.pt",
           "YOLO_CONFIG_DIR": "/tmp/ultralytics", "DRAWQA_TTA_MAX_TILES": "400"})
-    .add_local_file(ROOT / "models" / "detector.pt", "/root/models/detector.pt")
-    .add_local_file(ROOT / "models" / "detector.thresholds.json", "/root/models/detector.thresholds.json")
+    .add_local_file(ROOT / "models" / f"{DET}.pt", "/root/models/detector.pt")
+    .add_local_file(ROOT / "models" / f"{DET}.thresholds.json", "/root/models/detector.thresholds.json")
     .add_local_file(ROOT / "models" / "segmenter.pt", "/root/models/segmenter.pt")
     .add_local_file(ROOT / "models" / "segmenter.eval.json", "/root/models/segmenter.eval.json")
     .add_local_python_source("drawqa")
