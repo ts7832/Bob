@@ -74,7 +74,7 @@ def generate(seed: list, per_label: int = 40, seed_val: int = 0):
 
 
 @app.function(image=train_image, gpu="L4", volumes={"/data": VOL}, timeout=3600)
-def train(seed: list, epochs: int = 4, para_file: str = "paraphrases.json", out: str = "router1"):
+def train(seed: list, epochs: int = 4, para_file: str = "paraphrases.json", out: str = "router1", extra_file: str = ""):
     import math, numpy as np, torch, torch.nn.functional as F
     from transformers import AutoModel, AutoTokenizer
     VOL.reload()
@@ -87,6 +87,16 @@ def train(seed: list, epochs: int = 4, para_file: str = "paraphrases.json", out:
     readable = [r for r in seed if r["router_reads_it"]]
     used = {r["source"] for r in para}
     rows = [dict(r, split=split[r["source"]]) for r in para]
+    # extra training rows (jsonl): the split above is computed on the base file only, so test questions stay the same as
+    # the previous router's; an extra row whose source is a val/test source is dropped (no leakage)
+    dropped = 0
+    if extra_file:
+        for l in open(f"{D}/{extra_file}"):
+            r = json.loads(l)
+            if split.get(r["source"], "train") != "train":
+                dropped += 1
+                continue
+            rows.append(dict(question=r["question"], label=r["label"], source=r["source"], split="train"))
     # the original questions too: readable ones whose source went to training, plus every original for its split
     for r in readable:
         rows.append(dict(question=r["question"], label=r["label"], source=r["question"], split=split.get(r["question"], "train")))
@@ -152,7 +162,7 @@ def train(seed: list, epochs: int = 4, para_file: str = "paraphrases.json", out:
                     share_confident_80=round(sure.float().mean().item(), 3), accuracy_when_confident=round(ok[sure].mean().item(), 4) if sure.any() else None,
                     wrong_examples=[(r["question"][:90], r["label"], labels[int(k)], round(float(c), 2)) for r, k, c, o in zip(rs, pred, conf, ok) if not o][:6])
     te = [r for r in rows if r["split"] == "test"]
-    res = dict(labels=len(labels), train=len(tr), val=len(va), temperature=best,
+    res = dict(labels=len(labels), train=len(tr), val=len(va), temperature=best, extra_dropped=dropped,
                test_rewordings=report([r for r in te if r["source"] != r["question"]]),
                router_cannot_read=report(hard))
     os.makedirs(f"{D}/{out}", exist_ok=True)
@@ -165,11 +175,11 @@ def train(seed: list, epochs: int = 4, para_file: str = "paraphrases.json", out:
 
 
 @app.local_entrypoint()
-def main(stage: str = "all", per_label: int = 40, epochs: int = 4, para_file: str = "paraphrases.json", out: str = "router1"):
+def main(stage: str = "all", per_label: int = 40, epochs: int = 4, para_file: str = "paraphrases.json", out: str = "router1", extra_file: str = ""):
     seed = json.load(open(HERE / "router_seed.json"))
     if stage in ("all", "gen"):
         g = generate.remote(seed, per_label)
         print(json.dumps(g, indent=1, ensure_ascii=False))
     if stage in ("all", "train"):
-        r = train.remote(seed, epochs, para_file, out)
+        r = train.remote(seed, epochs, para_file, out, extra_file)
         print(json.dumps({k: v for k, v in r.items()}, indent=1, ensure_ascii=False)[:3000])
