@@ -124,3 +124,7 @@ aside section > h2 + *{margin-top:10px}
 #auditsec .parts{margin-top:10px;border:1px solid var(--fg)}
 #auditsec .parts > div{padding:7px 9px;border-bottom:1px solid var(--fg);font:12.5px var(--mono)}
 #auditsec .parts > div:last-child{border-bottom:0}
+
+/* room chips: English first, the printed name beside it */
+#understood .fchip .orig{font:11px var(--mono);opacity:.6;margin-left:3px}
+#understood .fchip.guess .orig::after{content:" ?";}

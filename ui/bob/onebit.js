@@ -103,6 +103,33 @@
     return res;
   };
 
+  // ---- room chips in English: the printed name stays beside it (it is the evidence); one translation per name, stored
+  const PW = localStorage.getItem("bobPassword") || "123456789";
+  const named = {};
+  const english = async () => {
+    const chips = [...document.querySelectorAll('#understood .fchip[data-found^="room:"]')].filter((c) => !c.dataset.en);
+    if (!chips.length) return;
+    const names = chips.map((c) => c.dataset.found.slice(5)).filter((n) => !(n in named));
+    if (names.length) {
+      try {
+        const r = await fetch(LIBRARY + "/api/names", { method: "POST", headers: { "x-bob-password": PW, "content-type": "application/json" },
+          body: JSON.stringify({ names }) }).then((x) => x.json());
+        Object.assign(named, r);
+      } catch (e) { return; }
+    }
+    for (const c of chips) {
+      const orig = c.dataset.found.slice(5), t = named[orig];
+      c.dataset.en = "1";
+      if (!t || t.english === orig || t.source === "unchanged") continue;
+      const n = c.querySelector("b") ? c.querySelector("b").outerHTML : "";
+      c.innerHTML = `${n} ${esc(t.english)} <span class="orig">${esc(orig)}</span>`;
+      c.title = `printed on the blueprint as "${orig}"; English ${t.source === "words" ? "from the word list" : "guessed by a language model"}`;
+      if (t.source !== "words") c.classList.add("guess");
+    }
+  };
+  const und = $("understood");
+  if (und) new MutationObserver(() => setTimeout(english, 50)).observe(und, { childList: true, subtree: true });
+
   // deep links for demos and checks: /#open=<file path>&ask=<question>  (both optional)
   const hp = new URLSearchParams(location.hash.slice(1));
   if (hp.get("open") && $("openpath")) setTimeout(() => {

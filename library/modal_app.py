@@ -32,7 +32,7 @@ def _fetch_weights():
 image = (
     modal.Image.from_registry("mariadb:11.8", add_python="3.11")
     .pip_install("torch==2.5.1", index_url="https://download.pytorch.org/whl/cpu")
-    .pip_install("timm==1.0.12", "huggingface_hub==0.26.5", "safetensors", "fastapi[standard]==0.115.6", "pymysql==1.1.1", "pillow",
+    .pip_install("timm==1.0.12", "huggingface_hub==0.26.5", "safetensors", "fastapi[standard]==0.115.6", "pymysql==1.1.1", "pillow", "anthropic",
                  "numpy<2", "opencv-python-headless", "pymupdf", "segno")
     .run_function(_fetch_weights)
     .add_local_file(str(HERE / "phone.html"), "/root/phone.html")
@@ -51,13 +51,16 @@ CREATE TABLE IF NOT EXISTS answers (id INT AUTO_INCREMENT PRIMARY KEY, sheet_id 
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP, KEY (sheet_id, question_norm(190)), KEY (status));
 CREATE TABLE IF NOT EXISTS scans (id INT AUTO_INCREMENT PRIMARY KEY, workspace_id INT NOT NULL, sheet_id INT NULL, similarity FLOAT,
   details INT, seconds FLOAT, device VARCHAR(255), created_at DATETIME DEFAULT CURRENT_TIMESTAMP, KEY (sheet_id));
+CREATE TABLE IF NOT EXISTS names (id INT AUTO_INCREMENT PRIMARY KEY, original VARCHAR(190) NOT NULL UNIQUE, english VARCHAR(190),
+  room_type VARCHAR(40), source VARCHAR(20), created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS ledger (id INT AUTO_INCREMENT PRIMARY KEY, workspace_id INT NOT NULL, sheet_id INT NULL, kind VARCHAR(20),
   cost_usd DOUBLE DEFAULT 0, saved_usd DOUBLE DEFAULT 0, seconds FLOAT DEFAULT 0, saved_seconds FLOAT DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
 """
 
 
-@app.function(image=image, volumes={V: VOL}, cpu=4, memory=8192, min_containers=1, max_containers=1, timeout=900, scaledown_window=1200)
+@app.function(image=image, volumes={V: VOL}, cpu=4, memory=8192, min_containers=1, max_containers=1, timeout=900, scaledown_window=1200,
+              secrets=[modal.Secret.from_name("bob-anthropic")])
 @modal.concurrent(max_inputs=16)
 @modal.asgi_app()
 def web():
@@ -560,6 +563,89 @@ def web():
         combined["library"] = dict(from_library=False, answer_id=aid, parts_from_library=sum(d["from_library"] for d in done), times_asked=1)
         dirty.set()
         return combined
+
+    # ---- printed room names in English (kept with the original; one translation per name, stored) -------------------
+    WORDS = {
+        "Bedroom": "MH MAKUUH MAKUUHUONE MHUONE BR BEDROOM SCHLAFZIMMER SCHLAFEN CHAMBRE CAMERA SOVEROM SOVRUM SLAAPKAMER DORMITORIO",
+        "Kitchen": "K KK KEITTIO KEITIO KTIO KITCHEN KUCHE KUECHE CUISINE CUCINA KOKKEN KEUKEN COCINA KOCHEN",
+        "Bathroom": "KH KPH PH PESUH PESUHUONE SH BATH BATHROOM BAD BAGNO SDB BAIN BADKAMER BANO DOUCHE DUSCHE",
+        "WC": "WC TOILET TOILETTE TOILETTEN TUALETTRUUM",
+        "Sauna": "SAUNA",
+        "Living room": "OH OLOH OLOHUONE LIVING WOHNZIMMER WOHNEN SOGGIORNO SEJOUR STUE WOONKAMER SALON ELUTUBA",
+        "Dining": "RUOKAILU RT DINING ESSZIMMER ESSEN REPAS PRANZO",
+        "Entrance": "ET ETEINEN TK TUULIK TUULIKAAPPI HALL ENTRY ENTREE INGRESSO ESIK DIELE EINGANG",
+        "Corridor": "COULOIR KORRIDOR CORRIDOIO CORRIDOR GANG GANGE HALLWAY KORIDOR FLUR",
+        "Storage": "VH VAR VARASTO KOMERO STORAGE ABSTELLRAUM RIPOSTIGLIO CLOS CLOSET CLO REDUIT REDUIT ABIRUUM BERGING",
+        "Utility room": "KHH KODINHOITOH TEKN LAUNDRY UTILITY WD HVAC MECH MECHANICAL BUANDERIE WASCHKUCHE",
+        "Dressing room": "PUKUH PUKUHUONE",
+        "Balcony": "PARVEKE PARV BALCONY BALKON BALCONE BALC BALCON",
+        "Terrace": "TERASSI TERRACE TERRASSE TERRAZZA",
+        "Loggia": "LOGGIA",
+        "Room": "PIECE ZIMMER ROOM STANZA KAMER HUONE",
+        "Stairwell": "TREPPENHAUS ESCALIER CAGE TREPIKODA STAIR STAIRS SCALA",
+        "Office": "BURO BUERO BUREAU UFFICIO OFFICE",
+        "Apartment": "WHG WOHNUNG APPARTEMENT LOGEMENT APARTMENT",
+    }
+    WORD = {w: en for en, ws in WORDS.items() for w in ws.split()}
+
+    def _key(t):
+        import unicodedata
+        u = unicodedata.normalize("NFKD", str(t).upper())
+        return "".join(ch for ch in u if ch.isascii() and ch.isalnum())
+
+    def from_words(name):
+        """Every word of the name found in the word list -> its English, joined ("Séjour/repas" -> "Living room / Dining")."""
+        whole = WORD.get(_key(name))
+        if whole:
+            return whole
+        parts = [w for w in re.split(r"[\s/\-–,()+.]+", str(name)) if _key(w)]
+        found = [WORD.get(_key(w)) for w in parts]
+        if parts and all(found):
+            return " / ".join(dict.fromkeys(found))
+        return None
+
+    def from_model(names):
+        """Names the word list does not know: Claude Haiku, once, marked as a guess."""
+        import anthropic
+        prompt = ("These are room names printed on architectural floor plans (any language, often abbreviated). For each, give the "
+                  "plain English room name a builder would use. Reply with JSON only: {\"<name>\": \"<english>\", ...}. "
+                  "If a name is not a room name (a code, a number), give it unchanged.\n" + json.dumps(names, ensure_ascii=False))
+        r = anthropic.Anthropic(timeout=40.0, max_retries=1).messages.create(model="claude-haiku-5-5", max_tokens=1500,
+                                                                            messages=[{"role": "user", "content": prompt}])
+        t = "".join(b.text for b in r.content if getattr(b, "type", "") == "text")
+        return json.loads(t[t.index("{"):t.rindex("}") + 1])
+
+    @api.post("/api/names")
+    async def names(request: Request):
+        """Body {"names": [...]} -> {name: {english, source}} (source: stored, words, model guess, unchanged)."""
+        ws(request)
+        b = await request.json()
+        want = [str(n)[:190] for n in dict.fromkeys(b.get("names") or []) if str(n).strip()][:200]
+        out, todo = {}, []
+        for n in want:
+            row = q("SELECT english, source FROM names WHERE original=%s", (n,), one=True)
+            if row:
+                out[n] = dict(english=row["english"], source=row["source"])
+                continue
+            en = from_words(n)
+            if en:
+                q("INSERT IGNORE INTO names (original, english, source) VALUES (%s,%s,'words')", (n, en))
+                out[n] = dict(english=en, source="words")
+            else:
+                todo.append(n)
+        if todo:
+            try:
+                got = from_model(todo)
+            except Exception as e:
+                got = {}
+                print("names: model unavailable", e)
+            for n in todo:
+                en = str(got.get(n) or n)[:190]
+                src = "model guess" if got.get(n) and got.get(n) != n else "unchanged"
+                q("INSERT IGNORE INTO names (original, english, source) VALUES (%s,%s,%s)", (n, en, src))
+                out[n] = dict(english=en, source=src)
+        dirty.set()
+        return out
 
     @api.get("/api/engine/next")
     def engine_next(request: Request):
