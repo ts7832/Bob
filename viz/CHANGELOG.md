@@ -22,6 +22,12 @@ The drawing view (`viz/`): what exists, and what changed when. Newest first. Usa
 | Evidence that isn't on this sheet (BIM model-wide answers) | yes | says "N of M on this sheet"; selecting one says "Not on this drawing" |
 | Light theme matching the demo page | yes | default |
 
+## 2026-11-15 02:21: fixes from the judge-eye QA tour (every sheet in `ui/`: 2D, selected, 3D, Photo, clean view)
+- **The 3D callout no longer duplicates and covers the detail card** in the team page's narrower view. It now appears when you hover an object in 3D; selecting one opens the detail card only.
+- **The clean-view key is icons only** (names on hover), so it covers less of the drawing.
+- **"Can't answer" reasons no longer end mid-sentence.** Example: A477's "...could not be turned into a query." now continues "This needs the language model, which is not running in this demo."
+- **Tour:** `tests/qa_tour.py` makes one contact sheet per drawing. 0 page errors on all sheets.
+
 ## 2026-11-15 02:06: hover or click any object to see what it is (no question needed)
 - **Every recognised object can now be inspected,** with or without an answer, in 2D and 3D:
   - **Hover:** shows its name and source, e.g. "WC · detected by a model · 85%", "Door · read from the CAD drawing", "Door · from the building model (IFC)".

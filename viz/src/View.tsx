@@ -196,7 +196,7 @@ function Swipe({ value, host, classes, onChange }: { value: number; host: RefObj
       <div className="dv-swipe-l" title="Walls, rooms and symbols as the system detected or read them (scans: walls found in the image). Check them against the original.">
         <b>Redrawn from detections</b>
         {classes.length > 0 && <span className="dv-swipe-key">{classes.map((c) => (
-          <span key={c} style={{ color: SYMBOL_COLOR[c] }}><Glyph cls={c} />{CLS_NAME[c][1]}</span>
+          <span key={c} style={{ color: SYMBOL_COLOR[c] }} title={CLS_NAME[c][1]} aria-label={CLS_NAME[c][1]}><Glyph cls={c} /></span>
         ))}</span>}
       </div>
       <div className="dv-swipe-r">Original</div>
@@ -216,7 +216,7 @@ function friendly(t?: string | null) {
   // keep the real reason the backend gave before its technical note (e.g. "...and no scale is printed.")
   const cut = t.search(/A language model|language model (on Modal|not available|is not available)|This question was not understood/i)
   const head = (cut > 0 ? t.slice(0, cut) : '').trim()
-  if (head.length >= 30) return head
+  if (head.length >= 30) return /[:;,]$/.test(head) ? head.replace(/[:;,\s]+$/, '') + '. This needs the language model, which is not running in this demo.' : head
   return 'This question needs the language model, which is not running in this demo. Try asking with the wording of a listed question.'
 }
 
