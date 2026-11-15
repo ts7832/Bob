@@ -20,13 +20,28 @@
     new ResizeObserver(() => draw(shown)).observe($("lcv").parentElement);
   }
   function stop() { clearTimeout(timer); job = null; $("livep")?.remove(); versions = []; shown = -1; pic = null; }
+  // until our models have read it: the blueprint itself, faded, with Bob working on top (never a white panel)
+  async function placeholder() {
+    try {
+      const rd = current && current.renderP ? await current.renderP : null;
+      if (rd && rd.url && !pic) {
+        pic = new Image();
+        pic.onload = () => draw(shown);
+        pic.src = rd.url;
+        picScale = (pic.naturalWidth && rd.width) ? 1 : 1;
+      }
+    } catch (e) { /* the picture comes with the models' reading */ }
+    const body = document.querySelector("#livep .lbody");
+    if (body && !$("lwait")) body.insertAdjacentHTML("beforeend", '<div id="lwait"><div class="bobsprite work" style="background-image:url(/bob/mascot/work_e.png);--n:8"></div><b id="lwaitt">Our models are reading the drawing…</b></div>');
+  }
 
-  async function start() {
+  async function start(retry) {
     const p = typeof current !== "undefined" && current ? current.path : null;
     if (!p) return;
     stop(); panel();
     $("lstage").textContent = "Starting the reading…";
-    const r = await fetch("/bob/read?path=" + encodeURIComponent(p)).then((x) => x.json()).catch((e) => ({ error: e.message }));
+    placeholder();
+    const r = await fetch("/bob/read?path=" + encodeURIComponent(p) + (retry === true ? "&retry=1" : "")).then((x) => x.json()).catch((e) => ({ error: e.message }));
     if (r.error) { $("lstage").textContent = "Could not start: " + r.error; return; }
     job = r.id; lastPartial = -1; lastView = -1;
     poll();
@@ -67,7 +82,13 @@
     $("lstage").textContent = stage === "error" ? "Failed: " + (st.detail || "") : stage !== "done" ? (st.label || stage) + "…"
       : reading === "running" ? `Opus is reading the drawing · ${Math.round(st.reading_elapsed || 0)} s` : reading === "done" ? `Opus reading complete · ${Math.round(st.reading_seconds || 0)} s` :
       reading === "failed" ? "Opus reading did not finish: showing our models' reading" : "Ready";
+    if (reading === "failed" && !$("lretry")) { $("lclose").insertAdjacentHTML("beforebegin", '<button id="lretry">Try again</button>'); $("lretry").onclick = () => start(true); }
     $("lstep").textContent = st.reading_step ? "· " + st.reading_step : "";
+    if ($("lwait")) {
+      if (stage === "done" && versions.length) $("lwait").remove();
+      else $("lwaitt").textContent = stage === "done" ? "Drawing what our models found…" : `Our models are reading the drawing… ${Math.round(st.elapsed || 0)} s`;
+    }
+    if (stage === "done" && pic && !String(pic.src).includes("/api/v2/picture")) pic = null;    // swap the placeholder for the reading's own picture
     if (stage === "done" && !pic) {
       pic = new Image();
       pic.onload = () => draw(shown);
@@ -144,7 +165,7 @@
     const before = new Map(prev ? prev.counts : []);
     $("lclasses").innerHTML = `<b>${esc(v.label)}</b><table>${v.counts.map(([n, c], ci) => {
       const d = prev ? c - (before.get(n) || 0) : 0;
-      return `<tr><td><i class="dash d${ci % DASH.length}"></i>${esc(n)}</td><td>${c}</td><td class="${d > 0 ? "up" : d < 0 ? "down" : ""}">${prev && d ? (d > 0 ? "+" : "") + d : ""}</td></tr>`;
+      return `<tr><td title="${esc(n)}"><i class="dash d${ci % DASH.length}"></i>${esc(n.replace(/_/g, " "))}</td><td>${c}</td><td class="${d > 0 ? "up" : d < 0 ? "down" : ""}">${prev && d ? (d > 0 ? "+" : "") + d : ""}</td></tr>`;
     }).join("")}</table>`;
   }
   function reveal(i) {

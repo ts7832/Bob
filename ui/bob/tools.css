@@ -282,3 +282,9 @@ aside button:not(.link):not(.term):not(#faqlist button){border-radius:0!importan
 .vwin .dv-badge{position:relative;border:1px solid #1e1e1e!important;box-shadow:4px 4px 0 #1e1e1e!important;background:#fefefe!important;padding:10px 34px 10px 12px!important;color:#1e1e1e!important}
 .bobx{position:absolute;top:6px;right:6px;width:24px;height:22px;border:1px solid #1e1e1e;background:#fefefe;font:18px/1 var(--mono);cursor:pointer;padding:0;pointer-events:auto;z-index:2}
 .bobx:hover{background:#1e1e1e;color:#fefefe}
+#lwait{position:absolute;left:0;right:220px;top:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;pointer-events:none}
+#lwait b{font:20px var(--pix);background:#fefefe;border:1px solid #1e1e1e;padding:4px 10px;box-shadow:3px 3px 0 #1e1e1e}
+#livep .lbody{position:relative}
+#livep table{table-layout:fixed}
+#livep td:first-child{width:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#livep td:nth-child(2){width:34px;text-align:right}#livep td:nth-child(3){width:30px;text-align:right}

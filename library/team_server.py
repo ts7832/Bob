@@ -274,6 +274,8 @@ def patched_load_demo(orig=ui_server.load_demo):
                     if not os.path.isabs(f):
                         f = _DEMO["d"].resolve(f)
                     saved = _DEMO["d"].save_upload(os.path.basename(f), open(f, "rb").read())   # its own copy: one reading per file
+                    if (urllib.parse.parse_qs(u.query).get("retry") or [""])[0] == "1":         # a reading that did not finish: start over
+                        _DEMO["d"].JOBS.pop(os.path.basename(saved).split("_")[0], None)
                     return self._send(200, dict(id=_DEMO["d"].start_reading(saved, os.path.basename(f))))
                 except Exception as e:
                     return self._send(500, {"error": f"{type(e).__name__}: {e}"})
