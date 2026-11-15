@@ -232,6 +232,14 @@
       <textarea id="mkcomment" placeholder="e.g. there is a door here that was not counted"></textarea>
       <input id="mkwho" placeholder="your name" value="${esc(who())}"><button id="mksend" disabled>Send to Opus</button><div id="mkout"></div></div></div>`);
     const cv = $("mkc"), g = cv.getContext("2d"), img = new Image();
+    let k0 = 1, marks = [];                                    // view-image px per original px; counted items with boxes
+    try {
+      const info = await lib(`/api/sheets/${sid}`);
+      const ev = (lastRes?.evidence || []).filter((e) => Array.isArray(e.bbox) && e.bbox.length === 4);
+      const raster = /raster|image/i.test(String(lastRes?.source_type || "")) || ev.every((e) => e.bbox.every((v) => v >= 0));
+      marks = raster ? ev.map((e, i) => ({ id: e.id, cls: e.cls, mark: e.label || String(i + 1), b: e.bbox })) : [];
+      img.onloadOnce = () => { k0 = img.naturalWidth / (info.width || img.naturalWidth); };
+    } catch (e) { marks = []; }
     let s = 1, ox = 0, oy = 0, pts = [], drawing = false, panning = null, props = [], accepted = 0;
     const stage = $("mkstage");
     const fit = () => {
@@ -248,6 +256,11 @@
     function draw() {
       g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = "#fefefe"; g.fillRect(0, 0, cv.width, cv.height);
       g.setTransform(s, 0, 0, s, ox, oy); g.drawImage(img, 0, 0);
+      for (const m of marks) {                                 // what the system counted, numbered like on the page
+        const [a, b2, c3, d] = m.b.map((v) => v * k0);
+        g.setLineDash([]); g.lineWidth = 2 / s; g.strokeStyle = "#e8650a"; g.strokeRect(a, b2, c3 - a, d - b2);
+        g.fillStyle = "#e8650a"; g.font = `bold ${12 / s}px monospace`; g.fillText(m.mark, a, b2 - 3 / s);
+      }
       g.lineWidth = 3 / s; g.strokeStyle = "#1e1e1e"; g.setLineDash([]);
       if (pts.length > 1) { g.beginPath(); g.moveTo(...pts[0]); pts.forEach((p) => g.lineTo(...p)); if (!drawing) g.closePath(); g.stroke(); }
       for (const p of props) {
@@ -259,7 +272,7 @@
         g.setLineDash([]); g.fillStyle = g.strokeStyle; g.font = `${14 / s}px monospace`; g.fillText(`${p.n}. ${p.kind} ${p.cls || ""}`, a, b - 4 / s);
       }
     }
-    img.onload = fit;
+    img.onload = () => { if (img.onloadOnce) img.onloadOnce(); fit(); };
     img.src = `/bob/lib/api/sheets/${sid}/view`;
     cv.onwheel = (e) => {
       e.preventDefault();
@@ -281,7 +294,7 @@
       const bb = box();
       if (!bb) return;
       localStorage.setItem("bobName", $("mkwho").value.trim());
-      const [x0, y0, x1, y1] = bb, k = Math.min(1, 1400 / Math.max(x1 - x0, y1 - y0));
+      const [x0, y0, x1, y1] = bb, side = Math.max(x1 - x0, y1 - y0), k = Math.min(1400 / side, Math.max(1, 900 / side));   // small crops upscaled so Opus can see them
       const crop = document.createElement("canvas");
       crop.width = Math.round((x1 - x0) * k); crop.height = Math.round((y1 - y0) * k);
       crop.getContext("2d").drawImage(img, x0, y0, x1 - x0, y1 - y0, 0, 0, crop.width, crop.height);
@@ -289,7 +302,9 @@
       try {
         const ev = lastRes?.evidence || [];
         const r = await post(`/api/sheets/${sid}/notes`, { image: crop.toDataURL("image/jpeg", 0.9), box: bb, comment: $("mkcomment").value.trim(), author: who(),
-          question: lastQ, answer: lastRes ? fmtVal(lastRes.answer, lastRes.unit) : null, evidence_classes: [...new Set(ev.map((e) => e.cls).filter(Boolean))] });
+          question: lastQ, answer: lastRes ? fmtVal(lastRes.answer, lastRes.unit) : null, evidence_classes: [...new Set(ev.map((e) => e.cls).filter(Boolean))],
+          counted_inside: marks.length ? marks.filter((m) => { const cx = (m.b[0] + m.b[2]) / 2 * k0, cy = (m.b[1] + m.b[3]) / 2 * k0; return cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1; })
+                                              .map((m) => ({ id: m.id, cls: m.cls, mark: m.mark })) : null });
         props = r.proposals.map((p, i) => ({ ...p, n: i + 1, status: "proposed" }));
         draw();
         const row = (p) => `<div class="prop" data-id="${p.id}"><b>${p.n}. ${esc(p.kind)}${p.cls ? " " + esc(p.cls) : ""}${p.value != null ? " = " + esc(p.value) : ""}</b>
@@ -298,7 +313,7 @@
           <p class="muted small">${esc(r.model)} · $${(+r.cost_usd).toFixed(4)} · ${r.seconds} s${r.paid_by ? " · paid by " + esc(r.paid_by) : ""} · ${r.tokens.input} in / ${r.tokens.output} out tokens</p>`;
         $("mkout").querySelectorAll(".prop button").forEach((b) => b.onclick = async () => {
           const el = b.closest(".prop"), id = +el.dataset.id, act = b.dataset.act;
-          await post(`/api/corrections/${id}/${act}`);
+          await post(`/api/corrections/${id}/${act}?by=${encodeURIComponent(who() || "a person")}`);
           const p = props.find((x) => x.id === id);
           p.status = act === "accept" ? "applied" : "rejected";
           if (act === "accept") { accepted++; mine.push(id); }

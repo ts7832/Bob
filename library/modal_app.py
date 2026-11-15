@@ -747,7 +747,7 @@ def web():
                                     basis=f"{r['engine_answer']} found by the system; {len(removed)} removed and {len(added)} added by {', '.join(who)}")
                 r["corrected"] = dict(by=", ".join(who), removed=len(removed), added=len(added), kind="items")
                 steps.append(dict(stage="Corrected", actor=", ".join(who), detail=f"system {r['engine_answer']} -> {r['answer']}: "
-                                  + "; ".join(f"{'-' if c['kind'] == 'remove' else '+'}1 {c['cls']}" + (f" ({c['note']})" if c['note'] else "") + (" [proposed by Opus, accepted]" if c["source"] == "opus" else "") for c in removed + added)))
+                                  + "; ".join(f"{'-' if c['kind'] == 'remove' else '+'}1 {c['cls']}" + (f" ({c['note']})" if c['note'] else "")  for c in removed + added)))
         if not is_count and len(ev) == 1:
             ar = [c for c in cs if c["kind"] == "area" and c["item_id"] == ev[0].get("id")]
             if ar:
@@ -782,7 +782,7 @@ def web():
         return dict(id=cid)
 
     @api.post("/api/corrections/{cid}/{action}")
-    def act_correction(cid: int, action: str, request: Request):
+    def act_correction(cid: int, action: str, request: Request, by: str = ""):
         """accept (a proposal becomes applied), reject (a proposal is declined), undo (an applied correction is taken back)."""
         w = ws(request)
         c = q("SELECT * FROM corrections WHERE id=%s", (cid,), one=True)
@@ -793,6 +793,8 @@ def web():
         if not new:
             raise HTTPException(400, "action must be accept, reject or undo")
         q("UPDATE corrections SET status=%s WHERE id=%s", (new, cid))
+        if action == "accept" and c["source"] == "opus":
+            q("UPDATE corrections SET author=%s WHERE id=%s", (f"{by or 'a person'} (proposed by Opus, accepted)"[:80], cid))
         dirty.set()
         return dict(id=cid, status=new)
 
@@ -821,7 +823,11 @@ If nothing needs fixing, give an empty proposals list and say why in the summary
         box = b.get("box") or [0, 0, 1, 1]
         nid = q("INSERT INTO corrections (sheet_id, kind, bbox_json, note, author, source, status) VALUES (%s,'note',%s,%s,%s,'person','applied')",
                 (sid, json.dumps(box), b.get("comment") or "", (b.get("author") or "")[:80]))
+        inside = [x for x in (b.get("counted_inside") or []) if x.get("id")][:30]   # counted items whose mark lies inside the circle
         ctx = ""
+        if b.get("counted_inside") is not None:
+            ctx += ("Items the reading COUNTED inside the circled part: " + ", ".join(f"{x.get('cls')} (mark {x.get('mark') or x['id']})" for x in inside)
+                    if inside else "The reading counted NO items inside the circled part.") + " A 'remove' can only refer to one of these.\n"
         if b.get("question"):
             ctx = f"The question on screen: {b['question']}\nThe system's answer: {b.get('answer')}"
             if b.get("evidence_classes"):
@@ -852,14 +858,22 @@ If nothing needs fixing, give an empty proposals list and say why in the summary
         for p in (out.get("proposals") or [])[:12]:
             if p.get("kind") not in ("add", "remove", "answer"):
                 continue
+            item_id = None
+            if p["kind"] == "remove" and b.get("counted_inside") is not None:   # bind to a counted item in the circle, or drop
+                same = [x for x in inside if (x.get("cls") or "").lower() == (p.get("cls") or "").lower()] or inside
+                if not same:
+                    out["summary"] = (out.get("summary") or "") + " (A removal was proposed, but nothing counted is inside the circle, so it was left out.)"
+                    continue
+                item_id, p["cls"] = same[0]["id"], same[0].get("cls") or p.get("cls")
+                inside = [x for x in inside if x["id"] != item_id]
             pb = p.get("box")
             vb = [x0 + pb[0] * (x1 - x0), y0 + pb[1] * (y1 - y0), x0 + pb[2] * (x1 - x0), y0 + pb[3] * (y1 - y0)] if isinstance(pb, list) and len(pb) == 4 else None
-            cid = q("INSERT INTO corrections (sheet_id, kind, cls, bbox_json, value, question_norm, note, author, source, status, note_id) "
-                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'opus','proposed',%s)",
-                    (sid, p["kind"], (p.get("cls") or "").lower() or None, json.dumps(vb) if vb else None, None if p.get("value") is None else str(p["value"]),
+            cid = q("INSERT INTO corrections (sheet_id, kind, item_id, cls, bbox_json, value, question_norm, note, author, source, status, note_id) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'opus','proposed',%s)",
+                    (sid, p["kind"], item_id, (p.get("cls") or "").lower() or None, json.dumps(vb) if vb else None, None if p.get("value") is None else str(p["value"]),
                      norm(b["question"]) if p["kind"] == "answer" and b.get("question") else None, (p.get("reason") or "")[:500],
-                     f"Opus (from {(b.get('author') or 'a note')[:60]})", nid))
-            props.append(dict(id=cid, kind=p["kind"], cls=p.get("cls"), bbox=vb, value=p.get("value"), reason=p.get("reason")))
+                     "proposed by Opus", nid))
+            props.append(dict(id=cid, kind=p["kind"], cls=p.get("cls"), item_id=item_id, bbox=vb, value=p.get("value"), reason=p.get("reason")))
         dirty.set()
         return dict(note_id=nid, summary=out.get("summary"), proposals=props, model=r.model, cost_usd=round(cost, 5), seconds=sec, paid_by=keypool.last(),
                     tokens=dict(input=r.usage.input_tokens, output=r.usage.output_tokens))
@@ -898,6 +912,24 @@ If nothing needs fixing, give an empty proposals list and say why in the summary
         if not q("SELECT id FROM scans WHERE id=%s AND workspace_id=%s", (scan_id, w), one=True) or not os.path.exists(f"{V}/library/scans/{scan_id}.jpg"):
             raise HTTPException(404, "no such photo")
         return FileResponse(f"{V}/library/scans/{scan_id}.jpg", media_type="image/jpeg")
+
+    @api.delete("/api/sheets/{sid}")
+    def delete_sheet(sid: int, request: Request):
+        """Remove a sheet with its files, answers and corrections (test uploads; a sheet it replaced becomes current again)."""
+        import shutil
+        w = ws(request)
+        r = sheet_row(w, sid)
+        q("UPDATE sheets SET superseded_by=NULL WHERE superseded_by=%s", (sid,))
+        for t in ("answers", "corrections"):
+            q(f"DELETE FROM {t} WHERE sheet_id=%s", (sid,))
+        q("UPDATE scans SET sheet_id=NULL WHERE sheet_id=%s", (sid,))
+        q("DELETE FROM sheets WHERE id=%s", (sid,))
+        if not q("SELECT id FROM sheets WHERE project_id=%s LIMIT 1", (r["project_id"],)):
+            q("DELETE FROM projects WHERE id=%s", (r["project_id"],))
+        shutil.rmtree(f"{FILES}/{sid}", ignore_errors=True)
+        feats.pop(sid, None)
+        dirty.set()
+        return dict(deleted=sid)
 
     # ---- money saved ------------------------------------------------------------------------------------------------
     OPUS_PER_QUESTION = dict(input_tokens=2500, output_tokens=800)   # assumption: one Opus call per question, blueprint image + question
