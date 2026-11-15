@@ -186,12 +186,14 @@
       const st = await fetch("/bob/readstatus?path=" + encodeURIComponent(p)).then((x) => x.json());
       if (st.started && (st.reading === "done" || st.reading === "running")) continue;
       b.textContent = `Opus reading ${s.level_name || s.title || s.name}…`;
-      await fetch("/bob/read?path=" + encodeURIComponent(p)).then((x) => x.json());
+      const go = await fetch("/bob/read?path=" + encodeURIComponent(p)).then((x) => x.json()).catch(() => ({}));
+      const until = Date.now() + ((go.limit || 240) + 180) * 1000;    // models + Opus's limit + slack: never wait forever
       for (;;) {                                                     // one floor at a time
         await new Promise((ok) => setTimeout(ok, 5000));
         opusStatus();
-        const r = await fetch("/bob/readstatus?path=" + encodeURIComponent(p)).then((x) => x.json());
-        if (r.stage === "error" || (r.stage === "done" && r.reading && r.reading !== "running")) break;
+        const r = await fetch("/bob/readstatus?path=" + encodeURIComponent(p)).then((x) => x.json()).catch(() => ({}));
+        if (go.error || !r.started || r.stage === "error" || (r.stage === "done" && r.reading && r.reading !== "running")) break;
+        if (Date.now() > until || !document.body.contains(b)) break;
       }
     }
     b.textContent = "Opus: all floors read"; opusStatus();

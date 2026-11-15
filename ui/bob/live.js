@@ -9,7 +9,7 @@
   const tools = $("vtools") || vtb;
   tools.insertAdjacentHTML("afterbegin", '<button id="vlive" title="Watch the reading improve step by step: our models first, then Opus">▶ Live reading</button>');
 
-  let job = null, timer = 0, versions = [], shown = -1, pic = null, picScale = 1, wiping = false, lastPartial = -1, lastView = -1, st = null;
+  let job = null, timer = 0, versions = [], shown = -1, pic = null, picScale = 1, wiping = false, lastPartial = -1, lastView = -1, st = null, misses = 0;
 
   function panel() {
     if ($("livep")) return;
@@ -43,7 +43,8 @@
     placeholder();
     const r = await fetch("/bob/read?path=" + encodeURIComponent(p) + (retry === true ? "&retry=1" : "")).then((x) => x.json()).catch((e) => ({ error: e.message }));
     if (r.error) { $("lstage").textContent = "Could not start: " + r.error; return; }
-    job = r.id; lastPartial = -1; lastView = -1;
+    job = r.id; lastPartial = -1; lastView = -1; misses = 0;
+    if (r.limit) window.bobOpusLimit = r.limit;
     poll();
   }
   window.bobLiveReading = start;
@@ -58,11 +59,12 @@
     if (!p) { $("opuschip").textContent = "OPUS · –"; return; }
     let r = {};
     try { r = await fetch("/bob/readstatus?path=" + encodeURIComponent(p)).then((x) => x.json()); } catch (e) { /* */ }
+    if (r.limit) window.bobOpusLimit = r.limit;
     const c = $("opuschip");
     c.className = "";
     if (!r.started) { c.textContent = "OPUS · NOT RUN ▸"; c.classList.add("off"); }
     else if (r.stage !== "done") { c.textContent = "OPUS · MODELS READING…"; c.classList.add("busy"); }
-    else if (r.reading === "running") { c.textContent = `OPUS · READING ${Math.round(r.reading_elapsed || 0)} s · ${r.partial_n || 0} STEP${r.partial_n === 1 ? "" : "S"}`; c.classList.add("busy"); }
+    else if (r.reading === "running") { c.textContent = `OPUS · READING ${Math.round(r.reading_elapsed || 0)} / ${r.limit || 240} s · ${r.partial_n || 0} STEP${r.partial_n === 1 ? "" : "S"}`; c.classList.add("busy"); }
     else if (r.reading === "done") { c.textContent = "OPUS · DONE ✓"; c.classList.add("ok"); }
     else if (r.reading === "failed") { c.textContent = "OPUS · DID NOT FINISH"; c.classList.add("off"); }
     else { c.textContent = "OPUS · MODELS ONLY"; c.classList.add("off"); }
@@ -75,12 +77,25 @@
 
   async function poll() {
     if (!job) return;
-    try {
-      st = await fetch("/api/v2/status?id=" + encodeURIComponent(job)).then((x) => x.json());
-    } catch (e) { timer = setTimeout(poll, 2500); return; }
-    const reading = st.reading, stage = st.stage;
+    let got = null;
+    try { got = await fetch("/api/v2/status?id=" + encodeURIComponent(job)).then((x) => x.json()); } catch (e) { /* */ }
+    if (!got || !got.stage) {                                  // the reading is gone (the server restarted): stop waiting
+      if (++misses < 5) { timer = setTimeout(poll, 2500); return; }
+      $("lstage").textContent = "The reading was lost (the server restarted): try again";
+      if (!$("lretry")) { $("lclose").insertAdjacentHTML("beforebegin", '<button id="lretry">Try again</button>'); $("lretry").onclick = () => start(true); }
+      if ($("lwait")) $("lwait").remove();
+      return;
+    }
+    misses = 0; st = got;
+    const reading = st.reading, stage = st.stage, lim = window.bobOpusLimit || 240;
+    if (reading === "running" && (st.reading_elapsed || 0) > lim + 90) {    // the server should have stopped it by now
+      $("lstage").textContent = `Opus is past its ${lim} s limit: showing the best reading so far`;
+      if (!$("lretry")) { $("lclose").insertAdjacentHTML("beforebegin", '<button id="lretry">Try again</button>'); $("lretry").onclick = () => start(true); }
+      return;
+    }
+    const capped = st.discovery && st.discovery.capped;
     $("lstage").textContent = stage === "error" ? "Failed: " + (st.detail || "") : stage !== "done" ? (st.label || stage) + "…"
-      : reading === "running" ? `Opus is reading the drawing · ${Math.round(st.reading_elapsed || 0)} s` : reading === "done" ? `Opus reading complete · ${Math.round(st.reading_seconds || 0)} s` :
+      : reading === "running" ? `Opus is reading the drawing · ${Math.round(st.reading_elapsed || 0)} / ${lim} s` : reading === "done" ? (capped ? `Opus reading: best result at the ${lim} s limit` : `Opus reading complete · ${Math.round(st.reading_seconds || 0)} s`) :
       reading === "failed" ? "Opus reading did not finish: showing our models' reading" : "Ready";
     if (reading === "failed" && !$("lretry")) { $("lclose").insertAdjacentHTML("beforebegin", '<button id="lretry">Try again</button>'); $("lretry").onclick = () => start(true); }
     $("lstep").textContent = st.reading_step ? "· " + st.reading_step : "";

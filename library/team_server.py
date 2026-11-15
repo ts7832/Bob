@@ -40,6 +40,54 @@ try:
 except Exception as _e:  # no building-model support here: nothing to guard
     print("[bob] building-model lock not installed:", _e)
 
+# Opus's reading of a plan (drawqa/layer.py: headless Claude Code) gets a hard time limit here: BOB_OPUS_LIMIT seconds
+# (default 240), for every sheet size (layer.py itself allows 10 min, 20 min for big sheets). Claude Code keeps its
+# result file (discovered.json) current while it works, so when the limit is reached it is stopped, together with any
+# script it started, and its best reading so far is used and kept like a finished one.
+OPUS_LIMIT = int(os.environ.get("BOB_OPUS_LIMIT", "240"))
+try:
+    import signal, subprocess as _sp, time as _time, types as _types
+    from drawqa import layer as _layer
+    _capped = threading.local()
+
+    def _popen(*a, **kw):
+        kw["start_new_session"] = True                       # its own process group: stopping it stops its scripts too
+        proc = _sp.Popen(*a, **kw)
+        state = _capped.state = dict(hit=False)               # read by _discover below, in the same reading thread
+
+        def stop():
+            if proc.poll() is None:
+                state["hit"] = True
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                    _time.sleep(3)
+                    if proc.poll() is None:
+                        os.killpg(proc.pid, signal.SIGKILL)
+                except Exception:
+                    proc.kill()
+        t = threading.Timer(OPUS_LIMIT, stop)
+        t.daemon = True
+        t.start()
+        return proc
+    _layer.subprocess = _types.SimpleNamespace(**{k: getattr(_sp, k) for k in dir(_sp) if not k.startswith("__")})
+    _layer.subprocess.Popen = _popen
+    _orig_discover = _layer._discover
+
+    def _discover(*a, **kw):
+        _capped.state = dict(hit=False)
+        classes, info = _orig_discover(*a, **kw)
+        if _capped.state["hit"]:
+            if classes:
+                info = dict(info, status="done", capped=True, limit=OPUS_LIMIT,
+                            reason=f"Opus was stopped at the {OPUS_LIMIT} s limit; its best reading so far is used")
+            else:
+                info = dict(info, status="timeout", capped=True, limit=OPUS_LIMIT,
+                            reason=f"Opus wrote no reading within the {OPUS_LIMIT} s limit")
+        return classes, info
+    _layer._discover = _discover
+except Exception as _e:
+    print("[bob] Opus time limit not installed:", _e)
+
 URL = os.environ.get("BOB_LIBRARY", "https://oliver-universityapps--bob-library-web.us-east.modal.run")
 PW = os.environ.get("BOB_PASSWORD", "123456789")
 PROJECT = os.environ.get("BOB_PROJECT", "Team page")
@@ -307,8 +355,8 @@ def patched_load_demo(orig=ui_server.load_demo):
                         f = _DEMO["d"].resolve(f)
                     jid = hashlib.sha1(open(f, "rb").read()).hexdigest()[:10]
                     if jid not in _DEMO["d"].JOBS:
-                        return self._send(200, dict(started=False))
-                    return self._send(200, dict(_DEMO["d"].job_status(jid), started=True))
+                        return self._send(200, dict(started=False, limit=OPUS_LIMIT))
+                    return self._send(200, dict(_DEMO["d"].job_status(jid), started=True, limit=OPUS_LIMIT))
                 except Exception as e:
                     return self._send(200, dict(started=False, error=f"{type(e).__name__}: {e}"))
             if p == "/bob/read":                    # start Aleks's live reading of an open file (models, then Claude step by step)
@@ -320,7 +368,7 @@ def patched_load_demo(orig=ui_server.load_demo):
                     saved = _DEMO["d"].save_upload(os.path.basename(f), open(f, "rb").read())   # its own copy: one reading per file
                     if (urllib.parse.parse_qs(u.query).get("retry") or [""])[0] == "1":         # a reading that did not finish: start over
                         _DEMO["d"].JOBS.pop(os.path.basename(saved).split("_")[0], None)
-                    return self._send(200, dict(id=_DEMO["d"].start_reading(saved, os.path.basename(f))))
+                    return self._send(200, dict(id=_DEMO["d"].start_reading(saved, os.path.basename(f)), limit=OPUS_LIMIT))
                 except Exception as e:
                     return self._send(500, {"error": f"{type(e).__name__}: {e}"})
             if p == "/bob/floors":                  # the other floors of the same building (sibling plan files), top floor first
