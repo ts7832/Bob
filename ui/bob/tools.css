@@ -223,8 +223,8 @@ aside button:not(.link):not(.term):not(#faqlist button){border-radius:0!importan
 
 /* ===== Bob: opening screen, pixel flood, working badge ================================================================ */
 .bobsprite{image-rendering:pixelated;image-rendering:crisp-edges;background-repeat:no-repeat}
-.bobsprite.wave{width:240px;height:320px;background-image:url(/bob/mascot/wave.png);background-size:2400px 320px;animation:bobwave 1.3s steps(10) infinite}
-@keyframes bobwave{to{background-position-x:-2400px}}
+.bobsprite.wave{width:264px;height:400px;background-image:url(/bob/mascot/wave.png);background-size:2640px 400px;animation:bobwave 1.4s steps(10) infinite}
+@keyframes bobwave{to{background-position-x:-2640px}}
 .bobsprite.work{width:64px;height:64px;background-size:calc(64px * var(--n)) 64px;animation:bobwork calc(.16s * var(--n)) steps(var(--n)) infinite}
 @keyframes bobwork{to{background-position-x:calc(-64px * var(--n))}}
 #bobsplash{position:fixed;inset:0;z-index:90;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;
@@ -242,3 +242,26 @@ aside button:not(.link):not(.term):not(#faqlist button){border-radius:0!importan
 #bobwork[hidden]{display:none}
 #bobwork span{font:18px var(--pix)}
 @media (max-width:700px){#bobsplash .spl{flex-direction:column;align-items:center}#bobsplash .bubble{width:auto;margin-top:0}#bobsplash .bubble::before{display:none}}
+
+/* ===== live reading over the blueprint window ======================================================================== */
+#vlive{border:1px solid #1e1e1e;background:#1e1e1e;color:#fefefe;font:16px/1 var(--pix);padding:2px 8px;cursor:pointer}
+#vlive:hover{background:#fefefe;color:#1e1e1e}
+#livep{position:absolute;left:0;right:0;top:30px;bottom:0;z-index:7;background:#fefefe;display:flex;flex-direction:column;border-top:1px solid #1e1e1e}
+#livep .lhead{display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid #1e1e1e;font-size:13px}
+#livep .lhead b{font:19px var(--pix)}
+#livep .lhead span{font:12px var(--mono);color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+#livep .lhead button,#livep .lstrip button{border:1px solid #1e1e1e;background:#fefefe;font:16px var(--pix);padding:2px 9px;cursor:pointer;box-shadow:2px 2px 0 #1e1e1e}
+#livep .lhead button:hover,#livep .lstrip button:hover,#livep .lstrip button.on{background:#1e1e1e;color:#fefefe}
+#livep .lbody{flex:1;min-height:0;display:flex}
+#livep canvas{flex:1;min-width:0;image-rendering:pixelated}
+#livep .lside{width:220px;border-left:1px solid #1e1e1e;padding:8px;overflow:auto;font-size:12px}
+#livep .lview{display:none;margin-bottom:10px}#livep .lview.on{display:block}
+#livep .lview small{font:14px var(--pix);display:block;margin-bottom:3px}
+#livep .lview img{width:100%;border:1px solid #1e1e1e;image-rendering:pixelated}
+#livep table{border-collapse:collapse;width:100%;margin-top:4px}
+#livep td{border-bottom:1px dashed #bbb;padding:2px 3px;font:12px var(--mono)}
+#livep td.up{color:#03804a}#livep td.down{color:#c0261c}
+#livep .dash{display:inline-block;width:18px;height:0;border-top:2px solid #1e1e1e;margin-right:5px;vertical-align:3px}
+#livep .dash.d1{border-top-style:dashed}#livep .dash.d2{border-top-style:dotted}#livep .dash.d3{border-top:2px dashed #1e1e1e;width:12px}
+#livep .lstrip{display:flex;gap:6px;align-items:center;padding:6px 10px;border-top:1px solid #1e1e1e;overflow-x:auto}
+#livep .lstrip .muted{font:12px var(--mono);margin-left:6px;white-space:nowrap}

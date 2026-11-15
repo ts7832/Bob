@@ -3,8 +3,10 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const M = "/bob/mascot/";
-  const ICON = (() => { try { return localStorage.getItem("bobWorkIcon") || "a"; } catch (e) { return "a"; } })();
-  const FRAMES = { a: 8, b: 6, c: 10, d: 7, e: 8, f: 4, g: 8, h: 5 };
+  // the working badge: a 32 x 32 Bob (icons32/), chosen in the gallery (/bob/mascot/choose.html); default: with a clipboard
+  const ICONS = { work_k1: 9, work_k2: 9, work_k3: 9, work_k4: 9, work_k5: 4, b1_bust: 1, b2_wink: 4, b3_wave: 4, b4_clipboard: 9, b5_head: 1, b6_head_clipboard: 9 };
+  let ICON = "work_k1";
+  try { const k = localStorage.getItem("bobWorkIcon32"); if (ICONS[k]) ICON = k; } catch (e) { /* */ }
 
   // ------------------------------------------------------------------ the pixel flood: diagonal hatch, pixel blocks, top to bottom
   function flood(onCovered, onDone) {
@@ -73,7 +75,7 @@
   splash();
 
   // ------------------------------------------------------------------ Bob is working (anything being read, answered, corrected)
-  document.body.insertAdjacentHTML("beforeend", `<div id="bobwork" hidden><div class="bobsprite work" style="background-image:url(${M}work_${ICON}.png);--n:${FRAMES[ICON]}"></div><span id="bobworkt">Bob is working…</span></div>`);
+  document.body.insertAdjacentHTML("beforeend", `<div id="bobwork" hidden><div class="bobsprite work" style="background-image:url(${M}${ICON.startsWith("work_") ? "" : "icons32/"}${ICON}.png);--n:${ICONS[ICON]}"></div><span id="bobworkt">Bob is working…</span></div>`);
   let busy = 0;
   const show = () => { $("bobwork").hidden = busy <= 0; };
   window.bobWorking = (on, label) => { busy += on ? 1 : -1; if (label && on) $("bobworkt").textContent = label; show(); };

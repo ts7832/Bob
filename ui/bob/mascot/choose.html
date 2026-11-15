@@ -11,4 +11,31 @@ h1{font:300 34px Geist;margin:0 0 4px}p{font:13px "Fragment Mono",monospace;colo
 <div class="o"><b>F7</b><img src="src/flat_7.png"><small>flat tones, white face (200)</small></div>
 <div class="o"><b>F8</b><img src="src/flat_8.png"><small>flat tones, white face (160)</small></div>
 <div class="o"><b>F9</b><img src="src/flat_9.png"><small>flat tones, white face (240)</small></div>
-</div></body></html>
+</div>
+<h1 style="margin-top:30px">B + E combined (new)</h1><p>E's hat and eyes right under the brim, B's body and clipboard, rounder, with a neck. Click one to use it as the "Bob is working" badge.</p>
+<div class="g" id="ke"></div>
+<script>
+const KE=[["work_k1",9,"K1: writing at his side, eyes follow the pencil, blinks"],["work_k2",9,"K2: chubbier, writing"],["work_k3",9,"K3: nods on each stroke, smiles at the end of a line"],
+["work_k4",9,"K4: E's pose with a body: peeks over the clipboard"],["work_k5",4,"K5: waves, clipboard under the arm"]];
+const dke=()=>{const cur=localStorage.getItem("bobWorkIcon32")||"work_k1";document.getElementById("ke").innerHTML=KE.map(([k,n,t])=>`<div class="o ${k===cur?"on":""}" data-k="${k}"><b>${k.slice(5).toUpperCase()}</b><div class="row">
+${["x4","x2","x1"].map(z=>`<div class="ic ${z}" style="background-image:url(${k}.png);--n:${n}"></div>`).join("")}</div><small>${t}</small></div>`).join("");
+document.querySelectorAll("#ke .o").forEach(o=>o.onclick=()=>{localStorage.setItem("bobWorkIcon32",o.dataset.k);dke();if(typeof d32==="function")d32();});};
+document.addEventListener("DOMContentLoaded",dke);
+</script>
+<h1 style="margin-top:30px">32 × 32 icons</h1><p>Placed by hand after the reference. Click one: it becomes the "Bob is working" badge (saved in this browser). Shown at 4×, 2× and actual size.</p>
+<div class="g" id="i32"></div>
+<style>.ic{image-rendering:pixelated;background-repeat:no-repeat;animation:ia calc(.18s * var(--n)) steps(var(--n)) infinite}
+.ic.x4{width:128px;height:128px;background-size:calc(128px * var(--n)) 128px;--w:128px}.ic.x2{width:64px;height:64px;background-size:calc(64px * var(--n)) 64px;--w:64px}
+.ic.x1{width:32px;height:32px;background-size:calc(32px * var(--n)) 32px;--w:32px}@keyframes ia{to{background-position-x:calc(var(--w) * var(--n) * -1)}}
+.row{display:flex;align-items:flex-end;gap:12px;justify-content:center}.o.on{outline:3px solid #1e1e1e}</style>
+<script>
+const I32=[["b1_bust",1,"Bust, smiling"],["b2_wink",4,"Bust, winks"],["b3_wave",4,"Bust, waving"],["b4_clipboard",9,"Writing on a clipboard (working)"],["b5_head",1,"Head only"],["b6_head_clipboard",9,"Head over a notepad (working)"]];
+let cur32=localStorage.getItem("bobWorkIcon32")||"work_k1";
+const d32=()=>{document.getElementById("i32").innerHTML=I32.map(([k,n,t])=>`<div class="o ${k===cur32?"on":""}" data-k="${k}"><b>${k.split("_")[0].toUpperCase()}</b><div class="row">
+${["x4","x2","x1"].map(z=>`<div class="ic ${z}" style="background-image:url(icons32/${k}.png);--n:${n}"></div>`).join("")}</div><small>${t}</small></div>`).join("");
+document.querySelectorAll("#i32 .o").forEach(o=>o.onclick=()=>{cur32=o.dataset.k;localStorage.setItem("bobWorkIcon32",cur32);d32();});};d32();
+</script>
+<h1 style="margin-top:30px">Opening screen</h1><p>Your reference Bob in the white-face flat style (F7), waving (the hand turns about the wrist).</p>
+<div style="width:264px;height:400px;background:url(wave.png) 0 0/2640px 400px no-repeat;image-rendering:pixelated;animation:wv 1.4s steps(10) infinite"></div>
+<style>@keyframes wv{to{background-position-x:-2640px}}</style>
+</body></html>

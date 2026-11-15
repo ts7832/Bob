@@ -7,7 +7,7 @@ dither to pure black and white, and outlined in black so it reads like the rest 
 """
 import os, sys
 import numpy as np
-from PIL import Image, ImageFilter, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "src", "bob_reference.webp")
@@ -107,7 +107,7 @@ def wave_frames(height, **kw):
             # keep the forearm below the box untouched; rotate the hand about the wrist
             rot = hand.rotate(ang, resample=Image.BICUBIC, center=(wrist[0] - box[0], wrist[1] - box[1]), fillcolor=(255, 255, 255))
             im.paste(rot, box[:2])
-        frames.append(onebit(height, im=im, **kw))
+        frames.append(flat(height, im=im, levels=(0.28, 0.52, 0.70), edge=0.20))   # the chosen look (F7): flat tones, white face
     return frames
 
 
@@ -132,6 +132,54 @@ if __name__ == "__main__":
         for i, v in enumerate(F):
             flat(**v).save(os.path.join(HERE, "src", f"flat_{i + 1}.png"))
             print("flat", i + 1, v)
-    else:
-        h = int(os.environ.get("BOB_HEIGHT", "160"))
+    elif "--icons" not in sys.argv:
+        h = int(os.environ.get("BOB_HEIGHT", "200"))
         print("wave.png", sheet(wave_frames(h, bayer=4), os.path.join(HERE, "wave.png")))
+
+
+# ---------------------------------------------------------------------------------------------------------------- 32 x 32 icons
+def crop_ref(box):
+    """A part of the reference (fractions of the picture) on a white square, so it can be shrunk to an icon."""
+    im = Image.open(SRC).convert("RGB")
+    W, H = im.size
+    x0, y0, x1, y1 = int(box[0] * W), int(box[1] * H), int(box[2] * W), int(box[3] * H)
+    c = im.crop((x0, y0, x1, y1))
+    side = max(c.size)
+    sq = Image.new("RGB", (side, side), (255, 255, 255))
+    sq.paste(c, ((side - c.width) // 2, side - c.height))
+    return sq
+
+
+def icon32(box, levels=(0.30, 0.55, 0.78), edge=0.20, size=32):
+    return flat(height=size, im=crop_ref(box), levels=levels, edge=edge)
+
+
+def with_clipboard(ic, t):
+    """A clipboard held in front of the chest and a pencil writing on it (frame t)."""
+    d = ImageDraw.Draw(ic)
+    x0, y0, x1, y1 = 15, 19, 29, 31
+    d.rectangle([x0, y0, x1, y1], fill=PAPER, outline=INK)
+    d.rectangle([20, 17, 24, 20], fill=INK)
+    for i, y in enumerate((23, 26, 29)):
+        n = 9 if i < t // 3 else (t % 3) * 3
+        if n:
+            d.line([17, y, 17 + n, y], fill=INK)
+    px, py = 17 + (t % 3) * 3 + 2, 23 + min(2, t // 3) * 3
+    d.line([px, py, px + 5, py - 6], fill=INK, width=2)
+    d.point((px, py), fill=INK)
+    return ic
+
+
+ICON_BOXES = {"i1_full": (0.0, 0.0, 1.0, 1.0), "i2_bust": (0.22, 0.0, 0.92, 0.42), "i3_head": (0.30, 0.0, 0.88, 0.30),
+              "i4_wave": (0.0, 0.0, 0.92, 0.45), "i5_face": (0.36, 0.06, 0.84, 0.30)}
+if __name__ == "__main__" and "--icons" in sys.argv:
+    from PIL import ImageDraw
+    os.makedirs(os.path.join(HERE, "icons"), exist_ok=True)
+    for k, box in ICON_BOXES.items():
+        icon32(box).save(os.path.join(HERE, "icons", k + ".png"))
+        icon32(box, levels=(0.22, 0.45, 0.70), edge=0.26).save(os.path.join(HERE, "icons", k + "_light.png"))
+    frames = [with_clipboard(icon32(ICON_BOXES["i2_bust"]), t) for t in range(9)]
+    sheet(frames, os.path.join(HERE, "icons", "i6_clipboard.png"))
+    frames = [with_clipboard(icon32(ICON_BOXES["i3_head"]), t) for t in range(9)]
+    sheet(frames, os.path.join(HERE, "icons", "i7_head_clipboard.png"))
+    print(sorted(os.listdir(os.path.join(HERE, "icons"))))

@@ -5,7 +5,7 @@
 Drawn with shapes on a small grid, then turned one-bit: 0 = black, 255 = white, 128 = checker dither, 1 = transparent.
 Scaled up in the page with image-rendering: pixelated. Not a copy of any existing character.
 """
-import math, os
+import math, os, sys
 from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -239,3 +239,113 @@ if __name__ == "__main__":
         out.append(sheet([fn(t) for t in range(n)], name))
     for o in out:
         print(*o)
+
+
+# ---------------------------------------------------------------------------------------------------------------- B + E combined (the user's pick)
+def cute_head(d, cx, top, look=0, blink=False, mood="smile", r=5):
+    """E's head: dithered hard hat with a ridge; eyes right under the brim, close together; round face; 1 px nose."""
+    fy = top + 3                                                                           # face top (hidden by the brim)
+    d.ellipse([cx - r, fy, cx + r, fy + 2 * r], fill=W, outline=K)
+    d.rectangle([cx - r - 1, fy + 3, cx - r, fy + 6], fill=W, outline=K)                  # ears
+    d.rectangle([cx + r, fy + 3, cx + r + 1, fy + 6], fill=W, outline=K)
+    d.pieslice([cx - r - 2, top - 7, cx + r + 2, top + 9], 180, 360, fill=G, outline=K)   # dome
+    d.rectangle([cx, top - 7, cx, top + 1], fill=K)                                       # ridge
+    d.rectangle([cx - r - 4, top + 2, cx + r + 4, top + 3], fill=K)                       # brim
+    ey = top + 4                                                                           # eyes touch the brim
+    for ex in (cx - 3 + look, cx + 2 + look):
+        if blink:
+            d.point((ex, ey + 1), fill=K); d.point((ex + 1, ey + 1), fill=K)
+        else:
+            d.rectangle([ex, ey, ex + 1, ey + 1], fill=K)
+    d.point((cx + look, ey + 3), fill=K)                                                  # nose
+    if mood == "smile":
+        d.arc([cx - 3, ey + 2, cx + 3, ey + 6], 20, 160, fill=K)
+    else:
+        d.line([cx - 1, ey + 5, cx + 1, ey + 5], fill=K)
+
+
+def cute_body(d, cx, top, chub=0):
+    """Round body: neck, dithered shirt, white bib, black boots (fits from top to top + 12)."""
+    d.rectangle([cx - 1, top - 2, cx + 1, top], fill=W, outline=K)                       # neck joins head and body
+    d.rounded_rectangle([cx - 6 - chub, top, cx + 6 + chub, top + 9], radius=4, fill=G, outline=K)
+    d.rounded_rectangle([cx - 3, top + 2, cx + 3, top + 9], radius=1, fill=W, outline=K)  # bib
+    d.line([cx - 3, top + 2, cx - 5, top], fill=K); d.line([cx + 3, top + 2, cx + 5, top], fill=K)  # straps
+    d.rectangle([cx - 5, top + 9, cx - 1, top + 12], fill=K)                              # boots
+    d.rectangle([cx + 1, top + 9, cx + 5, top + 12], fill=K)
+
+
+def held_clipboard(d, x0, y0, t, w=10, h=11, lines=3):
+    d.rectangle([x0, y0, x0 + w, y0 + h], fill=W, outline=K)
+    d.rectangle([x0 + w // 2 - 2, y0 - 1, x0 + w // 2 + 2, y0 + 1], fill=K)              # clip
+    full = w - 3
+    for i in range(lines):
+        y = y0 + 4 + i * 3
+        n = full if i < t // 3 else (t % 3) * (full // 3 + 1)
+        if n:
+            d.line([x0 + 2, y, x0 + 2 + min(n, full), y], fill=K)
+    return x0 + 2 + min(full, (t % 3) * (full // 3 + 1)), y0 + 4 + min(lines - 1, t // 3) * 3
+
+
+def pen(d, x, y, n=6):
+    d.line([x, y, x + n * 0.6, y - n], fill=K, width=2)
+    d.point((x, y), fill=K)
+
+
+def hand(d, x, y):
+    d.rectangle([x - 1, y - 1, x + 1, y + 1], fill=W, outline=K)
+
+
+def k1(t):   # standing, clipboard held at his side, writing; eyes follow the pencil, blinks once
+    im, d = canvas(32, 32)
+    cute_body(d, 12, 19)
+    px, py = held_clipboard(d, 19, 15, t, w=10, h=12)
+    hand(d, 18, 22)
+    cute_head(d, 12, 7, look=1 if t % 3 else 0, blink=(t == 5), mood="focus" if t % 4 else "smile")
+    pen(d, px, py)
+    return onebit(im)
+
+
+def k2(t):   # chubbier body, same writing
+    im, d = canvas(32, 32)
+    cute_body(d, 12, 19, chub=1)
+    px, py = held_clipboard(d, 20, 15, t, w=10, h=12)
+    hand(d, 19, 22)
+    cute_head(d, 12, 7, look=1, blink=(t == 6))
+    pen(d, px, py)
+    return onebit(im)
+
+
+def k3(t):   # nods on each stroke, smiles at the end of a line
+    im, d = canvas(32, 32)
+    cute_body(d, 12, 19)
+    px, py = held_clipboard(d, 19, 15, t, w=10, h=12)
+    hand(d, 18, 22)
+    cute_head(d, 12, 7 + (1 if t % 3 == 1 else 0), look=1, mood="smile" if t % 3 == 2 else "focus")
+    pen(d, px, py)
+    return onebit(im)
+
+
+def k4(t):   # E's pose with a body: clipboard up at the chest, peeking over it, boots below
+    im, d = canvas(32, 32)
+    cute_body(d, 16, 19)
+    cute_head(d, 16, 7, look=(-1, 0, 1, 0)[t % 4], blink=(t == 7))
+    px, py = held_clipboard(d, 9, 17, t, w=14, h=10)
+    pen(d, px, py)
+    return onebit(im)
+
+
+def k5(t):   # waving hello, clipboard tucked under the other arm
+    im, d = canvas(32, 32)
+    cute_body(d, 15, 19)
+    d.rectangle([21, 19, 27, 28], fill=W, outline=K)
+    a = math.radians(-125 + (0, 15, 28, 15)[t % 4])
+    hx, hy = 9 + 8 * math.cos(a), 21 + 8 * math.sin(a)
+    d.line([9, 21, hx, hy], fill=K, width=3); d.line([9, 21, hx, hy], fill=W, width=1)
+    hand(d, round(hx), round(hy))
+    cute_head(d, 15, 7, blink=(t == 3))
+    return onebit(im)
+
+
+if __name__ == "__main__" and "--cute" in sys.argv:
+    for name, fn, n in [("work_k1.png", k1, 9), ("work_k2.png", k2, 9), ("work_k3.png", k3, 9), ("work_k4.png", k4, 9), ("work_k5.png", k5, 4)]:
+        print(sheet([fn(t) for t in range(n)], name))

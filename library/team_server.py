@@ -165,8 +165,12 @@ def _corrected(kind, path, body):
     return body
 
 
+_DEMO = {}
+
+
 def patched_load_demo(orig=ui_server.load_demo):
     demo = orig()
+    _DEMO["d"] = demo
     local_solve = demo.solve
 
     def solve(path, question, generic=False, llm=False):
@@ -221,6 +225,16 @@ def patched_load_demo(orig=ui_server.load_demo):
                     return self._send(200, dict(path=_local(int(qs["sid"][0]), (qs.get("file_name") or [""])[0])))
                 except Exception as e:
                     return self._send(500, {"error": f"{type(e).__name__}: {e}"})
+            if p == "/bob/read":                    # start Aleks's live reading of an open file (models, then Claude step by step)
+                path = (urllib.parse.parse_qs(u.query).get("path") or [""])[0]
+                try:
+                    f = path[5:] if path.startswith("file:") else path
+                    if not os.path.isabs(f):
+                        f = _DEMO["d"].resolve(f)
+                    saved = _DEMO["d"].save_upload(os.path.basename(f), open(f, "rb").read())   # its own copy: one reading per file
+                    return self._send(200, dict(id=_DEMO["d"].start_reading(saved, os.path.basename(f))))
+                except Exception as e:
+                    return self._send(500, {"error": f"{type(e).__name__}: {e}"})
             if p == "/bob/floors":                  # the other floors of the same building (sibling plan files), top floor first
                 path = (urllib.parse.parse_qs(u.query).get("path") or [""])[0]
                 return self._send(200, _floors(path))
@@ -238,7 +252,7 @@ def patched_load_demo(orig=ui_server.load_demo):
                     return self._send(403, {"error": "forbidden"})
                 if os.path.isfile(f) and f.endswith((".png", ".html")):
                     return self._send(200, open(f, "rb").read(), "image/png" if f.endswith(".png") else "text/html; charset=utf-8")
-            if p.startswith("/bob/") and os.path.basename(p) in ("onebit.css", "onebit.js", "tools.js", "tools.css", "projects.js", "splash.js"):
+            if p.startswith("/bob/") and os.path.basename(p) in ("onebit.css", "onebit.js", "tools.js", "tools.css", "projects.js", "splash.js", "live.js"):
                 f = os.path.join(REPO, "ui", "bob", os.path.basename(p))
                 return self._send(200, open(f, "rb").read(), "text/css; charset=utf-8" if p.endswith(".css") else "text/javascript; charset=utf-8")
             return super().do_GET()
