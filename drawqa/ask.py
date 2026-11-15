@@ -43,7 +43,9 @@ Rules:
   number, add the inside total in the explanation, and cite the 'wall perimeter' items you used. A room's perimeter =
   its inside face. "Wall length" = the walls' length_m (whole walls through their doors and windows, as in quantity
   take-offs); give the solid length (solid_length_m) in the explanation. Say which measure you give.
-- Cite the ids your answer rests on in answer(evidence=...). Be brief. You have at most {turns} tool calls."""
+- Evidence = only the items that ARE the answer; the page highlights every id you cite. "Show me / where is the
+  kitchen": the kitchen room only. A count: exactly the counted items. Do not cite neighbouring rooms or anything you
+  mention only to say where something is, and do not list a room's contents unless they were asked for. Be brief. You have at most {turns} tool calls."""
 
 
 def _summary(layer):
