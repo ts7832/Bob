@@ -298,8 +298,9 @@ def job_picture(jid):
 
 
 def job_layer(jid):
-    keep = ("id", "bbox", "polygon", "polyline", "point", "label", "type", "tag", "name", "area_m2")
-    return [dict(name=c["name"], source=c.get("source"), items=[{k: it[k] for k in keep if k in it} for it in c.get("items") or []])
+    keep = ("id", "bbox", "polygon", "polyline", "point", "label", "type", "tag", "name", "area_m2", "face", "perimeter_m")
+    return [dict(name=c["name"], source=c.get("source"), items=[{k: it[k] for k in keep if k in it} for it in c.get("items") or []],
+                 **({"outline": c["outline"]} if c.get("outline") else {}), **({"hidden": True} if c.get("hidden") else {}))
             for c in JOBS[jid]["layer"].get("classes", [])]
 
 

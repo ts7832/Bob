@@ -147,7 +147,8 @@ async function ready() {
   $("found").innerHTML = "<h3>What was found</h3>";
   layer.forEach((c, i) => {
     const row = document.createElement("label"); row.className = "cls";
-    row.innerHTML = `<input type="checkbox" checked><span class="sw" style="background:${PAL[i % PAL.length]}"></span>${esc(c.name.replace(/_/g, " "))}
+    if (c.hidden) hidden.add(c.name);  // e.g. wall perimeter: drawn when an answer cites it
+    row.innerHTML = `<input type="checkbox" ${c.hidden ? "" : "checked"}><span class="sw" style="background:${PAL[i % PAL.length]}"></span>${esc(c.name.replace(/_/g, " "))}
       <span class="src">${/detector|model/.test(c.source || "") ? "model" : "Claude"}</span><span class="n">${c.items.length}</span>`;
     row.querySelector("input").onchange = e => { e.target.checked ? hidden.delete(c.name) : hidden.add(c.name); draw(); };
     $("found").appendChild(row);
@@ -217,6 +218,7 @@ function draw() {
   layer.forEach((c, i) => {
     if (hidden.has(c.name)) return;
     cx.strokeStyle = PAL[i % PAL.length]; cx.lineWidth = 1.6 / view.s; cx.globalAlpha = ids ? 0.18 : 0.85;
+    if (c.outline && !ids) { c.outline.forEach(r => { cx.beginPath(); r.forEach(([x, y], j) => j ? cx.lineTo(x * k, y * k) : cx.moveTo(x * k, y * k)); cx.closePath(); cx.stroke(); }); return; }  // walls: one connected shape
     c.items.forEach(it => { if (!ids || !ids.has(it.id)) { shape(it, k); cx.stroke(); } });
   });
   if (ids) {
