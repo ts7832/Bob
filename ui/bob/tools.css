@@ -217,3 +217,28 @@ aside button:not(.link):not(.term):not(#faqlist button){border-radius:0!importan
 .svset span{display:flex;align-items:center;gap:8px;font:12px var(--mono)}
 .svset input[type=range]{flex:1;accent-color:#1e1e1e}
 .svset input[type=number]{width:70px;border:1px solid #1e1e1e;padding:3px 5px;font:13px var(--mono)}
+#vtools{display:flex;gap:6px;margin-left:auto;margin-right:6px;background:#fefefe;padding:0 4px}
+#vtools button{border:1px solid #1e1e1e;background:#fefefe;font:16px/1 var(--pix);padding:2px 8px;cursor:pointer}
+#vtools button:hover{background:#1e1e1e;color:#fefefe}
+
+/* ===== Bob: opening screen, pixel flood, working badge ================================================================ */
+.bobsprite{image-rendering:pixelated;image-rendering:crisp-edges;background-repeat:no-repeat}
+.bobsprite.wave{width:240px;height:320px;background-image:url(/bob/mascot/wave.png);background-size:2400px 320px;animation:bobwave 1.3s steps(10) infinite}
+@keyframes bobwave{to{background-position-x:-2400px}}
+.bobsprite.work{width:64px;height:64px;background-size:calc(64px * var(--n)) 64px;animation:bobwork calc(.16s * var(--n)) steps(var(--n)) infinite}
+@keyframes bobwork{to{background-position-x:calc(-64px * var(--n))}}
+#bobsplash{position:fixed;inset:0;z-index:90;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;
+  background:#fefefe repeating-linear-gradient(0deg,rgba(30,30,30,.06) 0 1px,transparent 1px 3px)}
+#bobsplash .spl{display:flex;align-items:flex-start;gap:26px;max-width:min(980px,94vw)}
+#bobsplash .bubble{position:relative;margin-top:30px;border:2px solid #1e1e1e;background:#fefefe;box-shadow:6px 6px 0 #1e1e1e;padding:18px 22px;min-height:120px;width:min(520px,60vw)}
+#bobsplash .bubble::before{content:"";position:absolute;left:-18px;top:34px;width:16px;height:16px;background:#fefefe;border-left:2px solid #1e1e1e;border-bottom:2px solid #1e1e1e;transform:skewY(-35deg)}
+#bobsplash .bubble p{margin:0;font:26px/1.25 var(--pix);letter-spacing:.02em;display:inline}
+#bobsplash .caret{display:inline-block;width:10px;height:22px;background:#1e1e1e;vertical-align:-3px;margin-left:3px;animation:bobcaret .9s steps(1) infinite}
+@keyframes bobcaret{50%{opacity:0}}
+#bobsplash .spl-hint{font:22px var(--pix);opacity:0;transition:opacity .4s}
+#bobsplash .spl-hint.on{opacity:1;animation:bobcaret 1.2s steps(1) infinite 1s}
+#bobflood{position:fixed;inset:0;width:100vw;height:100vh;z-index:100;pointer-events:none;image-rendering:pixelated}
+#bobwork{position:fixed;right:18px;bottom:18px;z-index:85;display:flex;align-items:center;gap:10px;border:1px solid #1e1e1e;background:#fefefe;box-shadow:4px 4px 0 #1e1e1e;padding:6px 14px 6px 8px}
+#bobwork[hidden]{display:none}
+#bobwork span{font:18px var(--pix)}
+@media (max-width:700px){#bobsplash .spl{flex-direction:column;align-items:center}#bobsplash .bubble{width:auto;margin-top:0}#bobsplash .bubble::before{display:none}}

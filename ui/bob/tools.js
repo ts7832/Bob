@@ -164,6 +164,14 @@
   const title = $("title");
   if (title) new MutationObserver(() => setTimeout(onOpen, 300)).observe(title, { childList: true, characterData: true, subtree: true });
 
+  // the edit tools are always on the blueprint window (no question needed first)
+  const vtb = document.querySelector(".vwin > .tb");
+  if (vtb && !$("vtools")) {
+    vtb.insertAdjacentHTML("beforeend", '<span id="vtools"><button id="vcircle" title="Circle something missing or wrong on the blueprint">◯ Circle a problem</button><button id="vhist" title="Every change to what the system read, with before and after">⟲ Change history</button></span>');
+    $("vcircle").onclick = () => { if (typeof current !== "undefined" && current) openMarkup(); };
+    $("vhist").onclick = () => { if (typeof current !== "undefined" && current) showTimeline(); };
+  }
+
   // ------------------------------------------------------------------ generic modal window
   function modal(name, html) {
     let v = $("bobveil");
@@ -205,7 +213,7 @@
         if (typeof view !== "undefined" && view && view.open) await view.open(current.path);
       }
     } catch (e) { console.warn("bob: reload", e); }
-    if (lastQ && $("q") && $("askbtn")) { $("q").value = lastQ; $("askbtn").click(); }
+    if (lastQ && lastRes && $("q") && $("askbtn")) { $("q").value = lastQ; $("askbtn").click(); }
     setTimeout(savings, 1500);
   };
 

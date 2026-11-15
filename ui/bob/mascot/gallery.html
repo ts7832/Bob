@@ -1,0 +1,25 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bob icons</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Fragment+Mono&family=Geist:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;padding:24px;font:15px Geist,system-ui,sans-serif;color:#1e1e1e;background:#fefefe repeating-linear-gradient(0deg,rgba(30,30,30,.06) 0 1px,transparent 1px 3px)}
+h1{font:300 36px Geist,sans-serif;margin:0 0 4px}p{margin:0 0 18px;color:#555;font:13px "Fragment Mono",monospace}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+.o{border:1px solid #1e1e1e;box-shadow:4px 4px 0 #1e1e1e;background:#fefefe;padding:12px;display:flex;flex-direction:column;align-items:center;gap:10px;cursor:pointer}
+.o.on{outline:3px solid #1e1e1e}.o b{font:22px VT323,monospace}.o small{font:12px "Fragment Mono",monospace;color:#555;text-align:center}
+.s{image-rendering:pixelated;background-repeat:no-repeat;width:128px;height:128px;background-size:calc(128px * var(--n)) 128px;animation:a calc(.16s * var(--n)) steps(var(--n)) infinite}
+.s.sm{width:64px;height:64px;background-size:calc(64px * var(--n)) 64px;animation-name:b}
+@keyframes a{to{background-position-x:calc(-128px * var(--n))}}@keyframes b{to{background-position-x:calc(-64px * var(--n))}}
+.w{width:240px;height:320px;background:url(wave.png) 0 0/2400px 320px no-repeat;image-rendering:pixelated;animation:c 1.3s steps(10) infinite}@keyframes c{to{background-position-x:-2400px}}
+.row{display:flex;gap:24px;align-items:center;margin-bottom:22px;flex-wrap:wrap}
+</style></head><body>
+<h1>Bob: pick the "working" icon</h1><p>Click one: it becomes the badge shown while Bob reads, answers or updates a drawing (saved in this browser; tell Claude which letter to make it the default).</p>
+<div class="row"><div class="w"></div><p style="max-width:420px">The opening screen: Bob waves (10 frames, a blink on one), next to a speech bubble that types itself out.</p></div>
+<div class="grid" id="g"></div>
+<script>
+const I=[["a",8,"Head over a clipboard, writing"],["b",6,"Little Bob with a clipboard"],["c",10,"Notepad close-up, hat on the corner"],["d",7,"Bobbing hat, pencil scribble"],
+["e",8,"Peeking over the clipboard"],["f",4,"Checklist ticking off"],["g",8,"Working at a sawhorse"],["h",5,"Unrolling a blueprint"]];
+let cur=localStorage.getItem("bobWorkIcon")||"a";
+const draw=()=>{document.getElementById("g").innerHTML=I.map(([k,n,t])=>`<div class="o ${k===cur?"on":""}" data-k="${k}"><b>${k.toUpperCase()}</b>
+<div class="s" style="background-image:url(work_${k}.png);--n:${n}"></div><div class="s sm" style="background-image:url(work_${k}.png);--n:${n}"></div><small>${t}</small></div>`).join("");
+document.querySelectorAll(".o").forEach(o=>o.onclick=()=>{cur=o.dataset.k;localStorage.setItem("bobWorkIcon",cur);draw();});};draw();
+</script></body></html>

@@ -231,7 +231,11 @@ def patched_load_demo(orig=ui_server.load_demo):
                     return self._send(200, dict(id=sid, revision_suggestion=_suggest.pop(sid, None)))
                 except Exception as e:
                     return self._send(500, {"error": f"{type(e).__name__}: {e}"})
-            if p.startswith("/bob/") and os.path.basename(p) in ("onebit.css", "onebit.js", "tools.js", "tools.css", "projects.js"):
+            if p.startswith("/bob/mascot/"):           # the mascot sprites and the icon gallery
+                f = os.path.join(REPO, "ui", "bob", "mascot", os.path.basename(p))
+                if os.path.isfile(f) and f.endswith((".png", ".html")):
+                    return self._send(200, open(f, "rb").read(), "image/png" if f.endswith(".png") else "text/html; charset=utf-8")
+            if p.startswith("/bob/") and os.path.basename(p) in ("onebit.css", "onebit.js", "tools.js", "tools.css", "projects.js", "splash.js"):
                 f = os.path.join(REPO, "ui", "bob", os.path.basename(p))
                 return self._send(200, open(f, "rb").read(), "text/css; charset=utf-8" if p.endswith(".css") else "text/javascript; charset=utf-8")
             return super().do_GET()
