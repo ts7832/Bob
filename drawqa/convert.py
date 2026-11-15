@@ -200,6 +200,17 @@ def convert(path, page=0, use_detector=True):
                 sheet["repeat_note"] = (f"{len(more)} windows were added as exact copies of windows the detector found with "
                                         "confidence elsewhere on this sheet (template match plus the pattern along the wall); "
                                         "they are marked found_by 'repeat of a detected window'")
+        if os.environ.get("DRAWQA_CANDIDATES", "1") == "1":
+            # doors and windows the detector saw but scored below its cutoff (often sliding or folding doors, which are
+            # rare in its training data): kept apart as candidates for the Claude step to check on a crop. They never
+            # count unless confirmed there (drawqa/layer.py drops unchecked candidates).
+            from .repeats import _overlap
+            thr = detect.thresholds()
+            low = {c: min(0.15, thr[c]) for c in ("door", "window") if c in thr}
+            wider = apply(raw, dict(thr, **low), detect.tuned().get("rules"))
+            sheet["candidates"] = [dict(cls=d["cls"], bbox=d["bbox"], conf=d["conf"]) for d in wider
+                                   if d["cls"] in low and d["conf"] < thr[d["cls"]]
+                                   and not any(_overlap(d["bbox"], k["bbox"]) > 0.3 for k in dets if k["cls"] in ("door", "window"))]
         add_elements(sheet, dets, found_by="detector")
         sheet["model"] = "element detector"
         sheet["detector_classes"] = sorted(detect.thresholds()) or None  # what this detector was trained to find
@@ -733,21 +744,30 @@ def add_outlines(sheet, found, img=None):
     walls = [dict(id=f"wall{i}", **w) for i, w in enumerate(walls)]
     openings = sheet.get("openings", [])
     attached = segment.attach_openings(openings, walls)
-    runs = {w["id"]: w["axis"] for w in walls}
-    perim = segment.wall_perimeters(walls)  # before the cuts: perimeters run straight across doors and windows
-    walls = segment.cut_openings(walls, openings)  # the model draws walls through doors and windows; cut them there
+    perim = segment.wall_perimeters(walls)  # straight across doors and windows, like the walls themselves
+    # A wall stays one wall with its doors and windows in it (as built, and as in BIM). The solid pieces between the
+    # openings are only for drawing (a plan is cut through the openings, so it shows gaps there) and for solid length.
+    pieces = segment.cut_openings(walls, openings)
     typed = len(sheet.get("rooms", []))
     sheet["rooms"], outlined = segment.outline_rooms(sheet.get("rooms", []), found["rooms"])
     name_saunas(sheet)
     calibrate_scale_from_areas(sheet)
     mpp = (sheet.get("scale") or {}).get("m_per_px")
+    seg_len = lambda a: ((a[2] - a[0]) ** 2 + (a[3] - a[1]) ** 2) ** 0.5
+    solid_px = {}
+    for p in pieces:
+        solid_px[p["run"]] = solid_px.get(p["run"], 0.0) + seg_len(p["axis"])
+    for w in walls:
+        w["openings"] = [o["id"] for o in openings if o.get("wall") == w["id"] and o.get("width_px")]
+        w["solid_length_px"] = round(solid_px.get(w["id"], 0.0), 1)
     if mpp:
         for w in walls:
-            x0, y0, x1, y1 = w["axis"]
-            w["length_m"], w["thickness_m"] = round(((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5 * mpp, 2), round(w["thickness_px"] * mpp, 2)
+            w["length_m"], w["thickness_m"] = round(seg_len(w["axis"]) * mpp, 2), round(w["thickness_px"] * mpp, 2)
+            w["solid_length_m"] = round(w["solid_length_px"] * mpp, 2)
         for o in openings:
             if o.get("width_px"):
                 o["width_m"] = round(o["width_px"] * mpp, 2)
+                o["along_m"] = round(o["along_px"] * mpp, 2)
         if perim:
             ins = [round(v * mpp, 2) for v in perim["inside_px"]]
             sheet["wall_perimeters"] = dict(outside_m=round(perim["outside_px"] * mpp, 2), inside_m=ins, wall_networks=perim["pieces"],
@@ -758,13 +778,12 @@ def add_outlines(sheet, found, img=None):
                                        f"round {sum(ins):.2f} m in all (each: {', '.join(f'{v:.2f}' for v in ins[:30])} m)"
                                        + (f"; the walls form {perim['pieces']} separate pieces, so some wall was missed and a "
                                           "space that is open there has no inside perimeter" if perim["pieces"] > 1 else ""))
-        cut = sum(1 for o in openings if o.get("wall") is not None and o.get("width_px"))
-        if cut:
-            solid = sum(w["length_m"] for w in walls)
-            through = sum(((a[2] - a[0]) ** 2 + (a[3] - a[1]) ** 2) ** 0.5 for a in runs.values()) * mpp
-            sheet["wall_note"] = (f"walls are cut at the {cut} doors and windows that sit in them, so wall lengths are solid "
-                                  f"wall only ({solid:.2f} m in all); measured through the openings the same walls run "
-                                  f"{through:.2f} m")
+        n_open = sum(len(w["openings"]) for w in walls)
+        through, solid = sum(w["length_m"] for w in walls), sum(w["solid_length_m"] for w in walls)
+        sheet["wall_note"] = (f"each wall is one whole wall from end to end with its doors and windows in it (item fields: "
+                              f"length_m through the openings, solid_length_m without them, openings); {len(walls)} walls "
+                              f"run {through:.2f} m in all, {solid:.2f} m of it solid wall ({n_open} doors and windows "
+                              f"sit in them); corners where walls meet are counted from both sides")
         for r in sheet["rooms"]:
             if r.get("area_px") and r.get("area_m2") is None:
                 r["area_m2"], r["area_source"] = round(r["area_px"] * mpp * mpp, 2), OUTLINE_SOURCE
@@ -774,7 +793,7 @@ def add_outlines(sheet, found, img=None):
         if o and "wall" in o:
             e.update({k: o[k] for k in ("wall", "along_px", "width_px", "width_m") if k in o})
     sheet["walls"] = walls
-    sheet["wall_outline"] = segment.wall_outline(walls)  # for drawing: all walls as one connected shape
+    sheet["wall_outline"] = segment.wall_outline(pieces)  # for drawing: all walls as one shape, gaps at doors and windows
     sheet["outline_notes"] = dict(model="wall and room-outline segmentation model", walls=len(walls),
                                   openings_attached=f"{attached} of {len(openings)}",
                                   rooms_outlined=f"{outlined} of {typed} typed rooms",

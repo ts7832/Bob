@@ -26,7 +26,8 @@ DISCOVER_TIMEOUT = int(os.environ.get("DRAWQA_DISCOVER_TIMEOUT", "600"))  # seco
 DISCOVER_EFFORT = os.environ.get("DRAWQA_DISCOVER_EFFORT", "medium")  # user's choice (15 Nov): medium for the reading step
 
 
-LAYER_VERSION = 10  # v10: detector e27; joined-wall perimeters as citable items; v9: wall perimeters (outside face, inside faces) in the notes; v8: wall ends trimmed to ink, collinear pieces merged, one outline for drawing; v7: walls as clean rectangles, overlapping pieces dropped; v6: walls cut at their doors and windows; v5: windows completed from exact repeats (drawqa/repeats.py); v4: walls kept out of the Claude step and merged back; bump when the reading changes (v2: no whole-sheet wall/room model on big sheets; v3: tiled walls, 4-way detector on big sheets, rooms as whole spaces)
+WALL_CLASSES = ("wall", "wall perimeter")  # made by the wall model and geometry; kept out of the Claude step, merged back
+LAYER_VERSION = 13  # v13: SVG drawings (IFC plan exports read exactly); v12: window cutoff 0.40; door/window candidates below the cutoff checked by Claude; v11: walls are whole walls with their openings in them (length through openings, solid length); v10: detector e27; joined-wall perimeters as citable items; v9: wall perimeters (outside face, inside faces) in the notes; v8: wall ends trimmed to ink, collinear pieces merged, one outline for drawing; v7: walls as clean rectangles, overlapping pieces dropped; v6: walls cut at their doors and windows; v5: windows completed from exact repeats (drawqa/repeats.py); v4: walls kept out of the Claude step and merged back; bump when the reading changes (v2: no whole-sheet wall/room model on big sheets; v3: tiled walls, 4-way detector on big sheets, rooms as whole spaces)
 
 
 def _key(path, page):
@@ -47,6 +48,12 @@ def page_source(path, page=0):
         from . import cad
         path = cad.to_pdf(path)["pdf"]
         kind = "pdf"
+    if kind == "svg":  # a vector drawing: PyMuPDF turns it into a PDF page, which keeps its text and linework
+        import pymupdf
+        pdf = os.path.join(out, "page.pdf")
+        if not os.path.exists(pdf):
+            open(pdf, "wb").write(pymupdf.open(path).convert_to_pdf())
+        path, kind = pdf, "pdf"
     if kind == "pdf":
         import cv2, pymupdf
         from . import pdfsheet
@@ -70,6 +77,9 @@ def _start_layer(sheet):
     for group in ("openings", "fixtures"):
         for o in sheet.get(group, []):
             add(o["cls"], dict(bbox=r1(o["bbox"]), score=round(float(o.get("conf") or 0), 3)), "trained symbol detector", "box")
+    for c in sheet.get("candidates", []):  # below the detector's cutoff: for the Claude step to confirm or drop
+        add(f"{c['cls']} candidate", dict(bbox=r1(c["bbox"]), score=round(float(c["conf"]), 3)),
+            "trained symbol detector, below its cutoff (to be checked)", "box")
     texts = [t for t in sheet.get("texts", []) if t.get("bbox") and t.get("text")]
     for r in sheet.get("rooms", []):
         poly = r.get("polygon")
@@ -90,8 +100,12 @@ def _start_layer(sheet):
         if not w.get("axis"):
             continue
         it = dict(polyline=[r1(w["axis"][:2]), r1(w["axis"][2:])], thickness_px=round(float(w.get("thickness_px", 0)), 1))
-        if w.get("run") and w["run"] != w.get("id"):
-            it["wall_run"] = w["run"]  # one piece of a wall that a door or window interrupts
+        for k in ("length_m", "solid_length_m", "thickness_m"):
+            if w.get(k) is not None:
+                it[k] = w[k]
+        if w.get("openings"):  # its doors and windows: kind, where along the wall, how wide
+            it["openings"] = sorted((dict(cls=o["cls"], along_m=o.get("along_m"), width_m=o.get("width_m"))
+                                     for o in sheet.get("openings", []) if o["id"] in w["openings"]), key=lambda o: o["along_m"] or 0)
         if w.get("polygon") and len(w["polygon"]) >= 3:
             it["polygon"] = [r1(p) for p in w["polygon"]]
         add("wall", it, "wall and room-outline model", "polyline")
@@ -137,7 +151,7 @@ def _discover(png, w, h, wd, start):
         return None, dict(status="skipped", reason="Claude Code is not installed here")
     # walls stay with the model: hundreds of wall pieces in the start layer only cost the agent time (it lints and
     # re-checks them); they are merged back into the reading afterwards
-    start = dict(start, classes=[c for c in start["classes"] if c["name"] != "wall"])
+    start = dict(start, classes=[c for c in start["classes"] if c["name"] not in WALL_CLASSES])
     json.dump(dict(start, sheet="start layer from the trained models (walls are handled separately and are not included)"),
               open(os.path.join(wd, "start_layer.json"), "w"), indent=1)
     json.dump(start["texts"], open(os.path.join(wd, "ocr_text.json"), "w"))
@@ -203,8 +217,38 @@ def ingest(path, page=0, discover=True, refresh=False, progress=None):
     from PIL import Image
     Image.MAX_IMAGE_PIXELS = None
     w, h = Image.open(png).size
+    exact = None
+    if path.lower().endswith(".svg"):  # a plan exported from a building model names its elements: read them exactly
+        from . import svgplan
+        exact = svgplan.read(path, w, h)
+    if exact:
+        have = {c["name"] for c in exact}
+        replaced = {"door": ("door", "door candidate"), "window": ("window", "window candidate"),
+                    "room": ("room",), "wall": ("wall", "wall perimeter")}
+        drop = {n for k, ns in replaced.items() if k in have for n in ns}
+        start = dict(start, classes=[c for c in start["classes"] if c["name"] not in drop] + exact)
+        from shapely.geometry import Point, Polygon
+        rooms = [it for c in exact if c["name"] == "room" for it in c["items"] if len(it.get("polygon") or []) >= 3]
+        shapes = [Polygon(it["polygon"]).buffer(0) for it in rooms]
+        names = {}
+        for t in start["texts"]:  # the file names rooms by number ("Rum nr. K08"); the drawing prints the name ("Depot")
+            x = t["text"].strip()
+            pt = Point((t["bbox"][0] + t["bbox"][2]) / 2, (t["bbox"][1] + t["bbox"][3]) / 2)
+            holders = [i for i, g in enumerate(shapes) if g.contains(pt)]
+            if x and holders:  # a text belongs to the smallest room around it (a corridor wraps other rooms)
+                i = min(holders, key=lambda i: shapes[i].area)
+                if x not in (rooms[i].get("label") or "") and not x.startswith(("Rum nr", "Room no")):
+                    names.setdefault(i, []).append(x)
+        for i, xs in names.items():
+            rooms[i]["name"] = " ".join(dict.fromkeys(xs))
+        notes.append("this drawing is a plan exported from a building model: "
+                     + ", ".join(f"{c['name']} {len(c['items'])}" for c in exact)
+                     + " were read exactly from the file's IFC classes (with their names), not detected")
+        skip = ("wall_note", "perimeter_note") if "wall" in have else ()
+    else:
+        skip = ()
     for k in ("legend_note", "detector_note", "outline_note", "repeat_note", "wall_note", "perimeter_note"):
-        if sheet.get(k):
+        if sheet.get(k) and k not in skip:
             notes.append(sheet[k])
     layer = dict(source=os.path.abspath(path), page=page, kind=sheet.get("kind"), picture=os.path.abspath(png), width=w, height=h,
                  m_per_px=start["m_per_px"], scale_source=start["scale_source"], classes=start["classes"], texts=start["texts"],
@@ -217,12 +261,19 @@ def ingest(path, page=0, discover=True, refresh=False, progress=None):
         classes, info = _discover(layer["picture"], w, h, wd, start)
         layer["discovery"] = info
         if classes:
-            walls = [c for c in start["classes"] if c["name"] == "wall"]
-            layer["classes"] = classes + ([] if any(c.get("name") == "wall" for c in classes) else walls)
+            classes = [c for c in classes if c.get("name") not in WALL_CLASSES]  # the models' walls are kept as they are
+            layer["classes"] = classes + [c for c in start["classes"] if c["name"] in WALL_CLASSES]
         else:
             layer["notes"].append("only our trained models' reading is available: " + str(info.get("reason", "")))
     else:
         layer["discovery"] = dict(status="not run")
+    # candidates below the detector's cutoff count only once the Claude step confirmed them (moved into door/window)
+    cand = [c for c in layer["classes"] if c["name"].endswith(" candidate")]
+    if cand:
+        layer["classes"] = [c for c in layer["classes"] if not c["name"].endswith(" candidate")]
+        n = sum(len(c.get('items') or []) for c in cand)
+        layer["notes"].append(f"{n} possible doors/windows scored below the detector's cutoff are not counted"
+                              + (" (Claude's full reading checks them)" if not discover else " (Claude's reading did not confirm them)"))
     for c in layer["classes"]:
         c["count"] = len(c.get("items") or [])
         for i, it in enumerate(c.get("items") or [], 1):

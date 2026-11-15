@@ -15,12 +15,30 @@ The drawing view (`viz/`): what exists, and what changed when. Newest first. Usa
 | Breakdown answers (areas by type), baseboards, slabs, pipes | yes | optional evidence fields: README "Optional evidence fields" |
 | 3D lift with walls, windows, fixtures, room-aware floors; photo render | yes | 3D / Photo buttons, `view.setMode("3d")` |
 | Symbol-accurate highlights (the drawn door / WC / window glows), class glyphs, double-count note | yes | automatic for symbol classes; README "How evidence is drawn" |
-| 3D fixture models (WC, basin, tub, shower, kitchen, sauna, door leaves); counted ones light up | yes | 3D button |
+| 3D fixture models for every recognised class (WC, basin, tub, shower, kitchen, washer, sauna, stairs, shaft, cabinets, doors, railings); counted ones light up | yes | 3D button; all models at a glance: `/models.html` on the dev server |
 | Rotated PDF pages: backend positions turned to match the page image | yes | automatic (`frameFix` in adapter.ts) |
 | Several drawings on one sheet: which one an answer comes from, a picker to frame each | yes | automatic; Drawings picker in the toolbar |
 | Clean view: plan redrawn from detections, swipe compare with the original | yes | Clean view button / C, `view.setClean(on, swipe)` |
 | Evidence that isn't on this sheet (BIM model-wide answers) | yes | says "N of M on this sheet"; selecting one says "Not on this drawing" |
 | Light theme matching the demo page | yes | default |
+
+## 2026-11-15 03:40: fixture models redesigned (Claude Design, A + C look)
+- Every 3D fixture model rebuilt to the Claude Design boards "Fixture models (A + C)"
+  (https://claude.ai/artifact/CookC4JbP5Wxvn9UEBQKxd, page 2), at real proportions inside its detected box.
+  - WC: close-coupled toilet (cistern against the wall, tapered pedestal, oval rim, closed seat and lid, flush button).
+    Near-square boxes with the wall on a long side turn it. Replaces the odd lathe shape.
+  - Washbasin: wall-hung vanity (two doors, bar handles), ceramic top with a sunk oval basin, mixer and spout.
+    A long sink box is a kitchen sink run on a plinth with a steel basin.
+  - Bathtub: apron, oval basin, filler and spout. Shower: chrome caps on the glass, mixer, rain head on an arm.
+  - Kitchen: fronts about 0.6 m with seams and bar handles, mixer at the sink. Washer: detergent drawer, white top.
+  - Sauna: a bench box next to another bench box is one tier (upper if it backs onto a wall); one deep box has two
+    tiers. Stove: steel top, stones, an open wooden guard on the room sides.
+  - Stairs: plaster steps with oak treads, balusters and a sloped handrail on the open side, oak landing.
+    Shaft: plastered, with an access panel.
+  - Door: white architrave on the swing side. Window: sill board. Wardrobe: plinth and bar handles. Appliance: handle.
+- Highlights use the same model, including benches and BIM furniture (`buildOne` now finds the raw class).
+- New QA page, dev only, not in the bundle: `npx vite`, then `/models.html` shows every model on its own tile
+  (plain, counted orange, inspected blue).
 
 ## 2026-11-15 02:33: scan rooms split at the detected doors; no empty 3D on wall-less sheets
 - **Scan rooms are now sealed at the detector's own door and window boxes** before rooms are found, so rooms split exactly at the doors. Before, the walls were thickened and some rooms merged through door gaps. Result on colorful-11397: tile only in the bathroom, oak in the bedroom.

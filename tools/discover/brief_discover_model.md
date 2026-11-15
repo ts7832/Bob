@@ -36,7 +36,14 @@ Change a model item's class only with drawn evidence (a door swing, a window fra
 colour or by a legend you assume: if you are unsure, keep the model's class and note the doubt in "uncertain".
 Look at start_overlay.png once; remove an item only if it is plainly wrong, add one only if it is plainly missing.
 Every model item with a score below 0.5 goes on one `crops` sheet: keep it only if its symbol is really drawn there (a
-"window" on a plain wall or on crossing pipes is plainly wrong). Check every room outline of the wall model on the
+"window" on a plain wall or on crossing pipes is plainly wrong).
+Classes "door candidate" and "window candidate" (if present) are places where the detector saw a door or window but
+scored it below its cutoff: put them on that same `crops` sheet. Move each one where a door or window really is drawn
+into "door" or "window", with "checked": "candidate confirmed on crop"; drop the rest. Never output a candidate class.
+Doors are drawn in several ways, all of them doors: a leaf with a swing arc; a sliding door (one or two straight
+leaves lying along the wall opening, often offset, sometimes with a short arrow); a folding door (a zigzag or accordion
+line across the opening); a roll-up or garage door (a dashed or thin line across a wide opening). A window is a frame
+of thin parallel lines inside the wall band. Confirm a candidate when such a symbol sits in a wall opening. Check every room outline of the wall model on the
 overlay too: a room must be bounded by drawn walls on most of its sides; an outline drawn around text, an aisle or a
 group of furniture inside a bigger room is plainly wrong (drop it, and outline the real room on its walls if missing).
 If the start layer has no rooms (on large sheets the wall model reads only walls), outline every room yourself: one

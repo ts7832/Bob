@@ -17,7 +17,7 @@ import hashlib, os, shutil, subprocess, sys
 REPO, TAG = "ts7832/Bob", "v0.2-models"  # v0.1-models: detector e26l
 FILES = {
     "detector.pt": "0c8e8af6a17d699cbe25a11031a9f9c796d91b3ce1f838a08e9898895c98ae2e",
-    "detector.thresholds.json": "782782cedb03ca6aa90b89798e61f69d82d804187da037df9f68e75ffb17ef74",
+    "detector.thresholds.json": "56ec800b70d4186c7729c995c9a1721e41439462918defa57f67685182208aec",
     "segmenter.pt": "de5374c9560a0551dafc33b6c91e7f1b2c206f92acf938dc2fe08d908b43b2ac",
     "segmenter.eval.json": "998649c3fd4573b28d9f41a9cf59d3d7d60febafe55c96627723945bbdc6cbc6",
 }

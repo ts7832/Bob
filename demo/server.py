@@ -241,7 +241,7 @@ import threading, time  # noqa: E402
 
 JOBS = {}  # job id -> dict(path, name, stage, detail, started, steps, layer, error)
 STAGES = {"queued": "waiting", "picture": "Drawing the page as a picture", "models": "Our trained models: doors, windows, fixtures, walls, rooms, text",
-          "claude": "Claude (Opus, medium effort) is reading the whole drawing, usually 2-5 min", "done": "Ready", "error": "Failed"}
+          "claude": "Claude (Opus, medium effort) is reading the whole drawing", "done": "Ready", "error": "Failed"}
 
 
 def start_reading(f, name):
@@ -256,14 +256,30 @@ def start_reading(f, name):
         J["steps"].append(dict(stage=stage, at=round(time.time() - J["started"], 1)))
 
     def run():
+        # 1. our models (seconds): the drawing is ready for questions as soon as they are done
+        # 2. Claude's full reading (minutes) goes on in the background and replaces the layer when it finishes
         try:
-            L = LY.ingest(f, progress=progress)
+            cached = LY.ingest(f, discover=False)  # the full reading when it is cached, else the models' reading
+            full = (cached.get("discovery") or {}).get("status") == "done"
+            L = cached if full else LY.ingest(f, discover=False, progress=progress)
             if not L.get("picture"):
                 raise ValueError("; ".join(L.get("notes") or []) or "this file could not be drawn as a picture")
-            J.update(stage="done", detail="Ready", layer=L, seconds=round(time.time() - J["started"], 1))
+            J.update(stage="done", detail="Ready", layer=L, seconds=round(time.time() - J["started"], 1),
+                     reading="done" if full else "running", reading_started=time.time())
         except Exception as e:
             traceback.print_exc()
             J.update(stage="error", detail=str(e))
+            return
+        if full:
+            return
+        try:
+            L2 = LY.ingest(f, discover=True, progress=lambda st, d: J.update(reading_detail=d))
+            ok = (L2.get("discovery") or {}).get("status") == "done"
+            J.update(layer=L2 if L2.get("picture") else J["layer"], reading="done" if ok else "failed",
+                     reading_seconds=round(time.time() - J["reading_started"], 1))
+        except Exception as e:
+            traceback.print_exc()
+            J.update(reading="failed", reading_detail=str(e))
     threading.Thread(target=run, daemon=True).start()
     return jid
 
@@ -271,7 +287,8 @@ def start_reading(f, name):
 def job_status(jid):
     J = JOBS[jid]
     out = dict(id=jid, name=J["name"], stage=J["stage"], label=STAGES.get(J["stage"], J["stage"]), detail=J.get("detail"),
-               elapsed=round(time.time() - J["started"], 1), steps=J["steps"])
+               elapsed=round(time.time() - J["started"], 1), steps=J["steps"], reading=J.get("reading"),
+               reading_elapsed=round(time.time() - J.get("reading_started", time.time()), 1), reading_seconds=J.get("reading_seconds"))
     L = J.get("layer")
     if L:
         W, Hh = L["width"], L["height"]
@@ -307,8 +324,19 @@ def job_layer(jid):
 def job_ask(jid, question):
     from drawqa.ask import ask
     J = JOBS[jid]
-    r = ask(J["path"], question)
-    return {k: r.get(k) for k in ("answer", "unit", "tier", "basis", "evidence", "notes", "route", "model", "seconds")}
+    L = J["layer"]
+    busy = J.get("reading") == "running"
+    if busy:  # tell the answer agent what this reading is and is not (yet)
+        L = dict(L, notes=(L.get("notes") or []) + [
+            "Claude's full reading of this drawing is still running: this layer holds only our trained models' classes "
+            "(doors, windows, fixtures, walls, rooms, text). If the question needs anything else, answer 'cannot determine' "
+            "and say the full reading is still in progress."])
+    r = ask(J["path"], question, layer=L)
+    out = {k: r.get(k) for k in ("answer", "unit", "tier", "basis", "evidence", "context", "notes", "route", "model", "seconds")}
+    if busy:
+        out["notes"] = (out.get("notes") or []) + [f"Claude is still reading the whole drawing ({round(time.time() - J['reading_started'])} s so far): "
+                                                   "furniture and other details are added when it finishes; answered from our models' reading"]
+    return out
 
 
 def warm_kimi():

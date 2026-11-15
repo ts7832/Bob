@@ -34,7 +34,8 @@ image = (
     .apt_install("libgl1", "libglib2.0-0", "unzip", "curl")
     .pip_install("ultralytics==8.4.212", "scikit-image", "svgpathtools", "opencv-python-headless", "numpy<2", "pymupdf")
     # training settings fixed when the image is built (the container does not see the local shell's variables)
-    .env({"DRAWQA_SCALE": os.environ.get("DRAWQA_SCALE", "0.3"), "DRAWQA_SAVE_PERIOD": os.environ.get("DRAWQA_SAVE_PERIOD", "-1")})
+    .env({"DRAWQA_SCALE": os.environ.get("DRAWQA_SCALE", "0.3"), "DRAWQA_SAVE_PERIOD": os.environ.get("DRAWQA_SAVE_PERIOD", "-1"),
+          "DRAWQA_RFS": os.environ.get("DRAWQA_RFS", "")})
     .add_local_dir(str(ROOT / "ext" / "cubicasa" / "floortrans" / "loaders"), "/root/cubi_loaders")
     .add_local_dir(str(ROOT / "drawqa"), "/root/drawqa", ignore=["__pycache__"])
     .add_local_file(str(ROOT / "tools" / "swiss_labels.py"), "/root/swiss_labels.py")
@@ -288,6 +289,110 @@ def write_mixed_lists(extra: str, tag: str, max_train: int, max_val: int = 400):
     names = "names:\n" + "".join(f"  {i}: {c}\n" for i, c in enumerate(CLASSES))
     open(f"{D}/yolo/data_{tag}.yaml", "w").write(f"path: {D}/yolo\ntrain: train_{tag}.txt\nval: val_{tag}.txt\n{names}")
     return out
+
+
+RARE_DOORS = ("Slide", "Zfold", "Fold", "ParallelSlide", "RollUp")  # CubiCasa door kinds that are rare (93% swing)
+
+
+def _door_kinds_one(name):
+    from xml.dom import minidom
+    folder = "/" + name.replace("-", "/", 1) + "/"
+    try:
+        dom = minidom.parse(f"{D}/cubicasa5k{folder}model.svg")
+    except Exception:
+        return name, None
+    kinds = {}
+    for g in dom.getElementsByTagName("g"):
+        if g.getAttribute("id") == "Door":
+            t = g.getAttribute("class").split()
+            k = t[1] if len(t) > 1 else "?"
+            kinds[k] = kinds.get(k, 0) + 1
+    return name, kinds
+
+
+@APP.function(image=image, volumes={D: VOL}, timeout=1800, cpu=8)
+def door_kinds():
+    """Door kinds (Swing, Slide, Zfold, ...) per CubiCasa training plan, from its SVG -> yolo/door_kinds.json, and how
+    rare the kinds the detector misses are (share of training images, share of door labels)."""
+    import collections
+    from multiprocessing import Pool
+    VOL.reload()
+    names = sorted({os.path.basename(f)[:-4].removesuffix("_s") for f in open(f"{D}/yolo/train_all.txt").read().split()
+                    if not os.path.basename(f).startswith(("swiss-", "ifc-"))})
+    with Pool(8) as p:
+        res = dict(p.map(_door_kinds_one, names, chunksize=16))
+    res = {k: v for k, v in res.items() if v is not None}
+    json.dump(res, open(f"{D}/yolo/door_kinds.json", "w"))
+    VOL.commit()
+    tot = collections.Counter()
+    for v in res.values():
+        tot.update(v)
+    rare = [n for n, v in res.items() if any(k in RARE_DOORS for k in v)]
+    return dict(plans=len(res), doors_by_kind=dict(tot.most_common()), plans_with_rare=len(rare),
+                share_of_plans=round(len(rare) / max(1, len(res)), 4),
+                share_of_door_labels=round(sum(tot[k] for k in RARE_DOORS) / max(1, sum(tot.values())), 4))
+
+
+def _preview_doors_one(args):
+    from xml.dom import minidom
+    from PIL import Image
+    name, w, h = args
+    folder = "/" + name.replace("-", "/", 1) + "/"
+    try:
+        ws, hs = Image.open(f"{D}/cubicasa5k{folder}F1_scaled.png").size
+        dom = minidom.parse(f"{D}/cubicasa5k{folder}model.svg")
+    except Exception:
+        return name, None
+    sx, sy = w / ws, h / hs
+    out = []
+    for g in dom.getElementsByTagName("g"):
+        if g.getAttribute("id") != "Door":
+            continue
+        ps = g.getElementsByTagName("polygon")
+        if not ps:
+            continue
+        pts = [tuple(map(float, q.split(","))) for q in ps[0].getAttribute("points").split()]
+        t = g.getAttribute("class").split()
+        out.append([t[1] if len(t) > 1 else "?", [round(min(p[0] for p in pts) * sx, 1), round(min(p[1] for p in pts) * sy, 1),
+                                                   round(max(p[0] for p in pts) * sx, 1), round(max(p[1] for p in pts) * sy, 1)]])
+    return name, out
+
+
+@APP.function(image=image, volumes={D: VOL}, timeout=1800, cpu=8)
+def preview_doors(plans: list):
+    """EVALUATION ONLY: each preview (test) plan's doors with their kind (Swing, Slide, Zfold, ...) in the preview
+    image's pixels, to measure how many sliding and folding doors a detector finds. Never used for training."""
+    from multiprocessing import Pool
+    VOL.reload()
+    with Pool(8) as p:
+        return {k: v for k, v in p.map(_preview_doors_one, plans, chunksize=8) if v is not None}
+
+
+@APP.function(image=image, volumes={D: VOL}, timeout=900)
+def rfs_lists(t: float, tag: str):
+    """Repeat-factor sampling (as for rare classes in LVIS): every training image with a rare door kind is listed
+    r = sqrt(t / f) times (f = share of training images that have one), with seeded random rounding; validation stays
+    as it is. Writes train_<tag>.txt / data_<tag>.yaml next to the 'all' lists."""
+    import math, random
+    VOL.reload()
+    kinds = json.load(open(f"{D}/yolo/door_kinds.json"))
+    rare = {n for n, v in kinds.items() if any(k in RARE_DOORS for k in v)}
+    base = open(f"{D}/yolo/train_all.txt").read().split()
+    is_rare = lambda f: os.path.basename(f)[:-4].removesuffix("_s") in rare
+    f_share = sum(map(is_rare, base)) / max(1, len(base))
+    r = max(1.0, math.sqrt(t / max(f_share, 1e-9)))
+    rnd, out = random.Random(0), []
+    for f in base:
+        n = 1
+        if is_rare(f):
+            n = int(r) + (1 if rnd.random() < r - int(r) else 0)
+        out += [f] * n
+    open(f"{D}/yolo/train_{tag}.txt", "w").write("\n".join(out) + "\n")
+    open(f"{D}/yolo/val_{tag}.txt", "w").write(open(f"{D}/yolo/val_all.txt").read())  # validation unchanged (train() reads val_<tag>)
+    names = "names:\n" + "".join(f"  {i}: {c}\n" for i, c in enumerate(CLASSES))
+    open(f"{D}/yolo/data_{tag}.yaml", "w").write(f"path: {D}/yolo\ntrain: train_{tag}.txt\nval: val_{tag}.txt\n{names}")
+    VOL.commit()
+    return dict(images=len(base), rare_images=sum(map(is_rare, base)), share=round(f_share, 4), repeat=round(r, 2), listed=len(out))
 
 
 @APP.function(image=image, volumes={D: VOL}, timeout=900)
@@ -1133,6 +1238,9 @@ def pipeline(run: str, model: str, epochs: int, imgsz: int, batch: int, ex: list
         note("convert_swiss", convert_swiss.remote(swiss_ex))
         note("convert_ifc", convert_ifc.remote())
     data = "all"
+    if os.environ.get("DRAWQA_RFS"):  # boost training images with rare door kinds (see rfs_lists)
+        data = "all_rfs"
+        note("rfs", rfs_lists.remote(float(os.environ["DRAWQA_RFS"]), data))
     if extra:
         data = "all_" + os.path.basename(extra.rstrip("/")).replace("yolo_", "")
         note("mix", mix_lists.remote(extra, data, extra_max))
@@ -1200,6 +1308,17 @@ def main(stage: str = "smoke", run: str = "v1", epochs: int = 60, imgsz: int = 1
     if stage == "mix_lists":  # dry run of the mixing: how many images each split would get
         print(json.dumps(mix_lists.remote(os.environ["DRAWQA_EXTRA"], "all_" + os.path.basename(os.environ["DRAWQA_EXTRA"].rstrip("/")).replace("yolo_", ""),
                                           int(os.environ.get("DRAWQA_EXTRA_MAX", 0))), indent=1))
+    if stage == "preview_doors":  # -> data/eval/preview_doors.json (evaluation only)
+        from PIL import Image
+        plans = [(os.path.basename(f)[:-4], *Image.open(f).size) for f in sorted(glob.glob(str(ROOT / "junction-dataset-preview/data/cubicasa5k/*.png")))]
+        res = preview_doors.remote(plans)
+        os.makedirs(ROOT / "data" / "eval", exist_ok=True)
+        json.dump(res, open(ROOT / "data" / "eval" / "preview_doors.json", "w"))
+        print(f"{len(res)} plans -> data/eval/preview_doors.json")
+    if stage == "door_kinds":
+        print(json.dumps(door_kinds.remote(), indent=1))
+    if stage == "rfs_lists":  # dry run: DRAWQA_RFS=0.3
+        print(json.dumps(rfs_lists.remote(float(os.environ.get("DRAWQA_RFS", "0.3")), "all_rfs"), indent=1))
     if stage == "space_stats":
         print(json.dumps(space_stats.remote(), indent=None))
     if stage == "convert_ifc":
