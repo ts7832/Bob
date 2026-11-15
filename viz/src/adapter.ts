@@ -3,7 +3,7 @@
 //   vector : Swiss DXF in metres, y already down in render items and ask evidence; /api/sheet polygons are y-up (y_flip)
 //   svg    : BIM plan in viewBox units; evidence is guids, outlines come from the svg paths
 import type { AskJSON, Answer, Context, Drawing, Element, Loaded, PlanJSON, Pt, RenderJSON, SheetJSON, VectorItem } from './types'
-import { wallsFromImage } from './walls'
+import { scanLayout } from './walls'
 import { obb, thickness } from './geom'
 import { normCls } from './ink'
 import { findViews, viewOf } from './views'
@@ -20,9 +20,9 @@ const STYLE: Record<string, { fill?: string; stroke?: string; w?: number; dash?:
 
 let keySeq = 0
 // What becomes a low ceramic/furniture volume in 3D, per source (display only)
-const NOT_FIXTURE = new Set(['stairs', 'shaft'])
+const NOT_FIXTURE = new Set<string>() // every recognised fixture gets a 3D model now (stairs and shafts too)
 const SCAN_FIXTURES = new Set(['wc', 'sink', 'bathtub', 'shower', 'sauna_stove', 'sauna_bench'])
-const BIM_FIXTURES = new Set(['IfcSanitaryTerminal', 'IfcFurnishingElement', 'IfcFurniture'])
+const BIM_FIXTURES = new Set(['IfcSanitaryTerminal', 'IfcFurnishingElement', 'IfcFurniture', 'IfcStair', 'IfcStairFlight'])
 // IFC classes drawn as plan symbols: their own paths glow when they are evidence (ink.ts)
 const SYMBOL_IFC = /Door|Window|Sanitary|Furnish|Furniture|Stair|Column|FlowTerminal/
 // IFC classes that stand up as walls in the 3D view (IFC2x3 exports mostly use IfcWallStandardCase)
@@ -33,7 +33,7 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
   let drawing: Drawing
   let guids = new Map<string, Element>()
   const walls: Pt[][] = []
-  let lazyWalls: (() => Pt[][]) | null = null
+  let lazyWalls: (() => { walls: Pt[][]; rooms: Pt[][][] }) | null = null
 
   if (render.type === 'image') {
     const img = await loadSheetImage(imageUrl ?? render.url!)
@@ -49,7 +49,7 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
     // scans without the segmentation model: display-only walls from the image (not for PDF pages: tables, text).
     // Found lazily, on the first switch to 3D, so opening a sheet in 2D stays fast.
     if (!walls.length && render.source_type === 'raster') {
-      lazyWalls = () => { try { return wallsFromImage(img, width, height) } catch { return [] } }
+      lazyWalls = () => { try { return scanLayout(img, width, height, planEls.filter((p) => p.type === 'door' || p.type === 'window').map((p) => p.polygon)) } catch { return { walls: [], rooms: [] } } }
     }
   } else if (render.type === 'vector') {
     const v = rasterVector(render)
@@ -70,15 +70,25 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
 
   // Sheet geometry in the sheet's own frame: metres with y up on vector sheets, so flip y back into the render frame.
   const flip = sheet?.y_flip ? (p: Pt): Pt => [p[0], -p[1]] : (p: Pt) => p
-  const openings: Context['openings'] = [], fixtures: Context['fixtures'] = []
+  const openings: Context['openings'] = [], fixtures: Context['fixtures'] = [], railings: Pt[][] = [], parts: NonNullable<Context['parts']> = []
   if (drawing.kind === 'vector') {
     for (const o of sheet?.openings ?? []) if (o.cls === 'door' && o.polygon?.length) openings.push({ cls: 'door', polygon: o.polygon.map((p) => drawing.toPx(flip(p))) })
     for (const it of render.items ?? []) if (it.k === 'poly' && it.layer === 'WINDOW' && it.closed && it.pts.length >= 4) openings.push({ cls: 'window', polygon: it.pts.map(drawing.toPx) })
     for (const f of sheet?.fixtures ?? []) if (f.bbox && !NOT_FIXTURE.has(f.cls)) fixtures.push({ cls: f.cls, polygon: boxPts(f.bbox, (p) => drawing.toPx(flip(p))) })
+    // every opening and fixture with its sheet id, for hover / click inspection (ids match the answers' evidence ids)
+    for (const o of sheet?.openings ?? []) {
+      const poly = o.polygon?.length ? o.polygon.map((p) => drawing.toPx(flip(p))) : o.bbox ? boxPts(o.bbox, (p) => drawing.toPx(flip(p))) : null
+      if (poly) parts.push({ id: o.id, cls: o.cls, polygon: poly })
+    }
+    for (const f of sheet?.fixtures ?? []) if (f.bbox) parts.push({ id: f.id, cls: f.cls, polygon: boxPts(f.bbox, (p) => drawing.toPx(flip(p))) })
   } else if (drawing.kind === 'svg') {
     for (const e of guids.values()) {
       if (e.type === 'IfcWindow') openings.push({ cls: 'window', polygon: e.polygon })
-      else if (BIM_FIXTURES.has(e.type)) fixtures.push({ cls: e.type, polygon: e.polygon })
+      else if (BIM_FIXTURES.has(e.type)) {
+        const poly = /Stair/.test(e.type) ? (e.ext ?? e.polygon) : e.polygon, o = obb(poly)
+        if (!/Stair/.test(e.type) || o.dep / Math.max(o.len, 1e-9) >= 0.1) fixtures.push({ cls: e.type, polygon: poly }) // skip riser lines
+      }
+      else if (e.type === 'IfcRailing' && e.polygon.length >= 2) railings.push(e.polygon)
     }
   } else {
     for (const it of plan?.items ?? []) {
@@ -108,10 +118,11 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
   for (const o of sheet?.openings ?? []) if (o.cls) classes.set(o.id, o.cls)
   for (const f of sheet?.fixtures ?? []) if (f.cls) classes.set(f.id, f.cls)
 
-  let cached: Pt[][] | null = null
+  let cached: { walls: Pt[][]; rooms: Pt[][][] } | null = null
   const context: Context = {
-    get walls() { return lazyWalls ? (cached ??= lazyWalls()) : walls },
-    wallsDisjoint: !!lazyWalls, rooms, openings, fixtures,
+    get walls() { return lazyWalls ? (cached ??= lazyWalls()).walls : walls },
+    get regions() { return lazyWalls ? (cached ??= lazyWalls()).rooms : undefined },
+    wallsDisjoint: !!lazyWalls, rooms, openings, fixtures, railings, parts,
   }
   let views: Loaded['views'] = []
   try { views = findViews(drawing, sheet, planEls) } catch { views = [] }

@@ -9,6 +9,7 @@ import { Photo } from './Photo'
 import type { Answer, Drawing, Element, Loaded, Pt, SheetView, Tier } from './types'
 import { CLS_NAME, GLYPH, SYMBOL, inkOf, type Cls } from './ink'
 import { buildClean } from './clean'
+import { inspectables } from './inspect'
 import { anchor, bbox, measureScale, outline, ringArea, shapeOf, thickness, toShape, toWorld, tube } from './geom'
 
 export const ACCENT = '#ff7a00' // = the demo page's --accent
@@ -102,14 +103,15 @@ interface Props {
   focus: Focus
   fitAll: number
   insets: Insets
-  tools: { view: SheetView | null; cutaway: boolean; measure: boolean; mpts: Pt[]; mclosed: boolean; peek: boolean; hidden: string[]; cut: number; refit: number; clean: boolean; swipe: number }
+  tools: { view: SheetView | null; inspected: string | null; cutaway: boolean; measure: boolean; mpts: Pt[]; mclosed: boolean; peek: boolean; hidden: string[]; cut: number; refit: number; clean: boolean; swipe: number }
   onMeasure: (pts: Pt[], closed: boolean) => void
   onSelect: (id: string | null) => void
   onHover: (id: string | null) => void
+  onInspect: (id: string | null) => void
   overlay: RefObject<HTMLDivElement | null> // DOM layer over the canvas; Html labels portal here (fiber 9 + React 19)
 }
 
-export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode, photo, photoStatus, low, onSlow, focus, fitAll, insets, tools, onMeasure, onSelect, onHover, overlay }: Props) {
+export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode, photo, photoStatus, low, onSlow, focus, fitAll, insets, tools, onMeasure, onSelect, onHover, onInspect, overlay }: Props) {
   const drawing = loaded.drawing
   const max = Math.max(drawing.width, drawing.height)
   const L = max / 2500 // height step between flat layers, so they never z-fight
@@ -138,7 +140,7 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
   const tagsHidden = useDeclutter(drawing, shown, selectedId, hoverId)
   // a selected symbol (WC, tub, door...) in 3D: walls drop to 45% so the object is never hidden behind its room's walls
   const selEl = els.find((e) => e.id === selectedId)
-  const cut = mode === '3d' && selEl?.cls && SYMBOL.has(selEl.cls as Cls) ? Math.min(tools.cut, 0.45) : tools.cut
+  const cut = mode === '3d' && ((selEl?.cls && SYMBOL.has(selEl.cls as Cls)) || tools.inspected) ? Math.min(tools.cut, 0.45) : tools.cut // the object in focus is never hidden
   const building = useBuilding(loaded, want3d)
   const cutU = useCutaway(loaded, tools.cutaway)
   const band = useWainscot(loaded, want3d, drawing.mPerPx ? 1 / drawing.mPerPx : wallH / 2.6)
@@ -218,6 +220,8 @@ export function Scene({ loaded, answer, selectedId, hoverId, dim, showPlan, mode
           selected={el.id === selectedId} hovered={el.id === hoverId} interactive={!tools.measure}
           onSelect={onSelect} onHover={onHover} onZoom={zoomAt} overlay={overlay} />
       ))}
+      {!tools.measure && !tools.peek && <InspectLayer loaded={loaded} want3d={want3d} wallH={wallH} lift={lift} L={L} cutU={cutU}
+        inspected={tools.inspected} onInspect={onInspect} overlay={overlay} />}
       {tools.view && !tools.peek && <ViewMark drawing={drawing} view={tools.view} y={7 * L} overlay={overlay} />}
       {tools.mpts.length > 0 && <MeasureLayer drawing={drawing} pts={tools.mpts} closed={tools.mclosed} L={L} overlay={overlay} />}
     </>
@@ -236,6 +240,66 @@ function glowTex() {
   g.fillStyle = r; g.fillRect(0, 0, 128, 128)
   glowCache = new THREE.CanvasTexture(c)
   return glowCache
+}
+
+// Hover any recognised object to see what it is; click it to zoom in and open its card (no question needed). Invisible
+// hit areas at the object's footprint, raised to about 1 m in 3D so the models themselves can be clicked. The clicked
+// object is outlined (and modelled) in blue: inspecting is never confused with an answer, which is orange.
+const INSPECT = '#2f6fde'
+function InspectLayer({ loaded, want3d, wallH, lift, L, cutU, inspected, onInspect, overlay }: {
+  loaded: Loaded; want3d: boolean; wallH: number; lift: RefObject<Lift>; L: number; cutU: CutU
+  inspected: string | null; onInspect: (id: string | null) => void; overlay: RefObject<HTMLDivElement | null>
+}) {
+  const d = loaded.drawing
+  const items = useMemo(() => inspectables(loaded), [loaded])
+  const geos = useMemo(() => items.map((e) => new THREE.ExtrudeGeometry(shapeOf(d, e.polygon), { depth: 1, bevelEnabled: false })), [items, d])
+  useEffect(() => () => geos.forEach((g) => g.dispose()), [geos])
+  const hitMat = useMemo(() => new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false }), [])
+  useEffect(() => () => hitMat.dispose(), [hitMat])
+  const [hover, setHover] = useState<number>(-1)
+  const group = useRef<THREE.Group>(null)
+  useFrame(() => { if (group.current) group.current.scale.z = Math.max((lift.current?.v ?? 0) * wallH * 0.38, 1) }) // never flat: a zero-height box cannot be picked
+  const sel = items.find((e) => e.id === inspected) ?? null
+  const model = useMemo(() => (sel && want3d && sel.cls ? buildOne(loaded, sel.cls as Cls, sel.polygon, wallH, sel.leaf) : null), [sel, want3d, loaded, wallH])
+  useEffect(() => () => model?.dispose(), [model])
+  const modelMat = useMemo(() => cutaway(new THREE.MeshStandardMaterial({ color: INSPECT, emissive: INSPECT, emissiveIntensity: 0.35, roughness: 0.4 }), cutU, false, wallH), [cutU, wallH])
+  useEffect(() => () => modelMat.dispose(), [modelMat])
+  const modelRef = useRef<THREE.Group>(null)
+  useFrame(() => { const v = lift.current?.v ?? 0; if (modelRef.current) { modelRef.current.visible = v > 0.01; modelRef.current.scale.z = Math.max(v, 0.001) } })
+  const outline = useMemo(() => {
+    if (!sel) return null
+    const w = sel.polygon.map((p) => toWorld(d, p))
+    return [...w, w[0]].map(([x, z]) => new THREE.Vector3(x, 5.5 * L, z))
+  }, [sel, d, L])
+  const label = hover >= 0 ? items[hover] : null
+  const [lx, lz] = label ? toWorld(d, anchor(label)) : [0, 0]
+  const glyph = label?.cls ? GLYPH[label.cls as Cls] : undefined
+  return (
+    <group>
+      <group ref={group} rotation-x={-Math.PI / 2} position-y={0.6 * L}>
+        {geos.map((g, i) => (
+          <mesh key={items[i].id} geometry={g} material={hitMat}
+            onPointerOver={(e) => { e.stopPropagation(); setHover(i); document.body.style.cursor = 'pointer' }}
+            onPointerOut={() => { setHover((h) => (h === i ? -1 : h)); document.body.style.cursor = '' }}
+            onClick={(e) => { if (e.delta > CLICK_PX) return; e.stopPropagation(); onInspect(items[i].id) }} />
+        ))}
+      </group>
+      {outline && <Line points={outline} color={INSPECT} lineWidth={2.5} raycast={() => null} />}
+      {model && (
+        <group ref={modelRef} rotation-x={-Math.PI / 2} position-y={0.5 * L} visible={false}>
+          <mesh geometry={model} material={modelMat} raycast={() => null} />
+        </group>
+      )}
+      {label && (
+        <Html portal={overlay as RefObject<HTMLElement>} position={[lx, 6 * L, lz]} center zIndexRange={[24, 0]} style={{ pointerEvents: 'none' }}>
+          <div className="dv-hoverlabel">
+            {glyph && <svg className="dv-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d={glyph} /></svg>}
+            {label.name}<small>{label.how}{label.confidence != null ? ` · ${Math.round(label.confidence * 100)}%` : ''}</small>
+          </div>
+        </Html>
+      )}
+    </group>
+  )
 }
 
 // Dense answers (dozens of doors on a whole sheet): tags that would overlap on screen are hidden until you zoom in. The
@@ -393,6 +457,10 @@ function Highlight({ el, loaded, drawing, tex, clean, hatch, tier, measure, crow
   const paneMat = useMemo(() => cutaway(new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.45, roughness: 0.35 }), cutU, true), [color, cutU])
   useEffect(() => () => paneMat.dispose(), [paneMat])
   const paneRef = useRef<THREE.Group>(null)
+  // the counted object's model, trimmed at the cut exactly like the plain one it covers
+  const modelMat = useMemo(() => cutaway(new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.42, roughness: 0.38, envMapIntensity: 0.8 }), cutU, false, wallH), [color, cutU, wallH])
+  useEffect(() => () => modelMat.dispose(), [modelMat])
+  useEffect(() => { modelMat.emissiveIntensity = active ? 0.75 : 0.42 }, [modelMat, active])
   // label anchor; a glowing symbol's tag sits just off its box, on the side away from the drawn swing / linework
   let [ax, az] = open ? toWorld(drawing, pts[Math.floor(pts.length / 2)]) : toWorld(drawing, anchor(el))
   let side: 'up' | 'down' | null = null
@@ -483,9 +551,7 @@ function Highlight({ el, loaded, drawing, tex, clean, hatch, tier, measure, crow
       )}
       {model && (
         <group ref={modelRef} rotation-x={-Math.PI / 2} position-y={0.5 * L} visible={false}>
-          <mesh geometry={model} castShadow raycast={() => null}>
-            <meshStandardMaterial color={color} emissive={color} emissiveIntensity={active ? 0.75 : 0.42} roughness={0.38} envMapIntensity={0.8} />
-          </mesh>
+          <mesh geometry={model} material={modelMat} castShadow raycast={() => null} />
         </group>
       )}
       {strip && (
@@ -514,8 +580,8 @@ function Highlight({ el, loaded, drawing, tex, clean, hatch, tier, measure, crow
             <div className={`dv-tag${active ? ' dv-tag-active' : ''}${low ? ' dv-tag-low' : ''}${side ? ` dv-tag-${side}` : ''}`} style={low ? undefined : { background: color }}>
               {glyph && (glyphs || active) && <svg className="dv-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d={glyph} /></svg>}{tag}
             </div>
-            {/* C: in 3D the selected item gets a callout naming it and its source */}
-            {selected && lifted && model && (
+            {/* in 3D, the item under the pointer gets a callout naming it and its source (a selection opens the detail card) */}
+            {hovered && !selected && lifted && model && (
               <div className="dv-callout">
                 <b>{el.cls ? CLS_NAME[el.cls as Cls]?.[0] ?? el.cls : 'Item'}{el.label ? ` · ${el.label} of ${total}` : ''}</b>
                 <small>{el.id} · {TIER_SHORT[tier ?? ''] ?? 'evidence'}</small>

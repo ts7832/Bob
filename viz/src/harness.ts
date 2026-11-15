@@ -52,6 +52,11 @@ async function openStem(s: string) {
 }
 
 async function showAsk(i: number) {
+  if (qi === i) { // clicking the shown question again clears it
+    qi = -1; view.clear(); $('answer').innerHTML = ''
+    document.querySelectorAll('.qs button').forEach((b) => b.classList.remove('on'))
+    syncUrl(); return
+  }
   qi = i
   const a = asks[i]
   document.querySelectorAll('.qs button').forEach((b) => b.classList.toggle('on', (b as HTMLElement).dataset.i === String(i)))
@@ -142,6 +147,21 @@ async function synthetic(kind: string) {
   view.showAnswer(ask, `Synthetic test (${kind}): not a real answer`)
 }
 
+// QA: ?focus=fx80,fx81 (sheet fixture / opening ids, or BIM guids) shown as a test answer; the first is selected, so the
+// camera flies to it (2D or 3D). Not a real answer: the card says so.
+async function focusIds(ids: string[]) {
+  const sheet = await getJSON(`/fixtures/${stem}/sheet.json`).catch(() => null)
+  const items = [...(sheet?.fixtures ?? []), ...(sheet?.openings ?? [])]
+  const ev = ids.map((id) => {
+    const it = items.find((x: { id: string }) => x.id === id)
+    if (!it?.bbox) return { id, shape: 'guid' as const }
+    const [x0, y0, x1, y1] = it.bbox
+    return { id, shape: 'box' as const, bbox: sheet?.y_flip ? [x0, -y1, x1, -y0] : [x0, y0, x1, y1] }
+  })
+  view.showAnswer({ answer: ev.length, unit: 'count', evidence: ev, honesty: { tier: 'measured', basis: 'QA focus from the harness: not a real answer' } }, `QA focus: ${ids.join(', ')}`)
+  view.select(ids[0])
+}
+
 async function main() {
   // ?path=<server path>[&ask=question]: any drawing the demo server knows, asked live (rotated PDF pages, gold sheets)
   const path = P.get('path')
@@ -171,6 +191,7 @@ async function main() {
   await openStem(P.get('d') ?? index[0].stem)
   if (P.has('q')) await showAsk(Number(P.get('q')))
   if (P.get('synthetic')) await synthetic(P.get('synthetic')!)
+  if (P.get('focus')) await focusIds(P.get('focus')!.split(','))
   if (P.get('sel')) view.select(P.get('sel'))
   if (P.get('mode') === '3d') view.setMode('3d')
   if (P.has('clean')) view.setClean(true, Number(P.get('clean') || 0.5)) // ?clean=0.5: clean view, divider position

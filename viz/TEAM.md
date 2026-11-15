@@ -28,9 +28,10 @@ inside `ui/` before it is opened.
   - Measure (scale source stated);
   - hold Original / Space for the untouched sheet;
   - double-click zoom, F to refit.
+- **Inspect any object without a question:** hover shows what it is (and whether it was detected, read or from the IFC model). Click zooms in with a card. Blue means inspecting; orange is reserved for answers.
 - **Clean view:** the plan redrawn from what was detected, with a swipe divider against the original.
 - **3D:**
-  - walls, floors per room type (oak, stone, tile, plus a tiled band on wet-room walls), and fixtures as real models (WC, basin, tub, shower, kitchen, sauna, door leaves);
+  - walls, floors per room type (oak, stone, tile, plus a tiled band on wet-room walls), and a real model for every fixture class you recognise (WC, basin, tub, shower, kitchen, sauna, washer, stairs, shaft, cabinets, door leaves, windows with frames, BIM stairs, railings and furniture). New class names: tell me on #1 and I'll add a model;
   - a cutaway: walls on your side drop low;
   - the counted object's model lights up orange with a floor glow, and the selected one gets a callout (name, n of N, id, source);
   - wall cut slider, and a path-traced Photo mode;

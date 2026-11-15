@@ -39,9 +39,13 @@ Every model item with a score below 0.5 goes on one `crops` sheet: keep it only 
 "window" on a plain wall or on crossing pipes is plainly wrong). Check every room outline of the wall model on the
 overlay too: a room must be bounded by drawn walls on most of its sides; an outline drawn around text, an aisle or a
 group of furniture inside a bigger room is plainly wrong (drop it, and outline the real room on its walls if missing).
-If the start layer has no rooms (on large sheets the wall model is not used), outline every room yourself: one polygon
-per room on its inner wall faces (`fill` at a point inside it, `--close` to bridge door openings; several rooms in one
-script), named from its printed label. Room outlines follow the walls: on a drawing laid out on axes their edges are
+If the start layer has no rooms (on large sheets the wall model reads only walls), outline every room yourself: one
+polygon per room on its inner wall faces (`fill` at a point inside it, `--close` to bridge door openings; several rooms
+in one script), named from its printed label.
+A ROOM is a whole space a person would name (a dorm room, a lounge, a corridor, a laundry): everything between its
+walls, furniture and fixtures included. An enclosed bathroom, closet or entry inside it stays part of that room; if you
+outline it too, put it in a separate class "sub_space" (with the id of the room it is in), never in "room", so the
+room count stays the count of rooms. Room outlines follow the walls: on a drawing laid out on axes their edges are
 horizontal and vertical, so a long diagonal edge means the outline is wrong.
 An outline that follows hatching, posts or roof lines instead of walls (ragged, many corners) is plainly wrong: drop it,
 or replace it with a clean polygon on the real edges.

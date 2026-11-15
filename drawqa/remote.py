@@ -7,7 +7,7 @@ reached, the caller falls back to running locally and says so on stderr (a slow 
 """
 import os, sys, time
 
-APP, CLS = "drawqa-infer", "Infer"
+APP, CLS = os.environ.get("DRAWQA_INFER_APP", "drawqa-infer"), "Infer"  # another app = other weights (e.g. drawqa-infer-e27)
 _cls = None
 last = {}  # what the last remote call cost: {"step": seconds}
 

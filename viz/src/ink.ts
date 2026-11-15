@@ -6,6 +6,7 @@ import type { Drawing, Element, Pt } from './types'
 import { bbox, inside } from './geom'
 
 export type Cls = 'door' | 'window' | 'wc' | 'sink' | 'bathtub' | 'shower' | 'stairs' | 'column' | 'stove' | 'kitchen' | 'fixture'
+  | 'washer' | 'shaft' | 'cabinet' | 'railing'
   | 'room' | 'apartment' | 'floor' | 'wall' | 'other'
 
 // Backend / IFC / detector class names -> one small vocabulary (glyphs, chips, symbol style).
@@ -20,24 +21,30 @@ export function normCls(raw?: string | null): Cls | null {
   if (/shower/.test(s)) return 'shower'
   if (/stair/.test(s)) return 'stairs'
   if (/column/.test(s)) return 'column'
+  if (/washing|washer|laundry/.test(s)) return 'washer'
+  if (/shaft|duct/.test(s)) return 'shaft'
+  if (/cabinet|wardrobe|closet|cupboard/.test(s)) return 'cabinet'
   if (/stove/.test(s)) return 'stove'
   if (/kitchen_unit/.test(s)) return 'kitchen'
   if (/sanitary|furnish|furniture|fixture|bench|^fx$|terminal/.test(s)) return 'fixture'
   if (/^unit$|apartment/.test(s)) return 'apartment'
   if (/^floor$|storey/.test(s)) return 'floor'
-  if (/wall|railing/.test(s)) return 'wall'
+  if (/railing/.test(s)) return 'railing'
+  if (/wall/.test(s)) return 'wall'
   if (/space|room|bed|bath|balcony|living|dining|entry|storage|utility|dressing|terrace|garage|kitchen|sauna/.test(s)) return 'room'
   return 'other'
 }
 
 // Symbols drawn as linework: these glow. Rooms, units, floors and walls keep the filled-area style.
-export const SYMBOL = new Set<Cls>(['door', 'window', 'wc', 'sink', 'bathtub', 'shower', 'stairs', 'column', 'stove', 'kitchen', 'fixture'])
+export const SYMBOL = new Set<Cls>(['door', 'window', 'wc', 'sink', 'bathtub', 'shower', 'stairs', 'column', 'stove', 'kitchen', 'fixture', 'washer', 'shaft', 'cabinet'])
 
 export const CLS_NAME: Record<Cls, [string, string]> = {
   door: ['door', 'doors'], window: ['window', 'windows'], wc: ['WC', 'WCs'], sink: ['sink', 'sinks'], bathtub: ['bathtub', 'bathtubs'],
   shower: ['shower', 'showers'], stairs: ['stair', 'stairs'], column: ['column', 'columns'], stove: ['stove', 'stoves'],
   kitchen: ['kitchen unit', 'kitchen units'], fixture: ['fixture', 'fixtures'], room: ['room', 'rooms'],
   apartment: ['apartment', 'apartments'], floor: ['floor', 'floors'], wall: ['wall', 'walls'], other: ['item', 'items'],
+
+  washer: ['washing machine', 'washing machines'], shaft: ['shaft', 'shafts'], cabinet: ['cabinet', 'cabinets'], railing: ['railing', 'railings'],
 }
 
 // 16x16 plan-symbol glyphs (stroke = currentColor), drawn like the symbols on a plan.
@@ -53,6 +60,10 @@ export const GLYPH: Partial<Record<Cls, string>> = {
   stove: 'M2 2.5h12v11H2zM4.5 8a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0',
   kitchen: 'M1 4h14v8H1zM3.5 8a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0M9.3 8a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0 -3.2 0',
   fixture: 'M3 3h10v10H3zM6 8h4',
+  washer: 'M2.5 1.5h11v13h-11zM4.5 9a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0M4.5 4h3',
+  shaft: 'M2 2h12v12H2zM2 2l12 12M14 2L2 14',
+  cabinet: 'M2 2h12v12H2zM8 2v12M6.5 7v2M9.5 7v2',
+  railing: 'M1 5h14M3 5v8M8 5v8M13 5v8',
 }
 
 export interface Ink { canvas: HTMLCanvasElement; x0: number; y0: number; x1: number; y1: number } // sheet px
