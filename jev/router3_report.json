@@ -1,0 +1,85 @@
+{
+ "labels": 26,
+ "train": 5945,
+ "val": 592,
+ "temperature": 0.5,
+ "extra_dropped": 0,
+ "test_rewordings": {
+  "n": 1040,
+  "accuracy": 0.9962,
+  "confidence_gap": 0.0246,
+  "share_confident_80": 0.995,
+  "accuracy_when_confident": 1.0,
+  "wrong_examples": [
+   [
+    "Kuinka monta suihkua ja amme kaiken kaikkiaan on merkitty pohjapiirrokseen?",
+    "count:fixtures:shower_or_bathtub",
+    "count:fixtures:shower",
+    0.71
+   ],
+   [
+    "Mikä on tämän kerroksen numeroitujen sisätilojen (huoneiden) nettopinta-ala yhteensä neliö",
+    "area:whole_floor",
+    "area:apartment",
+    0.6
+   ],
+   [
+    "Quelle est la surface de plancher nette totale, en m², de toutes les pièces (espaces) de l",
+    "area:whole_floor",
+    "area:rooms_of_a_type",
+    0.53
+   ],
+   [
+    "Kuinka monta asuntojen sisäänkäyntiovea (tyyppi U01) on aikataulutettu levylle A700 (Canne",
+    "count:door",
+    "count:all_rooms",
+    0.39
+   ]
+  ]
+ },
+ "router_cannot_read": {
+  "n": 549,
+  "accuracy": 0.8525,
+  "confidence_gap": 0.0978,
+  "share_confident_80": 0.909,
+  "accuracy_when_confident": 0.8818,
+  "wrong_examples": [
+   [
+    "Hoeveel ramen bevat het model 'Gymzaal Hambakendreef, Amersfoort (example project location",
+    "count:window",
+    "count:all_rooms",
+    0.8
+   ],
+   [
+    "Hoeveel ruimtes bevat het model 'Gymzaal Hambakendreef, Amersfoort (example project locati",
+    "count:window",
+    "count:all_rooms",
+    0.97
+   ],
+   [
+    "Hoeveel kolommen bevat het model 'Gymzaal Hambakendreef, Amersfoort (example project locat",
+    "count:window",
+    "count:column",
+    0.97
+   ],
+   [
+    "Hoeveel balken bevat het model 'Gymzaal Hambakendreef, Amersfoort (example project locatio",
+    "count:window",
+    "count:beam",
+    0.98
+   ],
+   [
+    "Hoeveel sanitaire toestellen bevat het model 'Gymzaal Hambakendreef, Amersfoort (example p",
+    "count:window",
+    "count:fixtures:any",
+    0.92
+   ],
+   [
+    "Hoeveel ruimtes staan er op de plattegrond van '00 Begane grond'?",
+    "count:window",
+    "count:all_rooms",
+    0.98
+   ]
+  ]
+ }
+}

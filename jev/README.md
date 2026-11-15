@@ -17,3 +17,9 @@ Code: `modal_router.py` (kokoro-63208 workspace). Weights: volume `bob-data`, `/
 
 Report: `router1_report.json`. Next: per-row predictions, cleaner labels for the hard set, argument extraction (which room,
 which storey), and the cascade (patterns -> this model -> Opus below a confidence threshold).
+
+## router3 (2026-11-15, live in bob-engine)
+- Weights: GitHub release `jev-router3` (router3.tar + sha256); on Modal at `/jev/router3` (bob-data, kokoro-63208; bob-dataset, oliver-universityapps).
+- Training data: router2's Haiku rewordings + `router3_extra_rare_and_table.jsonl` (rare types x16 rewordings, 60 synthetic each for 11 types incl. the new `table` label).
+- `modal run jev/modal_router.py --stage train --para-file paraphrases_haiku.json --extra-file haiku_rare.jsonl --out router3` (the split comes from the base file, so the test questions are router2's).
+- Report: `router3_report.json`.
