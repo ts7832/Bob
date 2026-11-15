@@ -152,6 +152,8 @@ async function ready() {
   if (st.reading === "running") setTimeout(watchReading, 3000);
 }
 let shownPartial = 0, shownView = 0;
+const COLORS = {};  // a kind keeps its colour through every live update (new kinds take the next free one)
+function colorOf(name) { if (!(name in COLORS)) COLORS[name] = PAL[Object.keys(COLORS).length % PAL.length]; return COLORS[name]; }
 async function watchReading() {
   const d = await (await fetch("/api/v2/status?id=" + job)).json();
   if (d.reading === "running") {
@@ -192,7 +194,7 @@ function renderFound() {
   layer.forEach((c, i) => {
     const row = document.createElement("label"); row.className = "cls";
     if (c.hidden) hidden.add(c.name);  // e.g. wall perimeter: drawn when an answer cites it
-    row.innerHTML = `<input type="checkbox" ${hidden.has(c.name) ? "" : "checked"}><span class="sw" style="background:${PAL[i % PAL.length]}"></span>${esc(c.name.replace(/_/g, " "))}
+    row.innerHTML = `<input type="checkbox" ${hidden.has(c.name) ? "" : "checked"}><span class="sw" style="background:${colorOf(c.name)}"></span>${esc(c.name.replace(/_/g, " "))}
       <span class="src">${/detector|model/.test(c.source || "") ? "model" : "Claude"}</span><span class="n">${c.items.length}</span>`;
     row.querySelector("input").onchange = e => { e.target.checked ? hidden.delete(c.name) : hidden.add(c.name); draw(); };
     $("found").appendChild(row);
@@ -260,7 +262,7 @@ function draw() {
   const ids = hi ? new Set(hi.map(e => e.id)) : null;
   layer.forEach((c, i) => {
     if (hidden.has(c.name)) return;
-    cx.strokeStyle = PAL[i % PAL.length]; cx.lineWidth = 1.6 / view.s; cx.globalAlpha = ids ? 0.18 : 0.85;
+    cx.strokeStyle = colorOf(c.name); cx.lineWidth = 1.6 / view.s; cx.globalAlpha = ids ? 0.18 : 0.85;
     if (c.outline && !ids) { c.outline.forEach(r => { cx.beginPath(); r.forEach(([x, y], j) => j ? cx.lineTo(x * k, y * k) : cx.moveTo(x * k, y * k)); cx.closePath(); cx.stroke(); }); return; }  // walls: one connected shape
     c.items.forEach(it => { if (!ids || !ids.has(it.id)) { shape(it, k); cx.stroke(); } });
   });
