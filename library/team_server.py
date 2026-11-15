@@ -345,7 +345,7 @@ def patched_load_demo(orig=ui_server.load_demo):
             import hashlib, http.cookies
             tok = hashlib.sha256(("bob|" + want).encode()).hexdigest()[:24]
             c = http.cookies.SimpleCookie(self.headers.get("Cookie") or "")
-            if c.get("bobsite") and c["bobsite"].value == tok:
+            if c.get("bobsite2") and c["bobsite2"].value == tok:
                 return True
             u = urllib.parse.urlparse(self.path)
             if u.path == "/bob/login" and self.command == "POST":
@@ -353,7 +353,7 @@ def patched_load_demo(orig=ui_server.load_demo):
                 pw = (urllib.parse.parse_qs(self.rfile.read(n).decode()).get("pw") or [""])[0]
                 if pw == want:
                     self.send_response(303)
-                    self.send_header("Set-Cookie", f"bobsite={tok}; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax")
+                    self.send_header("Set-Cookie", f"bobsite2={tok}; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax")
                     self.send_header("Location", "/")
                     self.end_headers()
                     return False
