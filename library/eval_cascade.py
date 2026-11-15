@@ -26,7 +26,12 @@ image = (
 
 
 def correct(pred, q):
-    if pred is None or isinstance(pred, str):
+    if isinstance(pred, str):                     # table answers can come back as text: "118", "4,769"
+        try:
+            pred = float(pred.replace(",", "").strip())
+        except ValueError:
+            return False
+    if pred is None:
         return False
     try:
         if q["type"] == "count":
@@ -44,12 +49,14 @@ def run_chunk(items: list, llm: bool = False):
     os.chdir("/root/app")
     import jev_cascade
     jev_cascade.install("/ds/jev/" + os.environ.get("JEV_MODEL", "router2"))
+    if llm:
+        jev_cascade.use_claude_for_reader()
     from drawqa.solve import solve
     out = []
     for q in items:
         t0 = time.time()
         try:
-            r = solve("/ds/" + q["path"], q["question"], llm=llm)
+            r = jev_cascade.answer("/ds/" + q["path"], q["question"], llm=llm)
             ans, conf, tier, err = r.get("answer"), r.get("confidence"), (r.get("honesty") or {}).get("tier"), None
         except Exception as e:
             ans, conf, tier, err = None, None, "error", f"{type(e).__name__}: {e}"[:160]
@@ -58,7 +65,7 @@ def run_chunk(items: list, llm: bool = False):
         if how.get("agree") is False and how.get("alt"):          # the routers disagree: answer the router's reading too
             try:
                 jev_cascade.force("alt")
-                ra = solve("/ds/" + q["path"], q["question"])
+                ra = jev_cascade.answer("/ds/" + q["path"], q["question"], llm=llm)
                 alt_ans, alt_conf = ra.get("answer"), ra.get("confidence")
             except Exception:
                 pass

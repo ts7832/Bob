@@ -174,3 +174,59 @@ def force(which):
 
 def last():
     return getattr(_state, "last", None)
+
+
+def answer(path, question, generic=False, llm=False):
+    """The order Aleks's page uses (demo/server.py /api/ask): a question naming a table on the sheet is answered from
+    the table; otherwise from the drawing; and when the drawing cannot answer, from a table if one can."""
+    from drawqa import solve as S
+    try:
+        tabs = S._tables(path)
+    except Exception:
+        tabs = []
+    res = None
+    if tabs and S.names_a_table(question, tabs):
+        res = S.table_answer(path, question, use_model=llm)
+        if res is not None and res.get("answer") is None:
+            res = None
+    if res is None:
+        res = S.solve(path, question, generic=generic, llm=llm)
+        if res.get("answer") is None and tabs:
+            alt = S.table_answer(path, question, use_model=llm)
+            if alt is not None and alt.get("answer") is not None:
+                res = alt
+    return res
+
+
+def use_claude_for_reader(model=None):
+    """Aleks's table queries (drawqa/schedule.py plan()) ask his Qwen reader on his own Modal workspace
+    (modal.Cls.from_name("drawqa-reader", "Reader")().text.remote(prompt, max_tokens)), which other workspaces cannot
+    reach. This routes that text call to Claude with the same contract ({"text", "model"}); image calls are not routed."""
+    import modal
+    if getattr(modal.Cls.from_name, "_bob", False):
+        return
+    orig = modal.Cls.from_name
+    use = model or os.environ.get("DRAWQA_LLM_MODEL", "claude-opus-5-5")
+
+    class _Text:
+        def remote(self, prompt, max_tokens=500):
+            import anthropic
+            client = anthropic.Anthropic(timeout=60.0, max_retries=1)
+            for m in (use, "claude-haiku-5-5"):                     # Opus first, Haiku if Opus fails
+                try:
+                    r = client.messages.create(model=m, max_tokens=max(int(max_tokens), 800), messages=[{"role": "user", "content": prompt}])
+                    return {"text": "".join(b.text for b in r.content if getattr(b, "type", "") == "text"), "model": m}
+                except Exception as e:
+                    err = e
+            raise err
+
+    class _Reader:
+        def __init__(self, *a, **k):
+            self.text = _Text()
+
+    def from_name(app_name, cls_name, *a, **k):
+        if app_name == "drawqa-reader" and os.environ.get("ANTHROPIC_API_KEY"):
+            return _Reader
+        return orig(app_name, cls_name, *a, **k)
+    from_name._bob = True
+    modal.Cls.from_name = from_name

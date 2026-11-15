@@ -181,6 +181,7 @@ def solve_full(sheet_id: int, file_name: str, question: str):
     os.chdir("/root/app")
     import jev_cascade
     jev_cascade.install("/ds/jev/router2")
+    jev_cascade.use_claude_for_reader()           # table queries: Claude via our key (Aleks's reader is in his workspace)
     from drawqa.solve import solve
     from drawqa import llm_router
     path, generic = _find(file_name), False
@@ -191,14 +192,14 @@ def solve_full(sheet_id: int, file_name: str, question: str):
     t0 = time.time()
     fallback = None
     try:
-        r = solve(path, question, generic=generic, llm=use_llm)
+        r = jev_cascade.answer(path, question, generic=generic, llm=use_llm)
         how = jev_cascade.last() or {}
         basis = str((r.get("honesty") or {}).get("basis") or "") + str(r.get("explanation") or "")
         if use_llm and r.get("answer") is None and how.get("by") == "nobody" and re.search(r"(?i)language model|anthropic|model call", basis):
             fallback, main_model = "claude-haiku-5-5", llm_router.MODEL     # Opus failed: try Haiku once, and say so
             llm_router.MODEL = fallback
             try:
-                r = solve(path, question, generic=generic, llm=True)
+                r = jev_cascade.answer(path, question, generic=generic, llm=True)
             finally:
                 llm_router.MODEL = main_model
     except Exception as e:
