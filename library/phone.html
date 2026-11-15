@@ -166,7 +166,9 @@ function show() {
   if (scan.newer_revision) {
     $("newer").hidden = false;
     $("newerinfo").innerHTML = `<b>This paper is out of date.</b><br>A newer version is in the library: ${esc(scan.newer_revision.name)}` +
-      (scan.newer_revision.revision ? ` (revision ${esc(scan.newer_revision.revision)})` : "") + ".";
+      (scan.newer_revision.revision ? ` (revision ${esc(scan.newer_revision.revision)})` : "") + "." +
+      `<br><small>What changed (red: removed, blue: new):</small><img style="width:100%;margin-top:6px;border:1px solid #1e1e1e" ` +
+      `src="/api/sheets/${scan.newer_revision.id}/diff/${s.id}?pw=${encodeURIComponent(pw)}" alt="changes between the versions">`;
   }
   scopeAll = false; setScope();
   $("scope").hidden = n < 2; $("askcard").hidden = false; $("result").innerHTML = "";

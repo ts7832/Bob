@@ -7,8 +7,9 @@ Runs tools/ui_server.py unchanged, with three additions:
   - the engine call behind /api/ask goes to the library on Modal (POST /api/solve): the blueprint is registered in the
     library the first time it is asked about, each question is split into its parts, and every answer and part is kept,
     so asking it (or one of its parts) again is answered from the library;
-  - Finnish scans (cubicasa5k) are still answered on this laptop: their detector output is not on Modal yet. The audit
-    trail says where every answer was made.
+  - /bob/lib/<path> passes calls to the library (corrections, notes to Opus, history, savings, revisions) with the
+    workspace password added here; /bob/sid?path= gives an open file's library id (and a revision guess after upload);
+  - /bob/tools.js and /bob/tools.css: corrections, circle-a-problem, history, money saved, revisions (ui/bob/).
 Rendering, plans, tables and costs stay on this laptop, as in tools/ui_server.py.
 """
 import json, os, sys, urllib.parse, urllib.request
@@ -24,6 +25,7 @@ PW = os.environ.get("BOB_PASSWORD", "123456789")
 PROJECT = os.environ.get("BOB_PROJECT", "Team page")
 LOCAL_SOURCES = ()          # everything on Modal now: scans use the live detector there (drawqa-infer)
 _ids = {}
+_suggest = {}               # sheet id -> the library's "this looks like a newer version of ..." from its upload
 
 
 def call(method, path, body=None, ctype="application/json", timeout=600, **params):
@@ -43,8 +45,11 @@ def sheet_id(path):
     except urllib.error.HTTPError as e:
         if e.code != 404:
             raise
-        sid = call("POST", "/api/sheets", open(path, "rb").read(), "application/octet-stream", project=PROJECT,
-                   name=os.path.splitext(name)[0], file_name=name)["id"]
+        up = call("POST", "/api/sheets", open(path, "rb").read(), "application/octet-stream", project=PROJECT,
+                  name=os.path.splitext(name)[0], file_name=name)
+        sid = up["id"]
+        if up.get("revision_suggestion"):
+            _suggest[sid] = up["revision_suggestion"]
     _ids[name] = sid
     return sid
 
@@ -74,12 +79,47 @@ def patched_load_demo(orig=ui_server.load_demo):
     demo.solve = solve
 
     class H(demo.H):
+        def _proxy(self, method):
+            """/bob/lib/<path> -> the library on Modal, with the workspace password added here (the page never holds it)."""
+            u = urllib.parse.urlparse(self.path)
+            n = int(self.headers.get("Content-Length") or 0)
+            body = self.rfile.read(n) if n else None
+            url = URL + u.path[len("/bob/lib"):] + (("?" + u.query) if u.query else "")
+            req = urllib.request.Request(url, data=body, method=method, headers={"x-bob-password": PW, "content-type": self.headers.get("content-type") or "application/json"})
+            try:
+                with urllib.request.urlopen(req, timeout=600) as r:
+                    data, ctype, code, extra = r.read(), r.headers.get("content-type") or "application/json", r.status, r.headers.get("x-changed-regions")
+            except urllib.error.HTTPError as e:
+                data, ctype, code, extra = e.read(), e.headers.get("content-type") or "application/json", e.code, None
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(data)))
+            if extra:
+                self.send_header("x-changed-regions", extra)
+            self.end_headers()
+            self.wfile.write(data)
+
         def do_GET(self):
-            p = urllib.parse.urlparse(self.path).path
-            if p in ("/bob/onebit.css", "/bob/onebit.js"):
+            u = urllib.parse.urlparse(self.path)
+            p = u.path
+            if p.startswith("/bob/lib/"):
+                return self._proxy("GET")
+            if p == "/bob/sid":                     # the library id of an open file (registered the first time), and a revision guess
+                path = (urllib.parse.parse_qs(u.query).get("path") or [""])[0]
+                try:
+                    sid = sheet_id(path)
+                    return self._send(200, dict(id=sid, revision_suggestion=_suggest.pop(sid, None)))
+                except Exception as e:
+                    return self._send(500, {"error": f"{type(e).__name__}: {e}"})
+            if p.startswith("/bob/") and os.path.basename(p) in ("onebit.css", "onebit.js", "tools.js", "tools.css"):
                 f = os.path.join(REPO, "ui", "bob", os.path.basename(p))
                 return self._send(200, open(f, "rb").read(), "text/css; charset=utf-8" if p.endswith(".css") else "text/javascript; charset=utf-8")
             return super().do_GET()
+
+        def do_POST(self):
+            if self.path.startswith("/bob/lib/"):
+                return self._proxy("POST")
+            return super().do_POST()
 
     demo.H = H
     return demo

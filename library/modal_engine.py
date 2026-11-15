@@ -29,6 +29,7 @@ image = (
                  "torch==2.5.1", "transformers==4.47.1", "sentencepiece")
     .add_local_dir(str(REPO / "drawqa"), "/root/app/drawqa", ignore=["__pycache__"])
     .add_local_file(str(REPO / "library" / "jev_cascade.py"), "/root/app/jev_cascade.py")
+    .add_local_file(str(REPO / "library" / "keypool.py"), "/root/app/keypool.py")
     .add_local_dir(str(REPO / "data" / "predictions"), "/root/app/data/predictions")
 )
 
@@ -60,11 +61,13 @@ def _library_copy(sheet_id, file_name):
 
 
 @app.function(image=image, volumes={"/ds": DATA, "/lib": LIB}, cpu=2, memory=4096, timeout=600, scaledown_window=600,
-              secrets=[modal.Secret.from_dict({"BOB_PASSWORD": os.environ.get("BOB_PASSWORD", "123456789")}), modal.Secret.from_name("bob-anthropic")])
+              secrets=[modal.Secret.from_dict({"BOB_PASSWORD": os.environ.get("BOB_PASSWORD", "123456789")}), modal.Secret.from_name("bob-anthropic"), modal.Secret.from_name("bob-anthropic-pool")])
 def answer(answer_id: int, sheet_id: int, file_name: str, question: str):
     import json, shutil, sys, time, urllib.request
     sys.path.insert(0, "/root/app")
     os.chdir("/root/app")
+    import keypool
+    keypool.install()                                  # Claude calls: Oliver's key, then kokoro's (bob-anthropic-pool)
     from drawqa.solve import solve
     path, generic = _find(file_name), False
     if path is None:                                   # not from the dataset: the library's own copy, read as an unknown file
@@ -174,13 +177,14 @@ def json_intent(r):
 
 
 @app.function(image=image, volumes={"/ds": DATA, "/lib": LIB}, cpu=2, memory=6144, timeout=600, scaledown_window=900, min_containers=1,
-              secrets=[modal.Secret.from_name("bob-anthropic")])
+              secrets=[modal.Secret.from_name("bob-anthropic"), modal.Secret.from_name("bob-anthropic-pool")])
 def solve_full(sheet_id: int, file_name: str, question: str):
     """Synchronous: the engine's whole result (evidence included, for the blueprint view) plus its audit trail."""
     import re, shutil, sys, time
     sys.path.insert(0, "/root/app")
     os.chdir("/root/app")
-    import jev_cascade
+    import jev_cascade, keypool
+    keypool.install()                                  # Claude calls: Oliver's key, then kokoro's (bob-anthropic-pool)
     jev_cascade.install("/ds/jev/" + JEV_MODEL)
     jev_cascade.use_claude_for_reader()           # table queries: Claude via our key (Aleks's reader is in his workspace)
     from drawqa.solve import solve
@@ -213,6 +217,7 @@ def solve_full(sheet_id: int, file_name: str, question: str):
     if calls:
         tin, tout = sum(c["in"] for c in calls), sum(c["out"] for c in calls)
         r["audit"]["language_model_used"] = True
+        r["audit"]["paid_by"] = keypool.last()
         r["audit"]["model_calls"] = list(calls)
         r["audit"]["steps"].insert(2, dict(stage="Language model", actor=", ".join(sorted({c["model"] for c in calls})),
                                            detail=f"{len(calls)} call(s), {tin} tokens in, {tout} tokens out. It turned the wording into tool calls; "

@@ -130,14 +130,21 @@
   const und = $("understood");
   if (und) new MutationObserver(() => setTimeout(english, 50)).observe(und, { childList: true, subtree: true });
 
-  // deep links for demos and checks: /#open=<file path>&ask=<question>  (both optional)
+  // deep links for demos and checks: /#open=<file path>&ask=<question>  (both optional). Waits for the page's own first
+  // open (it opens the first checked drawing when its list arrives), then opens the file, then asks once it is open.
   const hp = new URLSearchParams(location.hash.slice(1));
-  if (hp.get("open") && $("openpath")) setTimeout(() => {
+  const until = (ok, then, tries = 600) => { if (ok()) then(); else if (tries > 0) setTimeout(() => until(ok, then, tries - 1), 250); };
+  const cur = () => { try { return typeof current !== "undefined" ? current : null; } catch (e) { return null; } };
+  const want = hp.get("open");
+  const askNow = () => { if (hp.get("ask") && q && $("askbtn")) { q.value = hp.get("ask"); $("askbtn").click(); } };
+  if (want && $("openpath")) until(() => cur(), () => {
     const box = $("openpath");
-    box.value = hp.get("open");
+    box.value = want;
     box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-  }, 1500);
-  if (hp.get("ask") && q && $("askbtn")) setTimeout(() => { q.value = hp.get("ask"); $("askbtn").click(); }, hp.get("open") ? 9000 : 2500);
+    const base = want.split(/[\\/]/).pop();
+    until(() => cur() && String(cur().path).split(/[\\/]/).pop() === base, () => setTimeout(askNow, 1500));
+  });
+  else if (hp.get("ask")) until(() => cur(), () => setTimeout(askNow, 1500));
 
   dress();
   new MutationObserver(dress).observe(document.querySelector("aside") || document.body, { childList: true, subtree: true });

@@ -36,6 +36,7 @@ image = (
                  "numpy<2", "opencv-python-headless", "pymupdf", "segno")
     .run_function(_fetch_weights)
     .add_local_file(str(HERE / "phone.html"), "/root/phone.html")
+    .add_local_file(str(HERE / "keypool.py"), "/root/keypool.py")
 )
 
 SCHEMA = f"""
@@ -53,6 +54,10 @@ CREATE TABLE IF NOT EXISTS scans (id INT AUTO_INCREMENT PRIMARY KEY, workspace_i
   details INT, seconds FLOAT, device VARCHAR(255), created_at DATETIME DEFAULT CURRENT_TIMESTAMP, KEY (sheet_id));
 CREATE TABLE IF NOT EXISTS names (id INT AUTO_INCREMENT PRIMARY KEY, original VARCHAR(190) NOT NULL UNIQUE, english VARCHAR(190),
   room_type VARCHAR(40), source VARCHAR(20), created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS corrections (id INT AUTO_INCREMENT PRIMARY KEY, sheet_id INT NOT NULL, kind VARCHAR(16) NOT NULL,
+  item_id VARCHAR(64) NULL, cls VARCHAR(40) NULL, bbox_json TEXT NULL, value VARCHAR(255) NULL, question_norm VARCHAR(500) NULL,
+  note TEXT NULL, author VARCHAR(80) DEFAULT '', source VARCHAR(20) DEFAULT 'person', status VARCHAR(12) DEFAULT 'applied',
+  note_id INT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, KEY (sheet_id, status));
 CREATE TABLE IF NOT EXISTS ledger (id INT AUTO_INCREMENT PRIMARY KEY, workspace_id INT NOT NULL, sheet_id INT NULL, kind VARCHAR(20),
   cost_usd DOUBLE DEFAULT 0, saved_usd DOUBLE DEFAULT 0, seconds FLOAT DEFAULT 0, saved_seconds FLOAT DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
@@ -60,7 +65,7 @@ CREATE TABLE IF NOT EXISTS ledger (id INT AUTO_INCREMENT PRIMARY KEY, workspace_
 
 
 @app.function(image=image, volumes={V: VOL}, cpu=4, memory=8192, min_containers=1, max_containers=1, timeout=900, scaledown_window=1200,
-              secrets=[modal.Secret.from_name("bob-anthropic")])
+              secrets=[modal.Secret.from_name("bob-anthropic"), modal.Secret.from_name("bob-anthropic-pool")])
 @modal.concurrent(max_inputs=16)
 @modal.asgi_app()
 def web():
@@ -70,6 +75,10 @@ def web():
     from fastapi.responses import FileResponse, HTMLResponse, Response
     from PIL import Image
 
+    import sys
+    sys.path.insert(0, "/root")
+    import keypool
+    print("keypool:", keypool.install())             # Claude calls: Oliver's key, then kokoro's (bob-anthropic-pool)
     Image.MAX_IMAGE_PIXELS = None
     FILES = f"{V}/library/files"
     DUMP = f"{V}/library/db.sql"
@@ -109,6 +118,10 @@ def web():
     for stmt in SCHEMA.split(";"):
         if stmt.strip():
             q(stmt)
+    for stmt in ("ALTER TABLE answers ADD COLUMN IF NOT EXISTS asked_from VARCHAR(20) DEFAULT ''",
+                 "ALTER TABLE sheets ADD COLUMN IF NOT EXISTS sheet_no VARCHAR(40) DEFAULT ''",
+                 "ALTER TABLE sheets ADD COLUMN IF NOT EXISTS revision_date VARCHAR(20) DEFAULT ''"):
+        q(stmt)
     if not q("SELECT id FROM workspaces WHERE name='Demo'"):
         q("INSERT INTO workspaces (name, password_sha) VALUES ('Demo', %s)", (hashlib.sha256(PASSWORD.encode()).hexdigest(),))
 
@@ -224,7 +237,8 @@ def web():
     def brief(r):
         return dict(id=r["id"], name=r["name"], file_name=r["file_name"], revision=r["revision"], superseded_by=r["superseded_by"],
                     width=r["width"], height=r["height"], project_id=r["project_id"], has_sheet=r.get("has_sheet", r.get("sheet_json") is not None),
-                    convert_seconds=r["convert_seconds"], convert_cost_usd=r["convert_cost_usd"], created_at=str(r["created_at"]))
+                    convert_seconds=r["convert_seconds"], convert_cost_usd=r["convert_cost_usd"], created_at=str(r["created_at"]),
+                    sheet_no=r.get("sheet_no", ""), revision_date=r.get("revision_date", ""))
 
     @api.get("/", response_class=HTMLResponse)
     @api.get("/phone", response_class=HTMLResponse)
@@ -256,7 +270,7 @@ def web():
         if not p:
             raise HTTPException(404, "no such project in this workspace")
         rows = q("SELECT id, name, file_name, revision, superseded_by, width, height, project_id, sheet_json IS NOT NULL has_sheet, convert_seconds, "
-                 "convert_cost_usd, created_at FROM sheets WHERE project_id=%s ORDER BY name", (pid,))
+                 "convert_cost_usd, created_at, sheet_no, revision_date FROM sheets WHERE project_id=%s ORDER BY name", (pid,))
         return dict(p, sheets=[brief(r) for r in rows])
 
     @api.post("/api/sheets")
@@ -281,6 +295,8 @@ def web():
         th = im.copy()
         th.thumbnail((480, 480), Image.LANCZOS)
         th.save(f"{d}/thumb.jpg", quality=80)
+        no, date = title_block(data, file_name or name)
+        q("UPDATE sheets SET sheet_no=%s, revision_date=%s WHERE id=%s", (no, date, sid))
         if supersedes:
             sheet_row(w, supersedes)
             q("UPDATE sheets SET superseded_by=%s WHERE id=%s", (sid, supersedes))
@@ -288,7 +304,13 @@ def web():
             q("INSERT INTO ledger (workspace_id, sheet_id, kind, cost_usd, seconds) VALUES (%s,%s,'convert',%s,%s)", (w, sid, convert_cost_usd, convert_seconds))
         VOL.commit()                                   # the engine reads the file next: make it visible on the volume now
         dirty.set()
-        return dict(id=sid, project_id=pid, width=im.width, height=im.height)
+        sug = None
+        if not supersedes:
+            try:
+                sug, _ = revision_candidates(w, sid, pid)
+            except Exception as e:
+                print("revision check:", e)
+        return dict(id=sid, project_id=pid, width=im.width, height=im.height, sheet_no=no, revision_date=date, revision_suggestion=sug)
 
     @api.put("/api/sheets/{sid}/sheet")
     async def put_sheet(sid: int, request: Request, convert_seconds: float = 0.0, convert_cost_usd: float = 0.0):
@@ -320,15 +342,6 @@ def web():
         if full and r["sheet_json"]:
             out["sheet"] = json.loads(r["sheet_json"])
         return out
-
-    @api.get("/api/sheets/{sid}/{kind}")
-    def sheet_file(sid: int, kind: str, request: Request):
-        w = ws(request)
-        sheet_row(w, sid)
-        f = {"thumb": "thumb.jpg", "view": "view.jpg", "original": "original"}.get(kind)
-        if not f or not os.path.exists(f"{FILES}/{sid}/{f}"):
-            raise HTTPException(404, "no such file")
-        return FileResponse(f"{FILES}/{sid}/{f}", media_type="image/jpeg" if f.endswith(".jpg") else "application/octet-stream")
 
     @api.post("/api/scan")
     async def scan(request: Request):
@@ -388,7 +401,7 @@ def web():
 
     def answers_of(w, sid):
         rows = q("SELECT id, question, answer_json, seconds, cost_usd, hits, created_at FROM answers WHERE sheet_id=%s AND status='done' ORDER BY hits DESC, id", (sid,))
-        return [dict(id=r["id"], question=r["question"], answer=json.loads(r["answer_json"]), seconds=r["seconds"], cost_usd=r["cost_usd"], hits=r["hits"]) for r in rows]
+        return [dict(id=r["id"], question=r["question"], answer=present(sid, r["question"], json.loads(r["answer_json"])), seconds=r["seconds"], cost_usd=r["cost_usd"], hits=r["hits"]) for r in rows]
 
     @api.get("/api/sheets/{sid}/answers/all")
     def sheet_answers(sid: int, request: Request):
@@ -419,8 +432,8 @@ def web():
         if r and r["status"] == "done":
             q("UPDATE answers SET hits=hits+1 WHERE id=%s", (r["id"],))
             q("INSERT INTO ledger (workspace_id, sheet_id, kind, saved_usd, saved_seconds) VALUES (%s,%s,'reuse',%s,%s)", (w, sid, r["cost_usd"], r["seconds"]))
-            return dict(sheet_id=sid, status="saved", answer_id=r["id"], answer=json.loads(r["answer_json"]), first_cost_usd=r["cost_usd"], first_seconds=r["seconds"])
-        aid = r["id"] if r else q("INSERT INTO answers (sheet_id, question, question_norm, status) VALUES (%s,%s,%s,'pending')", (sid, question, norm(question)))
+            return dict(sheet_id=sid, status="saved", answer_id=r["id"], answer=present(sid, question, json.loads(r["answer_json"])), first_cost_usd=r["cost_usd"], first_seconds=r["seconds"])
+        aid = r["id"] if r else q("INSERT INTO answers (sheet_id, question, question_norm, status, asked_from) VALUES (%s,%s,%s,'pending','phone')", (sid, question, norm(question)))
         try:                                    # the engine on Modal (library/modal_engine.py) answers it and posts the result back
             f = q("SELECT file_name FROM sheets WHERE id=%s", (sid,), one=True)["file_name"]
             ENGINE.spawn(aid, sid, f, question)
@@ -452,7 +465,7 @@ def web():
         r = q("SELECT a.*, p.workspace_id FROM answers a JOIN sheets s ON s.id=a.sheet_id JOIN projects p ON p.id=s.project_id WHERE a.id=%s", (aid,), one=True)
         if not r or r["workspace_id"] != w:
             raise HTTPException(404, "no such answer")
-        return dict(id=aid, sheet_id=r["sheet_id"], status=r["status"], question=r["question"], answer=json.loads(r["answer_json"]) if r["answer_json"] else None,
+        return dict(id=aid, sheet_id=r["sheet_id"], status=r["status"], question=r["question"], answer=present(r["sheet_id"], r["question"], json.loads(r["answer_json"])) if r["answer_json"] else None,
                     seconds=r["seconds"], cost_usd=r["cost_usd"])
 
     @api.get("/api/find")
@@ -464,16 +477,17 @@ def web():
             raise HTTPException(404, "not in the library")
         return dict(id=r["id"])
 
-    def store(w, sid, question, result, seconds, parts=None):
+    def store(w, sid, question, result, seconds, parts=None, asked_from=""):
         old = q("SELECT id FROM answers WHERE sheet_id=%s AND question_norm=%s", (sid, norm(question)), one=True)
         body = json.dumps(dict(result, part_ids=parts) if parts else result, ensure_ascii=False, default=str)
+        cost = 0.0 if parts else audit_cost(result)          # a combined answer's parts were each stored (and costed) already
         if old:
-            q("UPDATE answers SET status='done', answer_json=%s, seconds=%s, cost_usd=0 WHERE id=%s", (body, seconds, old["id"]))
+            q("UPDATE answers SET status='done', answer_json=%s, seconds=%s, cost_usd=%s WHERE id=%s", (body, seconds, cost, old["id"]))
             aid = old["id"]
         else:
-            aid = q("INSERT INTO answers (sheet_id, question, question_norm, answer_json, seconds, cost_usd) VALUES (%s,%s,%s,%s,%s,0)",
-                    (sid, question, norm(question), body, seconds))
-        q("INSERT INTO ledger (workspace_id, sheet_id, kind, cost_usd, seconds) VALUES (%s,%s,'answer',0,%s)", (w, sid, seconds))
+            aid = q("INSERT INTO answers (sheet_id, question, question_norm, answer_json, seconds, cost_usd, asked_from) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                    (sid, question, norm(question), body, seconds, cost, asked_from))
+        q("INSERT INTO ledger (workspace_id, sheet_id, kind, cost_usd, seconds) VALUES (%s,%s,'answer',%s,%s)", (w, sid, cost, seconds))
         return aid
 
     def cached(w, sid, question):
@@ -496,6 +510,7 @@ def web():
         w = ws(request)
         b = await request.json()
         sid, question = int(b["sheet_id"]), b["question"].strip()
+        frm = (b.get("asked_from") or "laptop")[:20]
         sh = sheet_row(w, sid)
         t0 = time.time()
         hit = cached(w, sid, question)
@@ -505,7 +520,7 @@ def web():
             r.setdefault("audit", {}).setdefault("steps", [])
             r["audit"]["reused"] = f"answered from the library (reused {hit['hits']} times; first answer took {hit['seconds']:.2f} s of engine time, now $0)"
             dirty.set()
-            return r
+            return present(sid, question, r)
         sp = await SPLIT.remote.aio(question)
         parts = sp["parts"]
         done = []
@@ -515,14 +530,14 @@ def web():
                 done.append(dict(question=pq, result=hit["result"], seconds=hit["seconds"], from_library=True, answer_id=hit["id"]))
                 continue
             out = await FULL.remote.aio(sid, sh["file_name"], pq)
-            aid = store(w, sid, pq, out["result"], out["seconds"]) if len(parts) > 1 else None
+            aid = store(w, sid, pq, out["result"], out["seconds"], asked_from=frm) if len(parts) > 1 else None
             done.append(dict(question=pq, result=out["result"], seconds=out["seconds"], from_library=False, answer_id=aid))
         if len(done) == 1:
             r = done[0]["result"]
-            aid = store(w, sid, question, r, done[0]["seconds"])
-            r["library"] = dict(from_library=False, answer_id=aid, first_seconds=done[0]["seconds"], times_asked=1)
+            aid = store(w, sid, question, r, done[0]["seconds"], asked_from=frm)
+            r["library"] = dict(from_library=False, answer_id=aid, first_seconds=done[0]["seconds"], times_asked=1, cost_usd=audit_cost(r))
             dirty.set()
-            return r
+            return present(sid, question, r)
         rs = [d["result"] for d in done]
         vals = [x.get("answer") for x in rs]
         units = {x.get("unit") for x in rs}
@@ -559,10 +574,10 @@ def web():
                                          + " · ".join(f"{st['stage']}: {st['actor']}" for st in (x.get("audit") or {}).get("steps", [])),
                                          confidence=x.get("confidence")) for k, (d, x) in enumerate(zip(done, rs))]
                                  + [dict(stage="Combined", actor="library", detail=how)])
-        aid = store(w, sid, question, combined, sum(d["seconds"] for d in done if not d["from_library"]), parts=[d["answer_id"] for d in done])
+        aid = store(w, sid, question, combined, sum(d["seconds"] for d in done if not d["from_library"]), parts=[d["answer_id"] for d in done], asked_from=frm)
         combined["library"] = dict(from_library=False, answer_id=aid, parts_from_library=sum(d["from_library"] for d in done), times_asked=1)
         dirty.set()
-        return combined
+        return present(sid, question, combined)
 
     # ---- printed room names in English (kept with the original; one translation per name, stored) -------------------
     WORDS = {
@@ -669,6 +684,400 @@ def web():
         w = ws(request)
         return q("SELECT c.id, c.sheet_id, s.name sheet, c.similarity, c.details, c.seconds, c.device, c.created_at FROM scans c LEFT JOIN sheets s ON s.id=c.sheet_id "
                  "WHERE c.workspace_id=%s ORDER BY c.id DESC LIMIT %s", (w, limit))
+
+    # ---- prices (Claude API, per million tokens; claude-api reference cached 2026-11-03) -----------------------------
+    PRICE = {"claude-opus-5-5": (4.0, 20.0), "claude-haiku-5-5": (0.10, 0.50)}
+
+    def call_cost(model, tin, tout):
+        a, b = PRICE.get(model, PRICE["claude-opus-5-5"])
+        return (tin * a + tout * b) / 1e6
+
+    def audit_cost(result):
+        """What the language-model calls behind one answer cost (the engine records model and tokens per call)."""
+        return round(sum(call_cost(c.get("model", ""), c.get("in", 0), c.get("out", 0)) for c in ((result or {}).get("audit") or {}).get("model_calls") or []), 6)
+
+    # ---- corrections: a person's fixes to what the system read, applied to every answer on that blueprint ----------
+    def corrections_of(sid, status="applied"):
+        return q("SELECT * FROM corrections WHERE sheet_id=%s AND status=%s ORDER BY id", (sid, status))
+
+    def counted_classes(result):
+        it = result.get("intent") or {}
+        cl = {str(e.get("cls") or "").lower() for e in result.get("evidence") or [] if e.get("cls")}
+        if it.get("cls"):
+            cl.add(str(it["cls"]).lower())
+        return {c for c in cl if c}
+
+    def present(sid, question, result):
+        """The answer as the library shows it: the system's answer with every applied correction for this blueprint on top.
+        The system's own number is kept (engine_answer) and the audit says who changed what."""
+        if not isinstance(result, dict):
+            return result
+        cs = corrections_of(sid)
+        if not cs:
+            return result
+        r = json.loads(json.dumps(result, default=str))
+        steps = r.setdefault("audit", {}).setdefault("steps", [])
+        qn = norm(question or "")
+        over = [c for c in cs if c["kind"] == "answer" and c["question_norm"] == qn]
+        ev = r.get("evidence") or []
+        is_count = r.get("unit") == "count" or (isinstance(r.get("answer"), int) and not r.get("unit"))
+        if over:
+            c = over[-1]
+            try:
+                v = float(c["value"]); v = int(v) if v.is_integer() else v
+            except (TypeError, ValueError):
+                v = c["value"]
+            r["engine_answer"], r["answer"] = r.get("answer"), v
+            r["honesty"] = dict(tier="corrected", basis=f"corrected by {c['author'] or 'a person'}" + (f": {c['note']}" if c["note"] else ""))
+            r["corrected"] = dict(by=c["author"], at=str(c["created_at"]), kind="answer")
+            steps.append(dict(stage="Corrected", actor=c["author"] or "a person", detail=f"answer set to {v} (the system said {r['engine_answer']})" + (f"; note: {c['note']}" if c["note"] else "")))
+            return r
+        if is_count and isinstance(r.get("answer"), (int, float)):
+            cls = counted_classes(r)
+            removed = [c for c in cs if c["kind"] == "remove" and (c["cls"] or "").lower() in cls]
+            added = [c for c in cs if c["kind"] == "add" and (c["cls"] or "").lower() in cls]
+            if removed or added:
+                gone = {c["item_id"] for c in removed if c["item_id"]}
+                r["evidence"] = [e for e in ev if e.get("id") not in gone]
+                r["engine_answer"] = r["answer"]
+                r["answer"] = int(r["answer"]) - len(removed) + len(added)
+                r["added_by_person"] = [dict(id=f"c{c['id']}", cls=c["cls"], bbox=json.loads(c["bbox_json"]) if c["bbox_json"] else None, by=c["author"], source=c["source"]) for c in added]
+                who = sorted({c["author"] or "a person" for c in removed + added})
+                r["honesty"] = dict((r.get("honesty") or {}), tier="corrected",
+                                    basis=f"{r['engine_answer']} found by the system; {len(removed)} removed and {len(added)} added by {', '.join(who)}")
+                r["corrected"] = dict(by=", ".join(who), removed=len(removed), added=len(added), kind="items")
+                steps.append(dict(stage="Corrected", actor=", ".join(who), detail=f"system {r['engine_answer']} -> {r['answer']}: "
+                                  + "; ".join(f"{'-' if c['kind'] == 'remove' else '+'}1 {c['cls']}" + (f" ({c['note']})" if c['note'] else "") + (" [proposed by Opus, accepted]" if c["source"] == "opus" else "") for c in removed + added)))
+        if not is_count and len(ev) == 1:
+            ar = [c for c in cs if c["kind"] == "area" and c["item_id"] == ev[0].get("id")]
+            if ar:
+                c = ar[-1]
+                r["engine_answer"], r["answer"] = r.get("answer"), float(c["value"])
+                r["honesty"] = dict(tier="corrected", basis=f"area set by {c['author'] or 'a person'}")
+                r["corrected"] = dict(by=c["author"], kind="area")
+                steps.append(dict(stage="Corrected", actor=c["author"] or "a person", detail=f"area of {ev[0].get('id')} set to {c['value']} (system: {r['engine_answer']})"))
+        return r
+
+    @api.get("/api/sheets/{sid}/corrections")
+    def list_corrections(sid: int, request: Request):
+        w = ws(request)
+        sheet_row(w, sid)
+        return [dict(r, created_at=str(r["created_at"]), bbox=json.loads(r["bbox_json"]) if r["bbox_json"] else None) for r in
+                q("SELECT * FROM corrections WHERE sheet_id=%s AND status<>'undone' ORDER BY id DESC", (sid,))]
+
+    @api.post("/api/sheets/{sid}/corrections")
+    async def add_correction(sid: int, request: Request):
+        """Body {kind: add|remove|answer|area|rename, cls?, item_id?, bbox?, value?, question?, note?, author?}."""
+        w = ws(request)
+        sheet_row(w, sid)
+        b = await request.json()
+        if b.get("kind") not in ("add", "remove", "answer", "area", "rename"):
+            raise HTTPException(400, "kind must be add, remove, answer, area or rename")
+        cid = q("INSERT INTO corrections (sheet_id, kind, item_id, cls, bbox_json, value, question_norm, note, author, source, status) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'person','applied')",
+                (sid, b["kind"], b.get("item_id"), (b.get("cls") or "").lower() or None, json.dumps(b["bbox"]) if b.get("bbox") else None,
+                 None if b.get("value") is None else str(b["value"]), norm(b["question"]) if b.get("question") else None,
+                 b.get("note") or None, (b.get("author") or "")[:80]))
+        dirty.set()
+        return dict(id=cid)
+
+    @api.post("/api/corrections/{cid}/{action}")
+    def act_correction(cid: int, action: str, request: Request):
+        """accept (a proposal becomes applied), reject (a proposal is declined), undo (an applied correction is taken back)."""
+        w = ws(request)
+        c = q("SELECT * FROM corrections WHERE id=%s", (cid,), one=True)
+        if not c:
+            raise HTTPException(404, "no such correction")
+        sheet_row(w, c["sheet_id"])
+        new = {"accept": "applied", "reject": "rejected", "undo": "undone"}.get(action)
+        if not new:
+            raise HTTPException(400, "action must be accept, reject or undo")
+        q("UPDATE corrections SET status=%s WHERE id=%s", (new, cid))
+        dirty.set()
+        return dict(id=cid, status=new)
+
+    # ---- circle and comment: Opus looks at the circled part and proposes fixes; a person accepts or rejects ---------
+    NOTE_PROMPT = """You check one part of a construction blueprint that a person circled because our automatic reading
+missed something or got it wrong. The image is the circled part only.
+Their comment: {comment}
+{context}
+Propose concrete fixes to the reading, only what you can actually see in the image. Kinds:
+  "add"    an item of class cls that is drawn here but missing from the reading (box = where it is)
+  "remove" an item of class cls that the reading has here but is not really there / is something else (box = where)
+  "answer" the right value for the question, if the image alone settles it (value)
+Classes: door, window, wc, sink, shower, bathtub, stair, column, room, other (use the closest).
+Boxes are fractions of the image: [x0, y0, x1, y1] with 0,0 top left.
+Reply with JSON only: {{"summary": "<one sentence on what you see>", "proposals": [{{"kind": "...", "cls": "...", "box": [..], "value": null, "reason": "<short>"}}]}}
+If nothing needs fixing, give an empty proposals list and say why in the summary."""
+
+    @api.post("/api/sheets/{sid}/notes")
+    async def add_note(sid: int, request: Request):
+        """Body {image: base64 JPEG of the circled part, box: [x0,y0,x1,y1] in view-image pixels, comment, author, question?, answer?,
+        evidence_classes?}. Stores the note, asks Opus for proposals, stores them as proposed corrections, returns them."""
+        import anthropic, base64
+        w = ws(request)
+        sheet_row(w, sid)
+        b = await request.json()
+        box = b.get("box") or [0, 0, 1, 1]
+        nid = q("INSERT INTO corrections (sheet_id, kind, bbox_json, note, author, source, status) VALUES (%s,'note',%s,%s,%s,'person','applied')",
+                (sid, json.dumps(box), b.get("comment") or "", (b.get("author") or "")[:80]))
+        ctx = ""
+        if b.get("question"):
+            ctx = f"The question on screen: {b['question']}\nThe system's answer: {b.get('answer')}"
+            if b.get("evidence_classes"):
+                ctx += f" (counted items: {', '.join(b['evidence_classes'])})"
+        os.makedirs(f"{FILES}/{sid}/notes", exist_ok=True)
+        img = base64.b64decode(b["image"].split(",")[-1])
+        open(f"{FILES}/{sid}/notes/{nid}.jpg", "wb").write(img)
+        t0 = time.time()
+        client = anthropic.Anthropic(timeout=90.0, max_retries=1)
+        msgs = [{"role": "user", "content": [{"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.standard_b64encode(img).decode()}},
+                                             {"type": "text", "text": NOTE_PROMPT.format(comment=b.get("comment") or "(none)", context=ctx)}]}]
+        try:
+            r = client.beta.messages.create(model="claude-opus-5-5", max_tokens=4000, betas=["server-side-fallback-2026-07-01"], fallbacks="default", messages=msgs)
+        except TypeError:                                  # an SDK without server-side fallbacks
+            r = client.messages.create(model="claude-opus-5-5", max_tokens=4000, messages=msgs)
+        if r.stop_reason == "refusal":
+            raise HTTPException(502, "the model declined to look at this part")
+        text = "".join(getattr(x, "text", "") for x in r.content if getattr(x, "type", "") == "text")
+        try:
+            out = json.loads(text[text.index("{"):text.rindex("}") + 1])
+        except ValueError:
+            out = dict(summary=text[:300], proposals=[])
+        cost = call_cost("claude-opus-5-5", r.usage.input_tokens, r.usage.output_tokens)
+        sec = round(time.time() - t0, 2)
+        q("INSERT INTO ledger (workspace_id, sheet_id, kind, cost_usd, seconds) VALUES (%s,%s,'opus note',%s,%s)", (w, sid, cost, sec))
+        x0, y0, x1, y1 = box
+        props = []
+        for p in (out.get("proposals") or [])[:12]:
+            if p.get("kind") not in ("add", "remove", "answer"):
+                continue
+            pb = p.get("box")
+            vb = [x0 + pb[0] * (x1 - x0), y0 + pb[1] * (y1 - y0), x0 + pb[2] * (x1 - x0), y0 + pb[3] * (y1 - y0)] if isinstance(pb, list) and len(pb) == 4 else None
+            cid = q("INSERT INTO corrections (sheet_id, kind, cls, bbox_json, value, question_norm, note, author, source, status, note_id) "
+                    "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'opus','proposed',%s)",
+                    (sid, p["kind"], (p.get("cls") or "").lower() or None, json.dumps(vb) if vb else None, None if p.get("value") is None else str(p["value"]),
+                     norm(b["question"]) if p["kind"] == "answer" and b.get("question") else None, (p.get("reason") or "")[:500],
+                     f"Opus (from {(b.get('author') or 'a note')[:60]})", nid))
+            props.append(dict(id=cid, kind=p["kind"], cls=p.get("cls"), bbox=vb, value=p.get("value"), reason=p.get("reason")))
+        dirty.set()
+        return dict(note_id=nid, summary=out.get("summary"), proposals=props, model=r.model, cost_usd=round(cost, 5), seconds=sec, paid_by=keypool.last(),
+                    tokens=dict(input=r.usage.input_tokens, output=r.usage.output_tokens))
+
+    # ---- history: every question asked and every photo taken ---------------------------------------------------------
+    @api.get("/api/history")
+    def history(request: Request, limit: int = 200):
+        w = ws(request)
+        rows = q("SELECT a.id, a.sheet_id, a.question, a.answer_json, a.seconds, a.cost_usd, a.hits, a.asked_from, a.created_at, a.status, s.name sheet, "
+                 "s.revision, p.name project FROM answers a JOIN sheets s ON s.id=a.sheet_id JOIN projects p ON p.id=s.project_id "
+                 "WHERE p.workspace_id=%s ORDER BY a.id DESC LIMIT %s", (w, limit))
+        out = []
+        for r in rows:
+            a = present(r["sheet_id"], r["question"], json.loads(r["answer_json"])) if r["answer_json"] else {}
+            au = a.get("audit") or {}
+            out.append(dict(id=r["id"], sheet_id=r["sheet_id"], sheet=r["sheet"], revision=r["revision"], project=r["project"], question=r["question"],
+                            answer=a.get("answer"), unit=a.get("unit"), tier=(a.get("honesty") or {}).get("tier"), corrected=bool(a.get("corrected")),
+                            engine_answer=a.get("engine_answer"), language_model=bool(au.get("language_model_used")), status=r["status"],
+                            seconds=r["seconds"], cost_usd=r["cost_usd"], times_reused=r["hits"], asked_from=r["asked_from"] or "laptop",
+                            created_at=str(r["created_at"])))
+        scans_ = q("SELECT c.id, c.sheet_id, s.name sheet, c.details, c.seconds, c.device, c.created_at FROM scans c LEFT JOIN sheets s ON s.id=c.sheet_id "
+                   "WHERE c.workspace_id=%s ORDER BY c.id DESC LIMIT %s", (w, limit))
+        for c in scans_:
+            c["created_at"] = str(c["created_at"])
+            c["photo"] = f"/api/scans/{c['id']}/photo" if os.path.exists(f"{V}/library/scans/{c['id']}.jpg") else None
+        notes = q("SELECT c.id, c.sheet_id, s.name sheet, c.note, c.author, c.created_at, (SELECT COUNT(*) FROM corrections x WHERE x.note_id=c.id) proposals, "
+                  "(SELECT COUNT(*) FROM corrections x WHERE x.note_id=c.id AND x.status='applied') accepted FROM corrections c JOIN sheets s ON s.id=c.sheet_id "
+                  "JOIN projects p ON p.id=s.project_id WHERE c.kind='note' AND p.workspace_id=%s ORDER BY c.id DESC LIMIT %s", (w, limit))
+        for n in notes:
+            n["created_at"] = str(n["created_at"])
+        return dict(questions=out, scans=scans_, notes=notes)
+
+    @api.get("/api/scans/{scan_id}/photo")
+    def scan_photo(scan_id: int, request: Request):
+        w = ws(request)
+        if not q("SELECT id FROM scans WHERE id=%s AND workspace_id=%s", (scan_id, w), one=True) or not os.path.exists(f"{V}/library/scans/{scan_id}.jpg"):
+            raise HTTPException(404, "no such photo")
+        return FileResponse(f"{V}/library/scans/{scan_id}.jpg", media_type="image/jpeg")
+
+    # ---- money saved ------------------------------------------------------------------------------------------------
+    OPUS_PER_QUESTION = dict(input_tokens=2500, output_tokens=800)   # assumption: one Opus call per question, blueprint image + question
+
+    @api.get("/api/savings")
+    def savings(request: Request, eur_per_hour: float = 60.0, minutes_per_answer: float = 6.0):
+        w = ws(request)
+        t = q("SELECT COALESCE(SUM(cost_usd),0) spent, SUM(kind='answer') computed, SUM(kind='reuse') reused, SUM(kind='scan') scans, "
+              "SUM(kind='opus note') notes FROM ledger WHERE workspace_id=%s", (w,), one=True)
+        n_ans = int(t["computed"] or 0) + int(t["reused"] or 0)
+        per_q = call_cost("claude-opus-5-5", OPUS_PER_QUESTION["input_tokens"], OPUS_PER_QUESTION["output_tokens"])
+        spent = float(t["spent"] or 0)
+        hours = n_ans * minutes_per_answer / 60
+        return dict(answers=n_ans, computed=int(t["computed"] or 0), reused=int(t["reused"] or 0), scans=int(t["scans"] or 0),
+                    person=dict(hours_saved=round(hours, 2), eur_saved=round(hours * eur_per_hour, 2), eur_per_hour=eur_per_hour, minutes_per_answer=minutes_per_answer,
+                                assumption=f"a person takes {minutes_per_answer:g} minutes to count or measure one item on a plan, at EUR {eur_per_hour:g}/hour"),
+                    ai=dict(spent_usd=round(spent, 4), opus_for_everything_usd=round(n_ans * per_q, 4), saved_usd=round(n_ans * per_q - spent, 4), per_question_usd=round(per_q, 4),
+                            assumption=f"sending every question to Claude Opus 5.5 with the blueprint: about {OPUS_PER_QUESTION['input_tokens']} input and "
+                                       f"{OPUS_PER_QUESTION['output_tokens']} output tokens at $4/$20 per million = ${per_q:.3f} each; we spent what the ledger shows"))
+
+    # ---- revisions ----------------------------------------------------------------------------------------------------
+    SHEET_NO = re.compile(r"\b([A-Z]{1,2}[-.]?\d{1,3}(?:\.\d{1,2})?)\b")
+    DATE = re.compile(r"\b(20\d{2}[-./]\d{1,2}[-./]\d{1,2}|\d{1,2}[-./]\d{1,2}[-./]20\d{2}|20\d{6})\b")
+
+    def title_block(data, name):
+        """Sheet number and date as printed (vector PDFs: the text layer; the bottom-right corner first, where title blocks sit)."""
+        no, date = "", ""
+        m = DATE.search(name or "")
+        if m:
+            date = m.group(1)
+        if (name or "").lower().endswith(".pdf") or data[:4] == b"%PDF":
+            try:
+                import pymupdf
+                page = pymupdf.open(stream=data, filetype="pdf")[0]
+                W, H = page.rect.width, page.rect.height
+                words = page.get_text("words")
+                corner = " ".join(x[4] for x in words if x[0] > 0.6 * W and x[1] > 0.55 * H)
+                for txt in (corner, " ".join(x[4] for x in words)):
+                    cands = [c for c in SHEET_NO.findall(txt) if re.search(r"[A-Z]", c) and re.search(r"\d", c) and c[0] in "ASMEPLCDGI"]
+                    if cands:
+                        no = cands[-1].replace(".", "-")
+                        break
+                if not date:
+                    m = DATE.search(corner) or DATE.search(" ".join(x[4] for x in words))
+                    date = m.group(1) if m else ""
+            except Exception as e:
+                print("title block:", e)
+        return no, date
+
+    def revision_candidates(w, sid, pid, exclude_self=True):
+        """Sheets of the same project that look like an earlier version of this one: same printed sheet number, or the same
+        picture (fingerprint close and many matching details)."""
+        me = q("SELECT id, sheet_no, VEC_ToText(embedding) e FROM sheets WHERE id=%s", (sid,), one=True)
+        rows = q("SELECT id, name, revision, revision_date, sheet_no, superseded_by, VEC_DISTANCE_COSINE(embedding, VEC_FromText(%s)) dist FROM sheets "
+                 "WHERE project_id=%s AND id<>%s ORDER BY dist LIMIT 8", (me["e"], pid, sid))
+        g = cv2.imread(f"{FILES}/{sid}/match.png", cv2.IMREAD_GRAYSCALE)
+        k1, d1 = sift.detectAndCompute(g, None)
+        photo = (np.float32([p.pt for p in k1]) if k1 else np.zeros((0, 2), np.float32), d1, g.shape)
+        out = []
+        for r in rows:
+            r["details"], _ = details(photo, r["id"])
+            r["same_number"] = bool(me["sheet_no"]) and me["sheet_no"] == r["sheet_no"]
+            r["similarity"] = round(1 - r.pop("dist"), 3)
+            out.append(r)
+        out.sort(key=lambda r: (-r["same_number"], -r["details"]))
+        best = out[0] if out else None
+        if best and (best["same_number"] or (best["details"] >= 60 and best["similarity"] >= 0.8)) and not best["superseded_by"]:
+            why = (f"same sheet number {me['sheet_no']}" if best["same_number"] else "") + (" and " if best["same_number"] and best["details"] >= 60 else "") \
+                  + (f"the same drawing ({best['details']} matching details)" if best["details"] >= 60 else "")
+            return dict(id=best["id"], name=best["name"], revision=best["revision"], revision_date=best["revision_date"], sheet_no=best["sheet_no"],
+                        details=best["details"], similarity=best["similarity"], reason=why), out
+        return None, out
+
+    @api.get("/api/sheets/{sid}/revision_check")
+    def revision_check(sid: int, request: Request):
+        """Does this sheet look like a newer version of one already in the project? (asked after an upload; the user confirms)"""
+        w = ws(request)
+        r = sheet_row(w, sid)
+        sug, cands = revision_candidates(w, sid, r["project_id"])
+        return dict(sheet_id=sid, sheet_no=r["sheet_no"], revision_date=r["revision_date"], suggestion=sug,
+                    candidates=[dict(id=c["id"], name=c["name"], details=c["details"], same_number=c["same_number"]) for c in cands[:4]])
+
+    @api.post("/api/sheets/{sid}/revision_of/{old}")
+    def set_revision(sid: int, old: int, request: Request, revision: str = "", old_revision: str = ""):
+        """Confirm: sheet sid replaces sheet old (old gets 'superseded by sid')."""
+        w = ws(request)
+        sheet_row(w, sid); sheet_row(w, old)
+        q("UPDATE sheets SET superseded_by=%s WHERE id=%s", (sid, old))
+        if revision:
+            q("UPDATE sheets SET revision=%s WHERE id=%s", (revision, sid))
+        if old_revision:
+            q("UPDATE sheets SET revision=%s WHERE id=%s", (old_revision, old))
+        dirty.set()
+        return dict(ok=True)
+
+    @api.get("/api/sheets/{sid}/revisions")
+    def revisions(sid: int, request: Request):
+        """The whole chain this sheet belongs to, oldest first, and which one is current."""
+        w = ws(request)
+        sheet_row(w, sid)
+        cur = sid
+        for _ in range(50):                                      # walk back to the oldest
+            prev = q("SELECT id FROM sheets WHERE superseded_by=%s", (cur,), one=True)
+            if not prev:
+                break
+            cur = prev["id"]
+        chain = []
+        for _ in range(50):
+            r = q("SELECT id, name, revision, revision_date, sheet_no, superseded_by, created_at FROM sheets WHERE id=%s", (cur,), one=True)
+            chain.append(dict(r, created_at=str(r["created_at"])))
+            if not r["superseded_by"]:
+                break
+            cur = r["superseded_by"]
+        return dict(chain=chain, current=chain[-1]["id"], this_is_current=chain[-1]["id"] == sid)
+
+    def diff_image(new, old):
+        """old aligned onto new by matching details; ink only in old = red (removed), only in new = blue (added), both = grey."""
+        gn = cv2.imread(f"{FILES}/{new}/match.png", cv2.IMREAD_GRAYSCALE)
+        go = cv2.imread(f"{FILES}/{old}/match.png", cv2.IMREAD_GRAYSCALE)
+        kn, dn = sift.detectAndCompute(gn, None)
+        ko, do = sift.detectAndCompute(go, None)
+        m = cv2.BFMatcher().knnMatch(do, dn, k=2)
+        good = [a for a, b in (p for p in m if len(p) == 2) if a.distance < 0.75 * b.distance]
+        if len(good) < 12:
+            raise HTTPException(422, "these two blueprints do not line up (too few matching details)")
+        src = np.float32([ko[a.queryIdx].pt for a in good]).reshape(-1, 1, 2)
+        dst = np.float32([kn[a.trainIdx].pt for a in good]).reshape(-1, 1, 2)
+        H, _ = cv2.findHomography(src, dst, cv2.RANSAC, 4.0)
+        h, w_ = gn.shape
+        go2 = cv2.warpPerspective(go, H, (w_, h), borderValue=255)
+        inkn, inko = gn < 160, go2 < 160
+        k = np.ones((3, 3), np.uint8)
+        near_n = cv2.dilate(inkn.astype(np.uint8), k, iterations=2) > 0      # small misalignment is not a change
+        near_o = cv2.dilate(inko.astype(np.uint8), k, iterations=2) > 0
+        removed, added = inko & ~near_n, inkn & ~near_o
+        img = np.full((h, w_, 3), 255, np.uint8)
+        img[inkn & near_o] = (200, 200, 200)
+        img[removed] = (40, 40, 220)                                           # BGR red
+        img[added] = (220, 90, 20)                                             # BGR blue
+        blobs = cv2.morphologyEx((removed | added).astype(np.uint8), cv2.MORPH_CLOSE, np.ones((15, 15), np.uint8))
+        n, _, stats, _ = cv2.connectedComponentsWithStats(blobs)
+        regions = [list(map(int, s[:4])) for s in stats[1:] if s[4] > 40]
+        for x, y, ww, hh in regions:
+            cv2.rectangle(img, (x - 6, y - 6), (x + ww + 6, y + hh + 6), (0, 0, 0), 2)
+        return img, dict(regions=len(regions), removed_px=int(removed.sum()), added_px=int(added.sum()), boxes=regions[:60], width=w_, height=h)
+
+    @api.get("/api/sheets/{sid}/diff/{old}")
+    def diff(sid: int, old: int, request: Request, info: int = 0):
+        w = ws(request)
+        sheet_row(w, sid); sheet_row(w, old)
+        img, meta = diff_image(sid, old)
+        if info:
+            return meta
+        ok, buf = cv2.imencode(".png", img)
+        return Response(buf.tobytes(), media_type="image/png", headers={"x-changed-regions": str(meta["regions"]), "access-control-expose-headers": "x-changed-regions"})
+
+    @api.get("/api/sheets/{sid}/compare/{old}")
+    def compare(sid: int, old: int, request: Request):
+        """The same questions on both versions: what the answers were on the old sheet and are on the new one."""
+        w = ws(request)
+        sheet_row(w, sid); sheet_row(w, old)
+        def answers(x):
+            return {r["question_norm"]: r for r in q("SELECT question, question_norm, answer_json FROM answers WHERE sheet_id=%s AND status='done'", (x,))}
+        a, b = answers(old), answers(sid)
+        rows = []
+        for k in a.keys() & b.keys():
+            va = present(old, a[k]["question"], json.loads(a[k]["answer_json"])).get("answer")
+            vb = present(sid, b[k]["question"], json.loads(b[k]["answer_json"])).get("answer")
+            rows.append(dict(question=b[k]["question"], old=va, new=vb, changed=va != vb))
+        rows.sort(key=lambda r: not r["changed"])
+        return dict(rows=rows, only_old=[a[k]["question"] for k in a.keys() - b.keys()][:30])
+
+    @api.get("/api/sheets/{sid}/{kind}")
+    def sheet_file(sid: int, kind: str, request: Request):
+        w = ws(request)
+        sheet_row(w, sid)
+        f = {"thumb": "thumb.jpg", "view": "view.jpg", "original": "original"}.get(kind)
+        if not f or not os.path.exists(f"{FILES}/{sid}/{f}"):
+            raise HTTPException(404, "no such file")
+        return FileResponse(f"{FILES}/{sid}/{f}", media_type="image/jpeg" if f.endswith(".jpg") else "application/octet-stream")
 
     from fastapi.middleware.cors import CORSMiddleware
     api.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
