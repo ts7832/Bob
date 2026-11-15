@@ -216,6 +216,30 @@ sheets are the likely part. This matters for the demo: a judge's file may be suc
 Modal notes: GPUs needed a payment method on the account (added). The volume is a slow network disk, so `train` copies
 its dataset to local disk with 64 threads first. `--detach` keeps a run alive if the laptop disconnects.
 
+**Our models in another Modal workspace** (e.g. a teammate's, so their engine reads scans and big sheets on a GPU).
+The model service `tools/modal_infer.py` builds the weights into its image (no volume), and the client
+`drawqa/remote.py` looks it up by name (`drawqa-infer` / `Infer`) in whatever workspace the current Modal profile is
+in. So in that workspace:
+
+```
+.venv/bin/python tools/get_models.py              # v0.1 weights from the ts7832/Bob release into models/ (needs gh access)
+.venv/bin/modal deploy tools/modal_infer.py       # app drawqa-infer: L4 GPU, scales to zero after 20 minutes
+.venv/bin/python -c "from drawqa import remote; print(remote.warm(), 's to start')"   # check: starts the GPU container
+```
+
+Any code that calls `drawqa.detect.detect`, `segment.outlines`, `ocr.texts` or `textlayer.read` then runs on that GPU
+(`DRAWQA_INFER=local` forces this computer). The weights are CubiCasa-trained: non-commercial (CC BY-NC-SA).
+
+**Detector boxes for the rival chooser.** `--stage predict` writes `data/predictions/yolo_<run>[_tta].jsonl` (one
+line per preview scan: path, model, boxes with conf >= 0.05) in the format `eval/score.py` reads, and `--stage tune`
+writes the matching `.thresholds.json`. A saved checkpoint is named `RUN@epochN` (file `yolo_RUN-epochN_tta.jsonl`):
+
+```
+DRAWQA_GPU=L40S .venv/bin/modal run tools/modal_train.py --stage predict --run e27@epoch6 --tta
+```
+
+The shipped v0.1 detector is `yolo_e26l_tta.jsonl` (on main since PR #32).
+
 ## 7. Open issues
 
 1. **Licences.** Junction says submissions are open-sourced under MIT. Ultralytics is AGPL-3.0 and CubiCasa5k is

@@ -93,6 +93,48 @@ def outlines(img, imgsz=1280):
         r = remote.try_call("outlines", img, imgsz=imgsz)
         if r is not None:
             return r
+    return _outlines(img, imgsz)
+
+
+def outlines_tiled(img, tile=1280, overlap=0.25):
+    """Big sheets: walls from native-resolution tiles. Read whole, a 10,000 px sheet is shrunk about 8x and its walls
+    vanish (the model then draws shapes across rooms); in 1280 px tiles a wall is about as many pixels thick as in the
+    training scans. Rooms are not taken from tiles (tile edges cut them). Walls are shifted to page coordinates; a
+    piece lying mostly inside an already kept wall (the overlap of two tiles) is dropped."""
+    from . import remote
+    if remote.enabled():
+        r = remote.try_call("outlines_tiled", img, tile=tile, overlap=overlap)
+        if r is not None:
+            return r
+    from shapely.geometry import Polygon
+    from shapely.strtree import STRtree
+    from .detect import tiles
+    H, W = img.shape[:2]
+    found = []
+    for x, y in tiles(W, H, size=tile, overlap=overlap):
+        part = img[y:y + tile, x:x + tile]
+        if part.size == 0 or part.mean() > 250:  # blank paper
+            continue
+        for w in _outlines(part, tile)["walls"]:
+            P = [[round(px + x, 1), round(py + y, 1)] for px, py in w["polygon"]]
+            ax = w["axis"]
+            found.append(dict(w, polygon=P, axis=[round(ax[0] + x, 1), round(ax[1] + y, 1), round(ax[2] + x, 1), round(ax[3] + y, 1)]))
+    geoms = [Polygon(w["polygon"]).buffer(0) for w in found]
+    order = sorted(range(len(found)), key=lambda i: -geoms[i].area)  # big pieces first
+    kept, kg = [], []
+    for i in order:
+        g = geoms[i]
+        if g.is_empty or g.area <= 0:
+            continue
+        if kg:
+            tree = STRtree(kg)
+            if any(g.intersection(kg[j]).area > 0.6 * g.area for j in tree.query(g)):
+                continue
+        kept.append(found[i]); kg.append(g)
+    return dict(walls=kept, rooms=[])
+
+
+def _outlines(img, imgsz=1280):
     import cv2, numpy as np
     m = _load()
     r = m.predict(img, imgsz=imgsz, conf=min(CONF.values()), iou=0.6, max_det=600, retina_masks=False, verbose=False)[0]

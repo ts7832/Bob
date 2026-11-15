@@ -98,7 +98,10 @@ def fuse(runs, iou_thr=0.35):
 
 
 MIN_DOOR_PX = 30  # below this (at network scale) symbols are too small to read from the whole sheet
-TTA_MAX_TILES = int(os.environ.get("DRAWQA_TTA_MAX_TILES", 30))  # above this many tiles, no four-orientation fusion
+# above this many tiles, no four-orientation fusion: 30 on a CPU; on the Modal GPU four orientations stay affordable
+# on big sheets (the thresholds were tuned on four, and one orientation misses symbols there, e.g. windows)
+_ON_GPU = os.environ.get("DRAWQA_IN_MODAL") == "1" or os.environ.get("DRAWQA_INFER", "modal") == "modal"
+TTA_MAX_TILES = int(os.environ.get("DRAWQA_TTA_MAX_TILES", 400 if _ON_GPU else 30))
 last_info = {}  # how the last detect() call ran: tta, tiles, note (for the answer's basis)
 
 

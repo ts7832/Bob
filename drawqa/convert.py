@@ -61,7 +61,7 @@ def add_elements(sheet, dets, found_by):
             continue
         sheet["openings" if c in OPENINGS else "fixtures"].append(e)
         sheet["elements"].append(dict(id=e["id"], type=c, bbox=d["bbox"], conf=d["conf"],
-                                      found_by=found_by + (" + linework" if d.get("exact") else "")))
+                                      found_by=d.get("found_by") or (found_by + (" + linework" if d.get("exact") else ""))))
     if not have_rooms and any(d["cls"] in ROOM_TYPES or d["cls"] == "floor" for d in dets):
         sheet["room_classes_available"] = True
     return sheet
@@ -122,7 +122,7 @@ def raw_detections(path, page, img):
     """Detector output above confidence 0.05, cached on disk per file + weights (detection is the slow step)."""
     import hashlib
     st = os.stat(path)
-    key = hashlib.sha1(f"{os.path.abspath(path)}|{st.st_mtime_ns}|{st.st_size}|{page}|{os.stat(detect.WEIGHTS).st_mtime_ns}|{bool(detect.tuned().get('tta'))}|{os.environ.get('DRAWQA_TTA')}".encode()).hexdigest()
+    key = hashlib.sha1(f"{os.path.abspath(path)}|{st.st_mtime_ns}|{st.st_size}|{page}|{os.stat(detect.WEIGHTS).st_mtime_ns}|{bool(detect.tuned().get('tta'))}|{os.environ.get('DRAWQA_TTA')}|{detect.TTA_MAX_TILES}".encode()).hexdigest()
     cache = os.path.join(os.path.dirname(__file__), "..", "data", "cache")
     f = os.path.join(cache, key + ".json")
     if os.path.exists(f):
@@ -190,6 +190,16 @@ def convert(path, page=0, use_detector=True):
         dets = apply(raw, detect.thresholds(), detect.tuned().get("rules"))
         if kind == "pdf" and vector and os.environ.get("DRAWQA_SNAP", "1") == "1":
             dets, sheet["linework_notes"] = snap_to_linework(dets, pdfsheet.quads(pg, pdfsheet.DPI / 72))
+        if sheet.get("kind") in ("image", "scanned pdf") and os.environ.get("DRAWQA_REPEATS", "1") == "1":
+            # the detector can miss every second copy of a window it found elsewhere on the same sheet (a US dormitory
+            # plan): exact repeats of its sure windows, checked by the pattern along the wall (drawqa/repeats.py)
+            from . import repeats
+            more = repeats.complete(img, dets, "window")
+            if more:
+                dets = dets + more
+                sheet["repeat_note"] = (f"{len(more)} windows were added as exact copies of windows the detector found with "
+                                        "confidence elsewhere on this sheet (template match plus the pattern along the wall); "
+                                        "they are marked found_by 'repeat of a detected window'")
         add_elements(sheet, dets, found_by="detector")
         sheet["model"] = "element detector"
         sheet["detector_classes"] = sorted(detect.thresholds()) or None  # what this detector was trained to find
@@ -207,10 +217,12 @@ def convert(path, page=0, use_detector=True):
         # plans read whole, so it is not run on vector sheets, which carry exact outlines anyway.
         if use_detector and segment.available() and os.environ.get("DRAWQA_OUTLINES", "1") == "1":
             if max(img.shape[:2]) > SEG_MAX_SIDE:
-                # the model reads the whole sheet shrunk to 1280 px: on a big sheet walls vanish and it draws shapes
-                # across rooms (diagonal "walls" on a 10200 px dormitory plan), so it is not used there
-                sheet["outline_note"] = (f"walls and room outlines from the trained model are not used on a sheet this large "
-                                         f"({max(img.shape[:2])} px; it reads sheets at 1280 px and was trained on plans up to ~2500 px)")
+                # read whole, the sheet is shrunk to 1280 px: walls vanish and the model draws shapes across rooms
+                # (diagonal "walls" on a 10200 px dormitory plan). So walls are read in full-resolution tiles instead,
+                # and room outlines are left to the Claude step (tile edges cut rooms)
+                add_outlines(sheet, raw_outlines_tiled(path, page, img))
+                sheet["outline_note"] = (f"walls read by the trained model in full-resolution tiles ({max(img.shape[:2])} px sheet); "
+                                         f"room outlines on a sheet this large come from the Claude step, not from the model")
             else:
                 add_outlines(sheet, raw_outlines(path, page, img))
     elif img is not None and kind == "pdf" and sheet.get("texts"):  # vector PDF: check the printed scale it read
@@ -325,6 +337,22 @@ def raw_outlines(path, page, img):
     if os.path.exists(f):
         return json.load(open(f))
     found = segment.outlines(img)
+    os.makedirs(cache, exist_ok=True)
+    json.dump(found, open(f, "w"))
+    return found
+
+
+def raw_outlines_tiled(path, page, img):
+    """Walls of a big sheet read in native-resolution tiles (segment.outlines_tiled), cached like raw_outlines."""
+    import hashlib
+    from . import segment
+    st = os.stat(path)
+    key = hashlib.sha1(f"segtile|{os.path.abspath(path)}|{st.st_mtime_ns}|{st.st_size}|{page}|{os.stat(segment.WEIGHTS).st_mtime_ns}".encode()).hexdigest()
+    cache = os.path.join(os.path.dirname(__file__), "..", "data", "cache")
+    f = os.path.join(cache, key + ".json")
+    if os.path.exists(f):
+        return json.load(open(f))
+    found = segment.outlines_tiled(img)
     os.makedirs(cache, exist_ok=True)
     json.dump(found, open(f, "w"))
     return found

@@ -26,7 +26,7 @@ DISCOVER_TIMEOUT = int(os.environ.get("DRAWQA_DISCOVER_TIMEOUT", "600"))  # seco
 DISCOVER_EFFORT = os.environ.get("DRAWQA_DISCOVER_EFFORT", "medium")  # user's choice (15 Nov): medium for the reading step
 
 
-LAYER_VERSION = 2  # bump when the reading changes (v2: no wall/room model on big sheets, Claude outlines rooms there)
+LAYER_VERSION = 5  # v5: windows completed from exact repeats (drawqa/repeats.py); v4: walls kept out of the Claude step and merged back; bump when the reading changes (v2: no whole-sheet wall/room model on big sheets; v3: tiled walls, 4-way detector on big sheets, rooms as whole spaces)
 
 
 def _key(path, page):
@@ -118,11 +118,16 @@ def _overlay(png, layer, out):
 
 
 def _discover(png, w, h, wd, start):
+    limit = DISCOVER_TIMEOUT if max(w, h) <= 4000 else max(DISCOVER_TIMEOUT, 1200)  # big sheets get 20 minutes
     """Opus (low effort) through headless Claude Code, following the discovery brief. Returns (classes or None, info)."""
     exe = shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
     if not os.path.exists(exe):
         return None, dict(status="skipped", reason="Claude Code is not installed here")
-    json.dump(dict(start, sheet="start layer from the trained models"), open(os.path.join(wd, "start_layer.json"), "w"), indent=1)
+    # walls stay with the model: hundreds of wall pieces in the start layer only cost the agent time (it lints and
+    # re-checks them); they are merged back into the reading afterwards
+    start = dict(start, classes=[c for c in start["classes"] if c["name"] != "wall"])
+    json.dump(dict(start, sheet="start layer from the trained models (walls are handled separately and are not included)"),
+              open(os.path.join(wd, "start_layer.json"), "w"), indent=1)
     json.dump(start["texts"], open(os.path.join(wd, "ocr_text.json"), "w"))
     _overlay(png, start, os.path.join(wd, "start_overlay.png"))
     prompt = (f"Follow the brief {BRIEF} exactly.\nImage: {png} ({w} x {h} px).\n"
@@ -132,9 +137,16 @@ def _discover(png, w, h, wd, start):
         r = subprocess.run([exe, "-p", prompt, "--model", "opus", "--effort", DISCOVER_EFFORT, "--output-format", "json",
                             "--allowedTools", "Bash", "Read", "Write", "Edit", "Glob", "Grep",
                             "--add-dir", wd, "--add-dir", TOOLS, "--add-dir", os.path.dirname(os.path.abspath(png))],
-                           cwd=wd, capture_output=True, text=True, timeout=DISCOVER_TIMEOUT)
+                           cwd=wd, capture_output=True, text=True, timeout=limit)
     except subprocess.TimeoutExpired:
-        return None, dict(status="timeout", seconds=round(time.time() - t0), reason=f"the Claude step took over {DISCOVER_TIMEOUT} s")
+        f = os.path.join(wd, "discovered.json")
+        if os.path.exists(f):  # it had already written a result: use it, and say it is partial
+            try:
+                return json.load(open(f)).get("classes", []), dict(status="partial", seconds=round(time.time() - t0),
+                                                                     reason=f"the Claude step ran out of time ({limit} s); its last written result is used")
+            except Exception:
+                pass
+        return None, dict(status="timeout", seconds=round(time.time() - t0), reason=f"the Claude step took over {limit} s")
     info = dict(status="done", seconds=round(time.time() - t0), model=f"Opus, {DISCOVER_EFFORT} effort")
     try:
         meta = json.loads(r.stdout or "{}")
@@ -179,7 +191,7 @@ def ingest(path, page=0, discover=True, refresh=False, progress=None):
     from PIL import Image
     Image.MAX_IMAGE_PIXELS = None
     w, h = Image.open(png).size
-    for k in ("legend_note", "detector_note", "outline_note"):
+    for k in ("legend_note", "detector_note", "outline_note", "repeat_note"):
         if sheet.get(k):
             notes.append(sheet[k])
     layer = dict(source=os.path.abspath(path), page=page, kind=sheet.get("kind"), picture=os.path.abspath(png), width=w, height=h,
@@ -193,7 +205,8 @@ def ingest(path, page=0, discover=True, refresh=False, progress=None):
         classes, info = _discover(layer["picture"], w, h, wd, start)
         layer["discovery"] = info
         if classes:
-            layer["classes"] = classes
+            walls = [c for c in start["classes"] if c["name"] == "wall"]
+            layer["classes"] = classes + ([] if any(c.get("name") == "wall" for c in classes) else walls)
         else:
             layer["notes"].append("only our trained models' reading is available: " + str(info.get("reason", "")))
     else:

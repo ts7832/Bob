@@ -33,6 +33,8 @@ image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("libgl1", "libglib2.0-0", "unzip", "curl")
     .pip_install("ultralytics==8.4.212", "scikit-image", "svgpathtools", "opencv-python-headless", "numpy<2", "pymupdf")
+    # training settings fixed when the image is built (the container does not see the local shell's variables)
+    .env({"DRAWQA_SCALE": os.environ.get("DRAWQA_SCALE", "0.3"), "DRAWQA_SAVE_PERIOD": os.environ.get("DRAWQA_SAVE_PERIOD", "-1")})
     .add_local_dir(str(ROOT / "ext" / "cubicasa" / "floortrans" / "loaders"), "/root/cubi_loaders")
     .add_local_dir(str(ROOT / "drawqa"), "/root/drawqa", ignore=["__pycache__"])
     .add_local_file(str(ROOT / "tools" / "swiss_labels.py"), "/root/swiss_labels.py")
@@ -618,9 +620,10 @@ def convert_swiss(exclude: list, limit: int = 0):
     for f in glob.glob(f"{D}/yolo/images/*/swiss-*") + glob.glob(f"{D}/yolo/labels/*/swiss-*"):
         os.remove(f)
     ex = set(exclude)
-    files = sorted(glob.glob(f"{D}/junction/junction-dataset/data/swiss_dwellings/*.dxf"))
-    kept = [f for f in files if os.path.basename(f)[:-4] not in ex]
     site = lambda f: os.path.basename(f).split("_")[0]
+    ex_sites = {e.split("_")[0] for e in ex}  # whole sites of the preview plans (other floors of a test building stay out too)
+    files = sorted(glob.glob(f"{D}/junction/junction-dataset/data/swiss_dwellings/*.dxf"))
+    kept = [f for f in files if os.path.basename(f)[:-4] not in ex and site(f) not in ex_sites]
     jobs = [(f, "val" if zlib.crc32(site(f).encode()) % 10 == 0 else "train") for f in (kept[:limit] if limit else kept)]  # split by site
     with Pool(8) as p:
         res = [r for r in p.map(_swiss_one, jobs, chunksize=4) if r]
@@ -744,7 +747,8 @@ def train(run: str, model: str, epochs: int, imgsz: int, batch: int, fraction: f
     m = (RTDETR if "rtdetr" in model else YOLO)(model)
     m.add_callback("on_fit_epoch_end", lambda tr: VOL.commit() if (tr.epoch + 1) % 5 == 0 else None)  # keep checkpoints
     m.train(data=f"{L}/data_{data}.yaml", epochs=epochs, imgsz=imgsz, batch=batch, project=f"{D}/runs", name=run,
-            exist_ok=True, fliplr=0.5, flipud=0.5, mosaic=mosaic, degrees=0, scale=0.3, translate=0.1,
+            exist_ok=True, fliplr=0.5, flipud=0.5, mosaic=mosaic, degrees=0, scale=float(os.environ.get("DRAWQA_SCALE", "0.3")), translate=0.1,
+            save_period=int(os.environ.get("DRAWQA_SAVE_PERIOD", "-1")),
             hsv_h=0.0, hsv_s=0.4, hsv_v=0.35, close_mosaic=10, patience=20, fraction=fraction, workers=8, plots=False,
             classes=list(range(8)) if symbols_only else None)  # symbols_only: drop room/floor labels (classes 8-14)
     VOL.commit()
@@ -844,11 +848,13 @@ def _detect_one(m, im, imgsz, tile="auto"):
 
 
 def _load_models(run):
-    """'a11m' or 'a11m,a26m' -> list of loaded models (several = an ensemble, fused like extra orientations)."""
+    """'a11m' or 'a11m,a26m' -> list of loaded models (several = an ensemble, fused like extra orientations).
+    'e27@epoch6' loads a saved checkpoint of a run instead of its best.pt (DRAWQA_SAVE_PERIOD keeps them)."""
     from ultralytics import YOLO, RTDETR
     out = []
     for r in run.split(","):
-        out.append((RTDETR if "rtdetr" in open(f"{D}/runs/{r}/args.yaml").read() else YOLO)(f"{D}/runs/{r}/weights/best.pt"))
+        r, _, ck = r.partition("@")
+        out.append((RTDETR if "rtdetr" in open(f"{D}/runs/{r}/args.yaml").read() else YOLO)(f"{D}/runs/{r}/weights/{ck or 'best'}.pt"))
     return out
 
 
@@ -1145,7 +1151,7 @@ def _predict_local(run, imgsz, tta, files=None):
     batches = [files[i:i + 40] for i in range(0, len(files), 40)]
     payloads = [[(os.path.basename(f), open(f, "rb").read()) for f in b] for b in batches]
     results = [r for p in payloads for r in predict.remote(run, p, imgsz, tta)]
-    out = ROOT / "data" / "predictions" / f"yolo_{run.replace(',', '+')}{'_tta' if tta else ''}.jsonl"
+    out = ROOT / "data" / "predictions" / f"yolo_{run.replace(',', '+').replace('@', '-')}{'_tta' if tta else ''}.jsonl"
     with open(out, "w") as f:
         for r in results:
             f.write(json.dumps(r) + "\n")
@@ -1198,7 +1204,7 @@ def main(stage: str = "smoke", run: str = "v1", epochs: int = 60, imgsz: int = 1
     if stage in ("tune", "train"):
         t = tune.remote(run, imgsz, tta, data)
         print(json.dumps(t, indent=1))
-        json.dump(t, open(ROOT / "data" / "predictions" / f"yolo_{run.replace(',', '+')}{'_tta' if tta else ''}.thresholds.json", "w"), indent=1)
+        json.dump(t, open(ROOT / "data" / "predictions" / f"yolo_{run.replace(',', '+').replace('@', '-')}{'_tta' if tta else ''}.thresholds.json", "w"), indent=1)
     if stage in ("predict", "train"):
         _predict_local(run, imgsz, tta)
     if stage == "diagnose":  # DRAWQA_CLS=window ; images go to DRAWQA_OUT

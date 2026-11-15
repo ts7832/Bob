@@ -23,7 +23,7 @@ image = (
                  "opencv-python-headless==5.0.0.93", "rapidocr==3.10.0", "onnxruntime==1.32.0", "shapely==2.2.0", "pillow==12.0.0")
     .run_commands("python -c \"from rapidocr import RapidOCR; RapidOCR()\"")  # the OCR models download at build time, not per call
     .env({"DRAWQA_IN_MODAL": "1", "DRAWQA_WEIGHTS": "/root/models/detector.pt", "DRAWQA_SEG_WEIGHTS": "/root/models/segmenter.pt",
-          "YOLO_CONFIG_DIR": "/tmp/ultralytics"})
+          "YOLO_CONFIG_DIR": "/tmp/ultralytics", "DRAWQA_TTA_MAX_TILES": "400"})
     .add_local_file(ROOT / "models" / "detector.pt", "/root/models/detector.pt")
     .add_local_file(ROOT / "models" / "detector.thresholds.json", "/root/models/detector.thresholds.json")
     .add_local_file(ROOT / "models" / "segmenter.pt", "/root/models/segmenter.pt")
@@ -61,6 +61,11 @@ class Infer:
     def outlines(self, png, imgsz=1280):
         from drawqa import segment
         return segment.outlines(self._img(png), imgsz=imgsz)
+
+    @modal.method()
+    def outlines_tiled(self, png, tile=1280, overlap=0.25):
+        from drawqa import segment
+        return segment.outlines_tiled(self._img(png), tile=tile, overlap=overlap)
 
     @modal.method()
     def ocr(self, png):
