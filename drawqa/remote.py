@@ -8,6 +8,7 @@ reached, the caller falls back to running locally and says so on stderr (a slow 
 import os, sys, time
 
 APP, CLS = os.environ.get("DRAWQA_INFER_APP", "drawqa-infer"), "Infer"  # another app = other weights (e.g. drawqa-infer-e27)
+TIMEOUT = int(os.environ.get("DRAWQA_REMOTE_TIMEOUT", "240"))  # seconds per call, start-up included
 _cls = None
 last = {}  # what the last remote call cost: {"step": seconds}
 
@@ -33,7 +34,12 @@ def _png(img):
 def call(step, img, **kw):
     """Run one step (detect / outlines / ocr / textlayer) on Modal. Returns the result, or raises."""
     t0 = time.time()
-    out = getattr(_svc(), step).remote(_png(img), **kw)
+    fc = getattr(_svc(), step).spawn(_png(img), **kw)
+    try:  # never wait forever (no GPU free, a stuck container): the caller then runs the step on this computer
+        out = fc.get(timeout=TIMEOUT)
+    except TimeoutError:
+        fc.cancel()
+        raise TimeoutError(f"no answer from the Modal service within {TIMEOUT} s")
     last[step] = round(time.time() - t0, 1)
     return out
 
@@ -50,5 +56,5 @@ def try_call(step, img, **kw):
 def warm():
     """Start the GPU container and load the models (do this before a demo). Returns seconds."""
     t0 = time.time()
-    _svc().ping.remote()
+    _svc().ping.spawn().get(timeout=TIMEOUT)
     return round(time.time() - t0, 1)

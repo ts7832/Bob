@@ -16,7 +16,7 @@ Then:
 Layer: {source, page, picture, width, height, m_per_px, scale_source, classes:[{name, source, geometry, count,
 items:[{id, bbox|polygon|polyline|point, ...}]}], texts:[{text, bbox}], notes:[...], discovery:{...}}
 """
-import hashlib, json, os, shutil, subprocess, time
+import hashlib, json, os, re, shutil, subprocess, time
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 CACHE = os.path.join(ROOT, "data", "cache", "layers")
@@ -143,9 +143,29 @@ def _overlay(png, layer, out):
     im.save(out)
 
 
-def _discover(png, w, h, wd, start):
+def _step_text(block):
+    """A tool call of the Claude step in a few words, for the live status line."""
+    name, inp = block.get("name"), block.get("input") or {}
+    if name == "Bash":
+        d = inp.get("description") or ""
+        if d:
+            return d[:90]
+        cmd = inp.get("command") or ""
+        m = re.search(r"ptool\.py\s+(\w+)", cmd)
+        return f"running {m.group(1)}" if m else "running a script"
+    if name == "Read":
+        return f"looking at {os.path.basename(inp.get('file_path') or '')}"
+    if name in ("Write", "Edit"):
+        return f"writing {os.path.basename(inp.get('file_path') or '')}"
+    return name or "working"
+
+
+def _discover(png, w, h, wd, start, on_event=None):
+    """Opus through headless Claude Code, following the discovery brief. Returns (classes or None, info).
+    on_event(kind, data) is told what happens while it works: ("claude_step", short text) for each tool call and
+    ("claude_partial", classes) each time discovered.json changes (the brief has it written early and kept current)."""
     limit = DISCOVER_TIMEOUT if max(w, h) <= 4000 else max(DISCOVER_TIMEOUT, 1200)  # big sheets get 20 minutes
-    """Opus (low effort) through headless Claude Code, following the discovery brief. Returns (classes or None, info)."""
+    tell = on_event or (lambda *a: None)
     exe = shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")
     if not os.path.exists(exe):
         return None, dict(status="skipped", reason="Claude Code is not installed here")
@@ -159,13 +179,46 @@ def _discover(png, w, h, wd, start):
     prompt = (f"Follow the brief {BRIEF} exactly.\nImage: {png} ({w} x {h} px).\n"
               f"Work folder: {wd} (start_layer.json and start_overlay.png from our trained models are already in it).")
     t0 = time.time()
-    try:
-        r = subprocess.run([exe, "-p", prompt, "--model", "opus", "--effort", DISCOVER_EFFORT, "--output-format", "json",
-                            "--allowedTools", "Bash", "Read", "Write", "Edit", "Glob", "Grep",
-                            "--add-dir", wd, "--add-dir", TOOLS, "--add-dir", os.path.dirname(os.path.abspath(png))],
-                           cwd=wd, capture_output=True, text=True, timeout=limit)
-    except subprocess.TimeoutExpired:
-        f = os.path.join(wd, "discovered.json")
+    f = os.path.join(wd, "discovered.json")
+    proc = subprocess.Popen([exe, "-p", prompt, "--model", "opus", "--effort", DISCOVER_EFFORT, "--output-format", "stream-json",
+                             "--verbose", "--allowedTools", "Bash", "Read", "Write", "Edit", "Glob", "Grep",
+                             "--add-dir", wd, "--add-dir", TOOLS, "--add-dir", os.path.dirname(os.path.abspath(png))],
+                            cwd=wd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    import queue, threading
+    lines = queue.Queue()
+    threading.Thread(target=lambda: [lines.put(l) for l in proc.stdout] and None, daemon=True).start()
+    meta, seen, timed_out = {}, None, False
+    while True:
+        try:
+            line = lines.get(timeout=1.0)
+        except queue.Empty:
+            line = None
+        if line:
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                ev = {}
+            if ev.get("type") == "result":
+                meta = ev
+            elif ev.get("type") == "assistant":
+                for b in (ev.get("message") or {}).get("content") or []:
+                    if b.get("type") == "tool_use":
+                        tell("claude_step", _step_text(b))
+        if os.path.exists(f):  # a new version of the result: pass it on (a half-written file is skipped until next time)
+            m = os.path.getmtime(f)
+            if m != seen:
+                try:
+                    tell("claude_partial", json.load(open(f)).get("classes", []))
+                    seen = m
+                except Exception:
+                    pass
+        if proc.poll() is not None and lines.empty():
+            break
+        if time.time() - t0 > limit:
+            proc.kill()
+            timed_out = True
+            break
+    if timed_out:
         if os.path.exists(f):  # it had already written a result: use it, and say it is partial
             try:
                 return json.load(open(f)).get("classes", []), dict(status="partial", seconds=round(time.time() - t0),
@@ -173,16 +226,11 @@ def _discover(png, w, h, wd, start):
             except Exception:
                 pass
         return None, dict(status="timeout", seconds=round(time.time() - t0), reason=f"the Claude step took over {limit} s")
-    info = dict(status="done", seconds=round(time.time() - t0), model=f"Opus, {DISCOVER_EFFORT} effort")
-    try:
-        meta = json.loads(r.stdout or "{}")
-        info["cost_usd"] = meta.get("total_cost_usd")
-        info["report"] = (meta.get("result") or "")[-3000:]
-    except Exception:
-        pass
-    f = os.path.join(wd, "discovered.json")
+    info = dict(status="done", seconds=round(time.time() - t0), model=f"Opus, {DISCOVER_EFFORT} effort",
+                cost_usd=meta.get("total_cost_usd"), turns=meta.get("num_turns"), report=(meta.get("result") or "")[-3000:])
     if not os.path.exists(f):
-        return None, dict(info, status="failed", reason="the Claude step wrote no result" + (f": {r.stderr[-300:]}" if r.stderr else ""))
+        err = proc.stderr.read()[-300:] if proc.stderr else ""
+        return None, dict(info, status="failed", reason="the Claude step wrote no result" + (f": {err}" if err else ""))
     try:
         return json.load(open(f)).get("classes", []), info
     except Exception as e:
@@ -258,7 +306,7 @@ def ingest(path, page=0, discover=True, refresh=False, progress=None):
         os.makedirs(wd, exist_ok=True)
         layer["start_layer_file"] = os.path.join(wd, "start_layer.json")
         say("claude", f"Claude (Opus, {DISCOVER_EFFORT} effort) is reading the whole drawing")
-        classes, info = _discover(layer["picture"], w, h, wd, start)
+        classes, info = _discover(layer["picture"], w, h, wd, start, on_event=say)
         layer["discovery"] = info
         if classes:
             classes = [c for c in classes if c.get("name") not in WALL_CLASSES]  # the models' walls are kept as they are
