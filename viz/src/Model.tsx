@@ -224,6 +224,7 @@ export function useBuilding(loaded: Loaded, enabled = true) {
           extrude(shapeOf(d, rectAlong(b, -b.len / 2, -b.len / 2 + t, fd)), HEAD - SILL, SILL),
           extrude(shapeOf(d, rectAlong(b, b.len / 2 - t, b.len / 2, fd)), HEAD - SILL, SILL),
           ...(b.len > 6 * t ? [extrude(shapeOf(d, rectAlong(b, -t / 2, t / 2, fd)), HEAD - SILL, SILL)] : []),
+          extrude(shapeOf(d, rectAlong(b, -b.len / 2 - t / 2, b.len / 2 + t / 2, 1.18)), 0.012, SILL - 0.012), // sill board, both faces
         ]
         const ref = centred(extrude(rect, 1)); ref.computeBoundingBox(); ref.boundingBox!.getCenter(c0); ref.dispose()
         for (const p of pieces) { const n = p.attributes.position.count, a = new Float32Array(2 * n); for (let i = 0; i < n; i++) { a[2 * i] = c0.x; a[2 * i + 1] = c0.y } p.setAttribute('center', new THREE.Float32BufferAttribute(a, 2)); frame.push(p) }
