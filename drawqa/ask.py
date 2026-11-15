@@ -205,7 +205,9 @@ def _agent(layer, question, engine_note=None, backend=None):
     return None, ids, log
 
 
-def ask(path, question, page=0, discover=True, backend=None):
+def ask(path, question, page=0, discover=True, backend=None, layer=None):
+    """layer: the reading to answer from, when the caller already holds it (the demo answers from the models' reading
+    while Claude's full reading is still running, instead of starting a second one)."""
     from . import layer as LY
     t0 = time.time()
     src, png, kind = (None, None, None)
@@ -217,7 +219,7 @@ def ask(path, question, page=0, discover=True, backend=None):
     if not use_engine:
         # every question about a drawing goes straight to the answer agent, which works from the reading (the layer);
         # the rule engine is kept for building models (no picture) and, with DRAWQA_USE_ENGINE=1, for comparison
-        L = LY.ingest(path, page, discover=discover)
+        L = layer if layer is not None else LY.ingest(path, page, discover=discover)
         return _agent_answer(L, question, None, backend, t0)
     # 1. the engine, when it knows the question (building models always go here)
     try:

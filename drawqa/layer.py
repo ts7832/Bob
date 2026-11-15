@@ -27,7 +27,7 @@ DISCOVER_EFFORT = os.environ.get("DRAWQA_DISCOVER_EFFORT", "medium")  # user's c
 
 
 WALL_CLASSES = ("wall", "wall perimeter")  # made by the wall model and geometry; kept out of the Claude step, merged back
-LAYER_VERSION = 11  # v11: walls are whole walls with their openings in them (length through openings, solid length); v10: detector e27; joined-wall perimeters as citable items; v9: wall perimeters (outside face, inside faces) in the notes; v8: wall ends trimmed to ink, collinear pieces merged, one outline for drawing; v7: walls as clean rectangles, overlapping pieces dropped; v6: walls cut at their doors and windows; v5: windows completed from exact repeats (drawqa/repeats.py); v4: walls kept out of the Claude step and merged back; bump when the reading changes (v2: no whole-sheet wall/room model on big sheets; v3: tiled walls, 4-way detector on big sheets, rooms as whole spaces)
+LAYER_VERSION = 12  # v12: window cutoff 0.40; door/window candidates below the cutoff checked by Claude; v11: walls are whole walls with their openings in them (length through openings, solid length); v10: detector e27; joined-wall perimeters as citable items; v9: wall perimeters (outside face, inside faces) in the notes; v8: wall ends trimmed to ink, collinear pieces merged, one outline for drawing; v7: walls as clean rectangles, overlapping pieces dropped; v6: walls cut at their doors and windows; v5: windows completed from exact repeats (drawqa/repeats.py); v4: walls kept out of the Claude step and merged back; bump when the reading changes (v2: no whole-sheet wall/room model on big sheets; v3: tiled walls, 4-way detector on big sheets, rooms as whole spaces)
 
 
 def _key(path, page):
@@ -71,6 +71,9 @@ def _start_layer(sheet):
     for group in ("openings", "fixtures"):
         for o in sheet.get(group, []):
             add(o["cls"], dict(bbox=r1(o["bbox"]), score=round(float(o.get("conf") or 0), 3)), "trained symbol detector", "box")
+    for c in sheet.get("candidates", []):  # below the detector's cutoff: for the Claude step to confirm or drop
+        add(f"{c['cls']} candidate", dict(bbox=r1(c["bbox"]), score=round(float(c["conf"]), 3)),
+            "trained symbol detector, below its cutoff (to be checked)", "box")
     texts = [t for t in sheet.get("texts", []) if t.get("bbox") and t.get("text")]
     for r in sheet.get("rooms", []):
         poly = r.get("polygon")
@@ -228,6 +231,13 @@ def ingest(path, page=0, discover=True, refresh=False, progress=None):
             layer["notes"].append("only our trained models' reading is available: " + str(info.get("reason", "")))
     else:
         layer["discovery"] = dict(status="not run")
+    # candidates below the detector's cutoff count only once the Claude step confirmed them (moved into door/window)
+    cand = [c for c in layer["classes"] if c["name"].endswith(" candidate")]
+    if cand:
+        layer["classes"] = [c for c in layer["classes"] if not c["name"].endswith(" candidate")]
+        n = sum(len(c.get('items') or []) for c in cand)
+        layer["notes"].append(f"{n} possible doors/windows scored below the detector's cutoff are not counted"
+                              + (" (Claude's full reading checks them)" if not discover else " (Claude's reading did not confirm them)"))
     for c in layer["classes"]:
         c["count"] = len(c.get("items") or [])
         for i, it in enumerate(c.get("items") or [], 1):
