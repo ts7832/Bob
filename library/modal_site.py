@@ -52,7 +52,7 @@ def _keys():
 
 @app.function(image=image, volumes={"/ds": DATA, "/site": SITE}, cpu=4, memory=8192, min_containers=1, max_containers=1,
               timeout=86400, secrets=[modal.Secret.from_name("bob-anthropic"), modal.Secret.from_name("bob-anthropic-pool"),
-                                      modal.Secret.from_dict({"BOB_SITE_PASSWORD": os.environ.get("BOB_SITE_PASSWORD", "")})])
+                                      modal.Secret.from_dict({"BOB_SITE_PASSWORD": os.environ.get("BOB_SITE_PASSWORD", "123456789")})])
 @modal.concurrent(max_inputs=200)
 @modal.web_server(port=8770, startup_timeout=300)
 def web():

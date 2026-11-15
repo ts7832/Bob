@@ -2,7 +2,7 @@
 
 ## Use it (no install)
 
-**https://oliver-universityapps--bob-site-web.us-east.modal.run** · open to anyone, no password · runs on Modal (Oliver's workspace),
+**https://oliver-universityapps--bob-site-web.us-east.modal.run** · password `123456789` · runs on Modal (Oliver's workspace),
 always on: projects, upload, analyze, questions, corrections, live reading. Phone: the QR button at the top right.
 Deploy changes: `MODAL_PROFILE=oliver-universitapps modal deploy library/modal_site.py` (library: `library/modal_app.py`,
 engine: `library/modal_engine.py`). Laptop copy instead: `library/run_team_server.sh` (http://localhost:8770).
