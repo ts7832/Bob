@@ -21,7 +21,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 V = "/vol"
 SOCK = "/tmp/mysql.sock"
 DIM = 384
-PASSWORD = os.environ.get("BOB_PASSWORD", "123456789")   # demo only: one shared workspace password
+PASSWORD = os.environ.get("BOB_PASSWORD", "")   # the workspace password: Modal secret bob-site-password (never in the repo)
 
 
 def _fetch_weights():
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS ledger (id INT AUTO_INCREMENT PRIMARY KEY, workspace_
 
 
 @app.function(image=image, volumes={V: VOL}, cpu=4, memory=8192, min_containers=1, max_containers=1, timeout=900, scaledown_window=1200,
-              secrets=[modal.Secret.from_name("bob-anthropic"), modal.Secret.from_name("bob-anthropic-pool")])
+              secrets=[modal.Secret.from_name("bob-anthropic"), modal.Secret.from_name("bob-anthropic-pool"), modal.Secret.from_name("bob-site-password")])
 @modal.concurrent(max_inputs=16)
 @modal.asgi_app()
 def web():
@@ -132,6 +132,8 @@ def web():
         q(stmt)
     if not q("SELECT id FROM workspaces WHERE name='Demo'"):
         q("INSERT INTO workspaces (name, password_sha) VALUES ('Demo', %s)", (hashlib.sha256(PASSWORD.encode()).hexdigest(),))
+    else:                                       # the password lives in the bob-site-password secret: the stored hash follows it
+        q("UPDATE workspaces SET password_sha=%s WHERE name='Demo'", (hashlib.sha256(PASSWORD.encode()).hexdigest(),))
 
     dirty = threading.Event()
     for r in q("SELECT id FROM sheets"):

@@ -104,7 +104,7 @@
   };
 
   // ---- room chips in English: the printed name stays beside it (it is the evidence); one translation per name, stored
-  const PW = localStorage.getItem("bobPassword") || "123456789";
+  // room names go through the laptop/site server (/bob/lib), which adds the workspace password: the page never holds it
   const named = {};
   const english = async () => {
     const chips = [...document.querySelectorAll('#understood .fchip[data-found^="room:"]')].filter((c) => !c.dataset.en);
@@ -112,7 +112,7 @@
     const names = chips.map((c) => c.dataset.found.slice(5)).filter((n) => !(n in named));
     if (names.length) {
       try {
-        const r = await fetch(LIBRARY + "/api/names", { method: "POST", headers: { "x-bob-password": PW, "content-type": "application/json" },
+        const r = await fetch("/bob/lib/api/names", { method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ names }) }).then((x) => x.json());
         Object.assign(named, r);
       } catch (e) { return; }

@@ -41,7 +41,8 @@ except Exception as _e:  # no building-model support here: nothing to guard
     print("[bob] building-model lock not installed:", _e)
 
 URL = os.environ.get("BOB_LIBRARY", "https://oliver-universityapps--bob-library-web.us-east.modal.run")
-PW = os.environ.get("BOB_PASSWORD", "123456789")
+PW = os.environ.get("BOB_PASSWORD") or (open(os.path.expanduser("~/.config/bob/site_password")).read().strip()
+                                        if os.path.exists(os.path.expanduser("~/.config/bob/site_password")) else "")
 PROJECT = os.environ.get("BOB_PROJECT", "Team page")
 LOCAL_SOURCES = ()          # everything on Modal now: scans use the live detector there (drawqa-infer)
 _ids = {}
@@ -194,6 +195,18 @@ def _corrected(kind, path, body):
 
 
 _DEMO = {}
+LOGIN = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bob</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Fragment+Mono&family=Geist:wght@300;500&display=swap" rel="stylesheet">
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font:15px Geist,sans-serif;color:#1e1e1e;
+background:#fefefe repeating-linear-gradient(0deg,rgba(30,30,30,.06) 0 1px,transparent 1px 3px)}
+.w{border:1px solid #1e1e1e;box-shadow:5px 5px 0 #1e1e1e;background:#fefefe;width:min(360px,90vw)}
+.tb{padding:4px 7px;border-bottom:1px solid #1e1e1e;background:repeating-linear-gradient(0deg,#1e1e1e 0 1px,#fefefe 1px 3px)}
+.tb span{background:#fefefe;padding:0 6px;font:20px VT323,monospace}form{padding:16px;display:grid;gap:10px}
+.s{width:64px;height:64px;image-rendering:pixelated;background:url(/bob/mascot/work_e.png) 0 0/512px 64px no-repeat;animation:a 1.3s steps(8) infinite;margin:auto}
+@keyframes a{to{background-position-x:-512px}}input{border:1px solid #1e1e1e;padding:10px;font:15px "Fragment Mono",monospace}
+button{border:0;background:#1e1e1e;color:#fefefe;font:22px VT323,monospace;padding:8px;cursor:pointer}small{font:12px "Fragment Mono",monospace;color:#c0261c}</style></head>
+<body><div class="w"><div class="tb"><span>Bob</span></div><form method="post" action="/bob/login"><div class="s"></div>
+<input type="password" name="pw" placeholder="Workspace password" autofocus><button>Open</button><small>{msg}</small></form></div></body></html>"""
 
 
 def patched_load_demo(orig=ui_server.load_demo):
@@ -241,6 +254,38 @@ def patched_load_demo(orig=ui_server.load_demo):
                 self.send_header("x-changed-regions", extra)
             self.end_headers()
             self.wfile.write(data)
+
+        def _gate(self):
+            """Hosted site: one shared password (BOB_SITE_PASSWORD); a cookie remembers it. True = may go on."""
+            want = os.environ.get("BOB_SITE_PASSWORD")
+            if not want or self.path.startswith("/bob/mascot/"):     # the login page's own picture
+                return True
+            import hashlib, http.cookies
+            tok = hashlib.sha256(("bob|" + want).encode()).hexdigest()[:24]
+            c = http.cookies.SimpleCookie(self.headers.get("Cookie") or "")
+            if c.get("bobsite") and c["bobsite"].value == tok:
+                return True
+            u = urllib.parse.urlparse(self.path)
+            if u.path == "/bob/login" and self.command == "POST":
+                n = int(self.headers.get("Content-Length") or 0)
+                pw = (urllib.parse.parse_qs(self.rfile.read(n).decode()).get("pw") or [""])[0]
+                if pw == want:
+                    self.send_response(303)
+                    self.send_header("Set-Cookie", f"bobsite={tok}; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax")
+                    self.send_header("Location", "/")
+                    self.end_headers()
+                    return False
+            if u.path.startswith(("/api/", "/bob/lib/", "/bob/read", "/bob/upload")):
+                self._send(401, {"error": "sign in first"})
+                return False
+            page = LOGIN.replace("{msg}", "That password was not accepted." if self.command == "POST" else "")
+            self._send(200, page.encode(), "text/html; charset=utf-8")
+            return False
+
+        def parse_request(self):                   # every request, whatever handler answers it, passes the password first
+            if not super().parse_request():
+                return False
+            return self._gate()
 
         def do_GET(self):
             u = urllib.parse.urlparse(self.path)
@@ -343,6 +388,10 @@ def patched_load_demo(orig=ui_server.load_demo):
 
 
 ui_server.load_demo = patched_load_demo
+
+if os.environ.get("BOB_HOST"):                  # hosted (library/modal_site.py): listen on every interface, not only localhost
+    _TS = ui_server.ThreadingHTTPServer
+    ui_server.ThreadingHTTPServer = lambda addr, handler: _TS((os.environ["BOB_HOST"], addr[1]), handler)
 
 if __name__ == "__main__":
     ui_server.main()

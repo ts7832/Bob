@@ -4,14 +4,14 @@
 
 Uploads each file (the back end renders it, fingerprints it and stores it), then runs the engine (drawqa.solve) on up to
 --answers dataset questions per file and stores every answer with the time it took, so the library can answer them
-again for nothing. Run from the repo root with the project venv. Password: BOB_PASSWORD or 123456789.
+again for nothing. Run from the repo root with the project venv. Password: the BOB_PASSWORD environment variable.
 """
 import argparse, json, os, sys, time, urllib.parse, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 URL = os.environ.get("BOB_LIBRARY", "https://oliver-universityapps--bob-library-web.us-east.modal.run")
-PW = os.environ.get("BOB_PASSWORD", "123456789")
+PW = os.environ["BOB_PASSWORD"]   # the workspace password (Modal secret bob-site-password; never in the repo)
 
 
 def call(method, path, body=None, ctype="application/octet-stream", **params):

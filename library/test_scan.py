@@ -7,7 +7,7 @@ import argparse, io, json, os, random, sys, urllib.request
 import cv2, numpy as np, pymupdf
 
 URL = os.environ.get("BOB_LIBRARY", "https://oliver-universityapps--bob-library-web.us-east.modal.run")
-PW = os.environ.get("BOB_PASSWORD", "123456789")
+PW = os.environ["BOB_PASSWORD"]   # the workspace password (Modal secret bob-site-password; never in the repo)
 
 
 def photo(path, rng, hard):

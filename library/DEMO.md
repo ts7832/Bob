@@ -16,7 +16,7 @@ Every click below was rehearsed. Print files: `~/BOB/demo/print/` (A4): 1 OLD Cr
    undo it: open it, "undo my last correction", or `POST /api/corrections/<id>/undo`.
 5. Ask the Swiss plan questions below once, so the recording is not waiting on a cold engine. Answers come back
    from the library ("FROM LIBRARY · $0").
-6. Phone: open the QR (top right) and log in with 123456789. Lay the printed OLD A-100 v2 (print file 1) on a table, in good light.
+6. Phone: open the QR (top right) and log in with the workspace password. Lay the printed OLD A-100 v2 (print file 1) on a table, in good light.
 
 ## Script
 
@@ -38,7 +38,7 @@ Every click below was rehearsed. Print files: `~/BOB/demo/print/` (A4): 1 OLD Cr
 
 - The answer spins for more than 20 s: the GPU is cold. Wait, or cut that part and use a library (repeat) question.
 - The phone shows "pick the blueprint": two library sheets look the same. Delete test copies:
-  `curl -X DELETE -H "x-bob-password: 123456789" https://oliver-universityapps--bob-library-web.us-east.modal.run/api/sheets/<id>`
+  `curl -X DELETE -H "x-bob-password: $BOB_PASSWORD" https://oliver-universityapps--bob-library-web.us-east.modal.run/api/sheets/<id>`
 - Never redeploy `bob-library` during recording: its database runs in one container.
 
 ## Known limits seen in rehearsal (say them if asked)

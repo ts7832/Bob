@@ -5,7 +5,7 @@ every phone scan. A construction manager photographs the paper on site; the phot
 other sheets of its project come up with it, and saved answers cost nothing the second time.
 
 Live (Modal workspace `oliver-universityapps`): https://oliver-universityapps--bob-library-web.us-east.modal.run
-Phone page: `/phone` · demo password `123456789` (one shared workspace, "Demo") · QR code for the phone page: `/api/qr.svg`.
+Phone page: `/phone` · one shared workspace password ("Demo"; ask the team: it is the Modal secret bob-site-password, never in the repo) · QR code for the phone page: `/api/qr.svg`.
 
 ## Pieces
 
