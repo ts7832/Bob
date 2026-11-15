@@ -41,7 +41,8 @@ image = (
 
 
 def _keys():
-    """Claude Code reads ANTHROPIC_API_KEY: the first key of the pool (Oliver's, then kokoro's), else the team key."""
+    """Claude Code reads ANTHROPIC_API_KEY: the first key of the pool, else the team key. (team_server.py picks, for each
+    Opus reading, the first pool key that still has credit.)"""
     for part in os.environ.get("ANTHROPIC_KEY_POOL", "").split(","):
         key = part.partition("=")[2].strip() if "=" in part else part.strip()
         if key.startswith("sk-"):

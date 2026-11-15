@@ -50,8 +50,36 @@ try:
     from drawqa import layer as _layer
     _capped = threading.local()
 
+    _spent = {}                                               # key name -> when it was found out of credit
+
+    def _claude_key():
+        """Hosted site: the first key of ANTHROPIC_KEY_POOL that still has credit (a 1-token Haiku call checks it;
+        a spent key is skipped for 30 min). None when there is no pool (the laptop: Claude Code's own sign-in)."""
+        pool = [p.partition("=") for p in os.environ.get("ANTHROPIC_KEY_POOL", "").split(",") if p.strip()]
+        pool = [(n.strip(), k.strip()) if k else (f"key{i}", n.strip()) for i, (n, _, k) in enumerate(pool)]
+        for name, key in pool:
+            if _time.time() - _spent.get(name, 0) < 1800:
+                continue
+            try:
+                import anthropic
+                anthropic.Anthropic(api_key=key, max_retries=1).messages.create(
+                    model="claude-haiku-5-5", max_tokens=1, messages=[{"role": "user", "content": "ok"}])
+                print(f"[bob] Opus reading paid by: {name}")
+                return key
+            except Exception as e:
+                msg = str(e).lower()
+                if any(w in msg for w in ("credit", "billing", "authentication", "invalid x-api-key", "permission")):
+                    _spent[name] = _time.time()
+                    print(f"[bob] key {name} is out of credit or disabled: next key")
+                    continue
+                return key                                    # a passing hiccup (overloaded, network): use it anyway
+        return None
+
     def _popen(*a, **kw):
         kw["start_new_session"] = True                       # its own process group: stopping it stops its scripts too
+        key = _claude_key()
+        if key:
+            kw["env"] = dict(kw.get("env") or os.environ, ANTHROPIC_API_KEY=key)
         proc = _sp.Popen(*a, **kw)
         state = _capped.state = dict(hit=False)               # read by _discover below, in the same reading thread
 
