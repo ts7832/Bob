@@ -26,7 +26,8 @@ DISCOVER_TIMEOUT = int(os.environ.get("DRAWQA_DISCOVER_TIMEOUT", "600"))  # seco
 DISCOVER_EFFORT = os.environ.get("DRAWQA_DISCOVER_EFFORT", "medium")  # user's choice (15 Nov): medium for the reading step
 
 
-LAYER_VERSION = 10  # v10: detector e27; joined-wall perimeters as citable items; v9: wall perimeters (outside face, inside faces) in the notes; v8: wall ends trimmed to ink, collinear pieces merged, one outline for drawing; v7: walls as clean rectangles, overlapping pieces dropped; v6: walls cut at their doors and windows; v5: windows completed from exact repeats (drawqa/repeats.py); v4: walls kept out of the Claude step and merged back; bump when the reading changes (v2: no whole-sheet wall/room model on big sheets; v3: tiled walls, 4-way detector on big sheets, rooms as whole spaces)
+WALL_CLASSES = ("wall", "wall perimeter")  # made by the wall model and geometry; kept out of the Claude step, merged back
+LAYER_VERSION = 11  # v11: walls are whole walls with their openings in them (length through openings, solid length); v10: detector e27; joined-wall perimeters as citable items; v9: wall perimeters (outside face, inside faces) in the notes; v8: wall ends trimmed to ink, collinear pieces merged, one outline for drawing; v7: walls as clean rectangles, overlapping pieces dropped; v6: walls cut at their doors and windows; v5: windows completed from exact repeats (drawqa/repeats.py); v4: walls kept out of the Claude step and merged back; bump when the reading changes (v2: no whole-sheet wall/room model on big sheets; v3: tiled walls, 4-way detector on big sheets, rooms as whole spaces)
 
 
 def _key(path, page):
@@ -90,8 +91,12 @@ def _start_layer(sheet):
         if not w.get("axis"):
             continue
         it = dict(polyline=[r1(w["axis"][:2]), r1(w["axis"][2:])], thickness_px=round(float(w.get("thickness_px", 0)), 1))
-        if w.get("run") and w["run"] != w.get("id"):
-            it["wall_run"] = w["run"]  # one piece of a wall that a door or window interrupts
+        for k in ("length_m", "solid_length_m", "thickness_m"):
+            if w.get(k) is not None:
+                it[k] = w[k]
+        if w.get("openings"):  # its doors and windows: kind, where along the wall, how wide
+            it["openings"] = sorted((dict(cls=o["cls"], along_m=o.get("along_m"), width_m=o.get("width_m"))
+                                     for o in sheet.get("openings", []) if o["id"] in w["openings"]), key=lambda o: o["along_m"] or 0)
         if w.get("polygon") and len(w["polygon"]) >= 3:
             it["polygon"] = [r1(p) for p in w["polygon"]]
         add("wall", it, "wall and room-outline model", "polyline")
@@ -137,7 +142,7 @@ def _discover(png, w, h, wd, start):
         return None, dict(status="skipped", reason="Claude Code is not installed here")
     # walls stay with the model: hundreds of wall pieces in the start layer only cost the agent time (it lints and
     # re-checks them); they are merged back into the reading afterwards
-    start = dict(start, classes=[c for c in start["classes"] if c["name"] != "wall"])
+    start = dict(start, classes=[c for c in start["classes"] if c["name"] not in WALL_CLASSES])
     json.dump(dict(start, sheet="start layer from the trained models (walls are handled separately and are not included)"),
               open(os.path.join(wd, "start_layer.json"), "w"), indent=1)
     json.dump(start["texts"], open(os.path.join(wd, "ocr_text.json"), "w"))
@@ -217,8 +222,8 @@ def ingest(path, page=0, discover=True, refresh=False, progress=None):
         classes, info = _discover(layer["picture"], w, h, wd, start)
         layer["discovery"] = info
         if classes:
-            walls = [c for c in start["classes"] if c["name"] == "wall"]
-            layer["classes"] = classes + ([] if any(c.get("name") == "wall" for c in classes) else walls)
+            classes = [c for c in classes if c.get("name") not in WALL_CLASSES]  # the models' walls are kept as they are
+            layer["classes"] = classes + [c for c in start["classes"] if c["name"] in WALL_CLASSES]
         else:
             layer["notes"].append("only our trained models' reading is available: " + str(info.get("reason", "")))
     else:
