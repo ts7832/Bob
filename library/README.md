@@ -1,5 +1,13 @@
 # Library: scan a paper drawing, get everything already known about it
 
+## Use it (no install)
+
+**https://oliver-universityapps--bob-site-web.us-east.modal.run** · password `123456789` · runs on Modal (Oliver's workspace),
+always on: projects, upload, analyze, questions, corrections, live reading. Phone: the QR button at the top right.
+Deploy changes: `MODAL_PROFILE=oliver-universitapps modal deploy library/modal_site.py` (library: `library/modal_app.py`,
+engine: `library/modal_engine.py`). Laptop copy instead: `library/run_team_server.sh` (http://localhost:8770).
+Claude: the site's Opus calls use the `bob-anthropic` / `bob-anthropic-pool` Modal secrets (never in the repo).
+
 Every drawing the engine has processed is kept: its image, the converted sheet, every answer with what it cost, and
 every phone scan. A construction manager photographs the paper on site; the photo is matched to the stored sheet, the
 other sheets of its project come up with it, and saved answers cost nothing the second time.

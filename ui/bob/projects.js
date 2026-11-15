@@ -255,6 +255,7 @@
   window.bobProjectFloors = (path) => {
     if (!proj) return null;
     const name = String(path || "").split(/[\\/]/).pop();
+    if (!proj.sheets.some((s) => s.file_name === name)) return null;       // the open file is not part of this project
     const fl = proj.sheets.filter((s) => s.level_order != null && isPlan(s));
     if (fl.length < 2) return null;
     return { building: proj.name, floors: fl.map((s) => ({ n: s.level_order, name: s.level_name || s.title || s.name, sid: s.id, current: s.file_name === name })) };
