@@ -150,17 +150,24 @@ async function ready() {
   $("q").disabled = false; $("go").disabled = false; $("q").focus();
   if (st.reading === "running") setTimeout(watchReading, 3000);
 }
+let shownPartial = 0;
 async function watchReading() {
   const d = await (await fetch("/api/v2/status?id=" + job)).json();
   if (d.reading === "running") {
+    if ((d.partial_n || 0) !== shownPartial) {  // Claude saved a new version of what it found so far: redraw it
+      shownPartial = d.partial_n; st = d;
+      layer = await (await fetch("/api/v2/layer?id=" + job)).json();
+      renderFound(); draw();
+    }
     const r = $("reading"); if (r) r.textContent = readingText(d);
-    return setTimeout(watchReading, 3000);
+    return setTimeout(watchReading, 2000);
   }
   st = d; layer = await (await fetch("/api/v2/layer?id=" + job)).json();
   renderFound(); draw();
 }
 function readingText(d) {
-  return `Claude (Opus) is still reading the whole drawing (${Math.round(d.reading_elapsed || 0)} s): furniture and other details appear here when it finishes. Doors, windows, fixtures, rooms, areas and walls can be asked now.`;
+  return `Claude (Opus) is still reading the whole drawing (${Math.round(d.reading_elapsed || 0)} s)` + (d.reading_step ? `: ${d.reading_step}` : "")
+    + `. What it has found so far is drawn as it goes; questions are answered from our models' reading until it finishes.`;
 }
 function renderFound() {
   const disc = st.discovery || {};

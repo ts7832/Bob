@@ -259,9 +259,8 @@ def start_reading(f, name):
         # 1. our models (seconds): the drawing is ready for questions as soon as they are done
         # 2. Claude's full reading (minutes) goes on in the background and replaces the layer when it finishes
         try:
-            cached = LY.ingest(f, discover=False)  # the full reading when it is cached, else the models' reading
-            full = (cached.get("discovery") or {}).get("status") == "done"
-            L = cached if full else LY.ingest(f, discover=False, progress=progress)
+            L = LY.ingest(f, discover=False, progress=progress)  # the full reading when it is cached, else the models' reading
+            full = (L.get("discovery") or {}).get("status") == "done"
             if not L.get("picture"):
                 raise ValueError("; ".join(L.get("notes") or []) or "this file could not be drawn as a picture")
             J.update(stage="done", detail="Ready", layer=L, seconds=round(time.time() - J["started"], 1),
@@ -273,7 +272,15 @@ def start_reading(f, name):
         if full:
             return
         try:
-            L2 = LY.ingest(f, discover=True, progress=lambda st, d: J.update(reading_detail=d))
+            def live(st, d):  # what Claude is doing, and its result so far (redrawn on the page as it grows)
+                if st == "claude_step":
+                    J["reading_step"] = d
+                elif st == "claude_partial":
+                    J["partial"] = d
+                    J["partial_n"] = J.get("partial_n", 0) + 1
+                else:
+                    J["reading_detail"] = d
+            L2 = LY.ingest(f, discover=True, progress=live)
             ok = (L2.get("discovery") or {}).get("status") == "done"
             J.update(layer=L2 if L2.get("picture") else J["layer"], reading="done" if ok else "failed",
                      reading_seconds=round(time.time() - J["reading_started"], 1))
@@ -288,7 +295,8 @@ def job_status(jid):
     J = JOBS[jid]
     out = dict(id=jid, name=J["name"], stage=J["stage"], label=STAGES.get(J["stage"], J["stage"]), detail=J.get("detail"),
                elapsed=round(time.time() - J["started"], 1), steps=J["steps"], reading=J.get("reading"),
-               reading_elapsed=round(time.time() - J.get("reading_started", time.time()), 1), reading_seconds=J.get("reading_seconds"))
+               reading_elapsed=round(time.time() - J.get("reading_started", time.time()), 1), reading_seconds=J.get("reading_seconds"),
+               reading_step=J.get("reading_step"), partial_n=J.get("partial_n", 0))
     L = J.get("layer")
     if L:
         W, Hh = L["width"], L["height"]
@@ -318,7 +326,19 @@ def job_layer(jid):
     keep = ("id", "bbox", "polygon", "polyline", "point", "label", "type", "tag", "name", "area_m2", "face", "perimeter_m")
     return [dict(name=c["name"], source=c.get("source"), items=[{k: it[k] for k in keep if k in it} for it in c.get("items") or []],
                  **({"outline": c["outline"]} if c.get("outline") else {}), **({"hidden": True} if c.get("hidden") else {}))
-            for c in JOBS[jid]["layer"].get("classes", [])]
+            for c in _shown_classes(JOBS[jid])]
+
+
+def _shown_classes(J):
+    """While Claude is still reading: its result so far (from its live discovered.json) with our models' walls;
+    otherwise the reading itself. Answers always use the reading itself (J["layer"])."""
+    from drawqa.layer import WALL_CLASSES
+    base = J["layer"].get("classes", [])
+    if J.get("reading") == "running" and J.get("partial"):
+        part = [c for c in J["partial"] if isinstance(c, dict) and c.get("name") and not str(c["name"]).endswith(" candidate")
+                and c["name"] not in WALL_CLASSES and isinstance(c.get("items"), list)]
+        return part + [c for c in base if c["name"] in WALL_CLASSES]
+    return base
 
 
 def job_ask(jid, question):
