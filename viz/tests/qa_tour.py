@@ -51,7 +51,7 @@ with sync_playwright() as p:
         snap("2D answer")
         ev = pg.locator(".evlist button")
         if ev.count(): ev.first.click(); pg.wait_for_timeout(1800); snap("item selected")
-        btn3d = pg.locator(".dv-tools button", has_text="3D")
+        btn3d = pg.locator(".dv-tools button:not([disabled])", has_text="3D")
         if btn3d.count():
             btn3d.first.click(); pg.wait_for_timeout(5000); snap("3D")
             photo = pg.locator(".dv-tools button", has_text="Photo")

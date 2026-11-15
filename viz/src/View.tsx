@@ -32,6 +32,8 @@ export function View({ store }: { store: Store }) {
   )
   const select = (id: string | null) => store.set({ selectedId: id, ...(id == null ? { inspected: null } : {}) })
   const cleanOk = useMemo(() => (loaded ? canClean(loaded) : false), [loaded])
+  // 3D only where there are walls to lift: CAD and BIM sheets, scans (walls found in the image), sheets with backend walls
+  const has3d = useMemo(() => !!loaded && (loaded.drawing.kind !== 'image' || !!loaded.context.wallsDisjoint || loaded.context.walls.length > 0), [loaded])
   const low = s.quality === 'low' || (s.quality === 'auto' && s.slow)
   // Room the cards take, so zoom-to-answer frames the evidence in the free part of the view (not under a card)
   const [insets, setInsets] = useState<Insets>({ l: 0, t: 0, r: 0, b: 48 })
@@ -152,9 +154,13 @@ export function View({ store }: { store: Store }) {
           {s.mode === '3d' && (
             <button className={s.photo ? 'dv-on' : ''} title="Path-traced render: refines while the camera rests" onClick={() => store.set({ photo: !s.photo })}>Photo</button>
           )}
-          <button className={s.mode === '3d' ? 'dv-on' : ''} onClick={() => store.set({ mode: s.mode === '3d' ? '2d' : '3d', photo: false })}>
-            {s.mode === '3d' ? '2D' : '3D'}
-          </button>
+          {has3d || s.mode === '3d' ? (
+            <button className={s.mode === '3d' ? 'dv-on' : ''} onClick={() => store.set({ mode: s.mode === '3d' ? '2d' : '3d', photo: false })}>
+              {s.mode === '3d' ? '2D' : '3D'}
+            </button>
+          ) : (
+            <button disabled title="3D needs the sheet's walls, and this sheet's walls are not read (a vector PDF page drawn with double lines). Everything else works in 2D.">3D</button>
+          )}
           {s.mode === '3d' && (
             <button className={s.cutaway ? 'dv-on' : ''} title="Walls on your side drop low so you can see into every room (follows the camera)"
               onClick={() => store.set({ cutaway: !s.cutaway })}>Cutaway</button>
