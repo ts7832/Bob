@@ -18,7 +18,7 @@ image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("libgl1", "libglib2.0-0")
     .pip_install("ifcopenshell", "pymupdf", "opencv-python-headless", "numpy<2", "pillow", "ezdxf",
-                 "torch==2.5.1", "transformers==4.47.1", "sentencepiece")
+                 "torch==2.5.1", "transformers==4.47.1", "sentencepiece", "anthropic")
     .add_local_dir(str(REPO / "drawqa"), "/root/app/drawqa", ignore=["__pycache__"])
     .add_local_dir(str(REPO / "data" / "predictions"), "/root/app/data/predictions")
     .add_local_file(str(REPO / "library" / "jev_cascade.py"), "/root/app/jev_cascade.py")
@@ -36,8 +36,9 @@ def correct(pred, q):
         return False
 
 
-@app.function(image=image, volumes={"/ds": DATA}, cpu=2, memory=6144, timeout=3600, max_containers=60)
-def run_chunk(items: list):
+@app.function(image=image, volumes={"/ds": DATA}, cpu=2, memory=6144, timeout=3600, max_containers=60,
+              secrets=[modal.Secret.from_name("bob-anthropic")])
+def run_chunk(items: list, llm: bool = False):
     import sys
     sys.path.insert(0, "/root/app")
     os.chdir("/root/app")
@@ -48,7 +49,7 @@ def run_chunk(items: list):
     for q in items:
         t0 = time.time()
         try:
-            r = solve("/ds/" + q["path"], q["question"])
+            r = solve("/ds/" + q["path"], q["question"], llm=llm)
             ans, conf, tier, err = r.get("answer"), r.get("confidence"), (r.get("honesty") or {}).get("tier"), None
         except Exception as e:
             ans, conf, tier, err = None, None, "error", f"{type(e).__name__}: {e}"[:160]
@@ -70,7 +71,7 @@ def run_chunk(items: list):
 
 
 @app.local_entrypoint()
-def main(rewordings: str = "", limit: int = 0):
+def main(rewordings: str = "", limit: int = 0, sources: str = "", llm: bool = False):
     import collections, sys
     sys.path.insert(0, str(REPO / "library"))
     meaning = json.load(open(REPO / "library" / "eval_meanings.json"))       # question -> meaning label (kind)
@@ -82,6 +83,8 @@ def main(rewordings: str = "", limit: int = 0):
         if q["type"] == "text" or src not in ("swiss_dwellings", "ifc_models", "opening_design", "cubicasa5k"):
             continue
         if src == "cubicasa5k" and os.path.basename(q["path"]) not in preview_scans:
+            continue
+        if sources and src not in sources.split(","):
             continue                                         # scans: only the 241 test plans have detector output
         items.append(dict(id=f"d{i}", set="dataset", path=q["path"], question=q["question"], answer=q["answer"], type=q["type"],
                           kind=meaning.get(q["question"], "unlabelled")))
@@ -104,7 +107,7 @@ def main(rewordings: str = "", limit: int = 0):
         chunks.append(cur)
     print(f"{len(items)} questions on {len(groups)} drawings in {len(chunks)} chunks")
     t0 = time.time()
-    rows = [r for part in run_chunk.map(chunks) for r in part]
+    rows = [r for part in run_chunk.map(chunks, kwargs={"llm": llm}) for r in part]
     os.makedirs(REPO / "library" / "eval_out", exist_ok=True)
     path = REPO / "library" / "eval_out" / f"cascade_{time.strftime('%m%d_%H%M')}.jsonl"
     with open(path, "w") as f:
