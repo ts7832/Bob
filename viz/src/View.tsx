@@ -7,6 +7,7 @@ import { Crop } from './Crop'
 import { bbox, outline } from './geom'
 import { CLS_NAME, GLYPH, SYMBOL, type Cls } from './ink'
 import { canClean, cleanClasses, SYMBOL_COLOR } from './clean'
+import { inspectables } from './inspect'
 
 const TIER_TEXT: Record<string, string> = {
   read: 'Read from the sheet', measured: 'Measured from geometry', detected: 'Detected by a model',
@@ -21,13 +22,15 @@ export function View({ store }: { store: Store }) {
   const { loaded, answer, selectedId } = s
   const selected = answer?.elements.find((e) => e.id === selectedId) ?? null
   const vf = loaded?.views.find((v) => v.id === s.viewFocus) ?? null
+  const inspectEl = useMemo(() => (loaded && s.inspected ? inspectables(loaded).find((e) => e.id === s.inspected) ?? null : null), [loaded, s.inspected])
   const focus = useMemo(
     () => (selected ? focusOf([selected], 0.12)
+      : inspectEl ? focusOf([inspectEl], 0.1)
       : vf ? { x0: vf.box[0], y0: vf.box[1], x1: vf.box[2], y1: vf.box[3], min: 0 }
       : answer?.status === 'answered' ? focusOf(answer.elements) : null),
-    [selected, answer, vf],
+    [selected, answer, vf, inspectEl],
   )
-  const select = (id: string | null) => store.set({ selectedId: id })
+  const select = (id: string | null) => store.set({ selectedId: id, ...(id == null ? { inspected: null } : {}) })
   const cleanOk = useMemo(() => (loaded ? canClean(loaded) : false), [loaded])
   const low = s.quality === 'low' || (s.quality === 'auto' && s.slow)
   // Room the cards take, so zoom-to-answer frames the evidence in the free part of the view (not under a card)
@@ -69,6 +72,7 @@ export function View({ store }: { store: Store }) {
         if (st.mpts.length) store.set({ mpts: [], mclosed: false })
         else if (st.measure) store.set({ measure: false })
         else if (st.selectedId) store.set({ selectedId: null })
+        else if (st.inspected) store.set({ inspected: null })
       } else if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && st.answer?.status === 'answered') {
         e.preventDefault(); step(e.key === 'ArrowRight' ? 1 : -1)
       } else if (e.key === 'f' || e.key === 'F') store.set({ refit: st.refit + 1 })
@@ -97,10 +101,10 @@ export function View({ store }: { store: Store }) {
           <Suspense fallback={null}>
             <Scene key={loaded.drawing.key} loaded={loaded} answer={answer} selectedId={selectedId} hoverId={s.hoverId}
               dim={s.dim} showPlan={s.showPlan} mode={s.mode} photo={s.photo && s.mode === '3d'} photoStatus={photoStatus} focus={focus} fitAll={s.fitAll} insets={insets}
-              tools={{ view: vf, cutaway: s.cutaway, measure: s.measure, mpts: s.mpts, mclosed: s.mclosed, peek: s.peek, hidden: s.hidden, cut: s.cut, refit: s.refit, clean: s.clean && cleanOk, swipe: s.swipe }}
+              tools={{ view: vf, inspected: s.inspected, cutaway: s.cutaway, measure: s.measure, mpts: s.mpts, mclosed: s.mclosed, peek: s.peek, hidden: s.hidden, cut: s.cut, refit: s.refit, clean: s.clean && cleanOk, swipe: s.swipe }}
               onMeasure={(mpts, mclosed) => store.set({ mpts, mclosed })}
               low={low} onSlow={(slow) => { if (store.get().slow !== slow) store.set({ slow }) }}
-              onSelect={select} onHover={(id) => store.set({ hoverId: id })} overlay={overlay} />
+              onSelect={select} onHover={(id) => store.set({ hoverId: id })} onInspect={(id) => store.set({ inspected: id, selectedId: null })} overlay={overlay} />
           </Suspense>
         </Canvas>
       )}
@@ -109,6 +113,10 @@ export function View({ store }: { store: Store }) {
       {answer && <AnswerBadge answer={answer} boxRef={badgeRef} selectedId={selectedId} hidden={s.hidden} onStep={step} frameNote={loaded?.drawing.frameNote} frameBad={loaded?.drawing.frameBad}
         onToggle={(g) => store.set({ hidden: s.hidden.includes(g) ? s.hidden.filter((x) => x !== g) : [...s.hidden, g], selectedId: null })} />}
       {selected && loaded && <Detail drawing={loaded.drawing} el={selected} onClose={() => select(null)} boxRef={detailRef} />}
+      {!selected && inspectEl && loaded && (
+        <Detail drawing={loaded.drawing} el={inspectEl} onClose={() => store.set({ inspected: null })} boxRef={detailRef}
+          title={`What this is: ${inspectEl.name}`} note="Not part of an answer: this is what the drawing's data says this object is." />
+      )}
       {!selected && selectedId && answer?.citedIds.includes(selectedId) && (
         <div className="dv-detail" ref={detailRef}>
           <div className="dv-row"><div className="dv-title">Not on this drawing</div>
@@ -133,7 +141,7 @@ export function View({ store }: { store: Store }) {
               {loaded.views.map((v, i) => <option key={v.id} value={v.id}>{viewLabel(v, i)}</option>)}
             </select>
           )}
-          <button title="Clear the selection and frame the sheet (the building in 3D)" onClick={() => store.set({ selectedId: null, viewFocus: null, fitAll: s.fitAll + 1 })}>Reset view</button>
+          <button title="Clear the selection and frame the sheet (the building in 3D)" onClick={() => store.set({ selectedId: null, viewFocus: null, inspected: null, fitAll: s.fitAll + 1 })}>Reset view</button>
           {cleanOk && s.mode === '2d' && (
             <button className={s.clean ? 'dv-on' : ''} title="The plan redrawn from what was detected, next to the original: drag the divider to compare (C)"
               onClick={() => store.set({ clean: !s.clean })}>Clean view</button>
@@ -297,7 +305,7 @@ export const Glyph = ({ cls }: { cls?: string | null }) => {
 const pct = (c?: number | null) => (c == null ? null : `${Math.round(c * 100)}%`)
 const HOW: Record<string, string> = { polygon: 'outline', polyline: 'line', box: 'detection box', guid: 'BIM element', detector: 'detected', read: 'read from sheet' }
 
-function Detail({ drawing, el, onClose, boxRef }: { drawing: Drawing; el: Element; onClose: () => void; boxRef: RefObject<HTMLDivElement | null> }) {
+function Detail({ drawing, el, onClose, boxRef, title, note }: { drawing: Drawing; el: Element; onClose: () => void; boxRef: RefObject<HTMLDivElement | null>; title?: string; note?: string }) {
   const b = bbox(outline(el))
   const [x0, y0] = drawing.fromPx([b.x0, b.y0]), [x1, y1] = drawing.fromPx([b.x1, b.y1])
   const unit = drawing.units === 'm' ? 'm' : drawing.units === 'px' ? 'px' : ''
@@ -305,10 +313,11 @@ function Detail({ drawing, el, onClose, boxRef }: { drawing: Drawing; el: Elemen
   return (
     <div className="dv-detail" ref={boxRef}>
       <div className="dv-row">
-        <div className="dv-title">Where this is on the original drawing</div>
+        <div className="dv-title">{title ?? 'Where this is on the original drawing'}</div>
         <button className="dv-x" onClick={onClose} aria-label="Close">×</button>
       </div>
       <Crop drawing={drawing} el={el} width={300} height={190} />
+      {note && <p className="dv-offsheet">{note}</p>}
       <dl>
         {el.label && <><dt>Mark</dt><dd>{el.label}</dd></>}
         {el.name && <><dt>Name</dt><dd>{el.name}</dd></>}
@@ -316,6 +325,7 @@ function Detail({ drawing, el, onClose, boxRef }: { drawing: Drawing; el: Elemen
         {el.valueText && <><dt>Value</dt><dd>{el.valueText}</dd></>}
         {el.cls && el.cls !== 'other' && <><dt>Symbol</dt><dd className="dv-kind"><Glyph cls={el.cls} />{CLS_NAME[el.cls as Cls]?.[0] ?? el.cls}</dd></>}
         <dt>Type</dt><dd>{el.type === 'evidence' ? HOW[el.how ?? ''] ?? 'evidence' : el.type}</dd>
+        {note && el.how && <><dt>Source</dt><dd>{el.how}</dd></>}
         {pct(el.confidence) && <><dt>Confidence</dt><dd>{pct(el.confidence)}</dd></>}
         <dt>ID</dt><dd><code>{el.id}</code></dd>
         <dt>Position</dt>

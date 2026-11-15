@@ -22,6 +22,16 @@ The drawing view (`viz/`): what exists, and what changed when. Newest first. Usa
 | Evidence that isn't on this sheet (BIM model-wide answers) | yes | says "N of M on this sheet"; selecting one says "Not on this drawing" |
 | Light theme matching the demo page | yes | default |
 
+## 2026-11-15 02:06: hover or click any object to see what it is (no question needed)
+- **Every recognised object can now be inspected,** with or without an answer, in 2D and 3D:
+  - **Hover:** shows its name and source, e.g. "WC · detected by a model · 85%", "Door · read from the CAD drawing", "Door · from the building model (IFC)".
+  - **Click:** zooms in and opens a "What this is" card with its crop of the original. In 3D its model turns blue and the walls drop so it's visible.
+  - **Esc** closes it.
+- **Blue means inspecting, orange means an answer,** so the two are never confused.
+- **The team page's "found on the drawing" chips** (kokorosf's `ui/`) already light up a whole class through `showAnswer`. With the new models, stairs, shafts and washers now show there too.
+- **Harness:** clicking the shown question again clears it. The same toggle for `ui/` is requested on issue #1.
+- **Test:** `tests/inspect_objects.py`.
+
 ## 2026-11-15 01:44: scans get whole rooms in 3D and the clean view
 - **Scans had patchy 3D floors:** only the few rooms the detector boxes covered got a floor, and those boxes overlap walls. Now the rooms are found between the walls the view already reads from the image:
   1. door gaps are closed;

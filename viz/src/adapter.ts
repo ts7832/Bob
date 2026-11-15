@@ -70,11 +70,17 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
 
   // Sheet geometry in the sheet's own frame: metres with y up on vector sheets, so flip y back into the render frame.
   const flip = sheet?.y_flip ? (p: Pt): Pt => [p[0], -p[1]] : (p: Pt) => p
-  const openings: Context['openings'] = [], fixtures: Context['fixtures'] = [], railings: Pt[][] = []
+  const openings: Context['openings'] = [], fixtures: Context['fixtures'] = [], railings: Pt[][] = [], parts: NonNullable<Context['parts']> = []
   if (drawing.kind === 'vector') {
     for (const o of sheet?.openings ?? []) if (o.cls === 'door' && o.polygon?.length) openings.push({ cls: 'door', polygon: o.polygon.map((p) => drawing.toPx(flip(p))) })
     for (const it of render.items ?? []) if (it.k === 'poly' && it.layer === 'WINDOW' && it.closed && it.pts.length >= 4) openings.push({ cls: 'window', polygon: it.pts.map(drawing.toPx) })
     for (const f of sheet?.fixtures ?? []) if (f.bbox && !NOT_FIXTURE.has(f.cls)) fixtures.push({ cls: f.cls, polygon: boxPts(f.bbox, (p) => drawing.toPx(flip(p))) })
+    // every opening and fixture with its sheet id, for hover / click inspection (ids match the answers' evidence ids)
+    for (const o of sheet?.openings ?? []) {
+      const poly = o.polygon?.length ? o.polygon.map((p) => drawing.toPx(flip(p))) : o.bbox ? boxPts(o.bbox, (p) => drawing.toPx(flip(p))) : null
+      if (poly) parts.push({ id: o.id, cls: o.cls, polygon: poly })
+    }
+    for (const f of sheet?.fixtures ?? []) if (f.bbox) parts.push({ id: f.id, cls: f.cls, polygon: boxPts(f.bbox, (p) => drawing.toPx(flip(p))) })
   } else if (drawing.kind === 'svg') {
     for (const e of guids.values()) {
       if (e.type === 'IfcWindow') openings.push({ cls: 'window', polygon: e.polygon })
@@ -116,7 +122,7 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
   const context: Context = {
     get walls() { return lazyWalls ? (cached ??= lazyWalls()).walls : walls },
     get regions() { return lazyWalls ? (cached ??= lazyWalls()).rooms : undefined },
-    wallsDisjoint: !!lazyWalls, rooms, openings, fixtures, railings,
+    wallsDisjoint: !!lazyWalls, rooms, openings, fixtures, railings, parts,
   }
   let views: Loaded['views'] = []
   try { views = findViews(drawing, sheet, planEls) } catch { views = [] }

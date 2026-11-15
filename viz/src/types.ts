@@ -73,6 +73,7 @@ export interface Context {
   openings: { cls: 'door' | 'window'; polygon: Pt[] }[] // window/door rectangles in the wall line: sills, glass, lintels
   fixtures: { cls: string; polygon: Pt[] }[] // every recognised fixture (wc, washbasin, stairs, shaft, ...): a 3D model each
   regions?: Pt[][][] // scans: rooms found between the image walls, each a set of rectangles (3D floors, clean view)
+  parts?: { id: string; cls: string; polygon: Pt[] }[] // CAD sheets: openings and fixtures with their sheet ids (hover / click to inspect)
   railings?: Pt[][] // BIM railings (outline or line): glass panels with a top rail in 3D
 }
 
