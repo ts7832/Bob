@@ -171,6 +171,18 @@
   const hookLoad = () => { if (typeof view !== "undefined" && view && view.onLoad) view.onLoad(() => setTimeout(() => vwin && vwin.classList.remove("vloading"), 120)); else setTimeout(hookLoad, 300); };
   hookLoad();
 
+  // the answer card on the drawing gets a close button (clears the answer from the drawing; the side panel keeps it)
+  const viewerEl = $("viewer");
+  if (viewerEl) new MutationObserver(() => {
+    viewerEl.querySelectorAll(".dv-badge").forEach((card) => {
+      if (card.querySelector(".bobx")) return;
+      const x = document.createElement("button");
+      x.className = "bobx"; x.type = "button"; x.title = "Close (the answer stays in the panel on the right)"; x.textContent = "×";
+      x.onclick = (e) => { e.stopPropagation(); try { view.clear(); } catch (err) { card.remove(); } };
+      card.appendChild(x);
+    });
+  }).observe(viewerEl, { childList: true, subtree: true });
+
   // the edit tools are always on the blueprint window (no question needed first)
   const vtb = document.querySelector(".vwin > .tb");
   if (vtb && !$("vtools")) {

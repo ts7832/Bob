@@ -137,7 +137,8 @@
   const cur = () => { try { return typeof current !== "undefined" ? current : null; } catch (e) { return null; } };
   const want = hp.get("open");
   const askNow = () => { if (hp.get("ask") && q && $("askbtn")) { q.value = hp.get("ask"); $("askbtn").click(); } };
-  if (want && $("openpath")) until(() => cur(), () => {
+  const ready = () => cur() || document.querySelector("#tab-gold .item");      // the page no longer opens a sample by itself
+  if (want && $("openpath")) until(ready, () => {
     const box = $("openpath");
     box.value = want;
     box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
@@ -145,6 +146,7 @@
     until(() => cur() && String(cur().path).split(/[\\/]/).pop() === base, () => setTimeout(askNow, 1500));
   });
   else if (hp.get("ask")) until(() => cur(), () => setTimeout(askNow, 1500));
+  if (want) setTimeout(() => { const h = document.getElementById("projhome"); if (h) h.hidden = true; }, 300);   // a deep link opens the file, not the projects list
 
   dress();
   new MutationObserver(dress).observe(document.querySelector("aside") || document.body, { childList: true, subtree: true });

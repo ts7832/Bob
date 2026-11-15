@@ -75,7 +75,8 @@
     const key = (e) => { if (e.key === "Enter" || e.key === " " || e.key === "Escape") go(); };
     el.onclick = go; document.addEventListener("keydown", key);
   }
-  splash();
+  // the opening screen is switched off (15 Nov: "remove the very first screen"); kept for later: ?intro=1 shows it
+  if (/[?&]intro=1/.test(location.search)) splash();
 
   // ------------------------------------------------------------------ Bob is working (anything being read, answered, corrected)
   document.body.insertAdjacentHTML("beforeend", `<div id="bobwork" hidden><div class="bobsprite work" style="background-image:url(${M}${ICON.startsWith("work_") ? "" : "icons32/"}${ICON}.png);--n:${ICONS[ICON]}"></div><span id="bobworkt">Bob is working…</span></div>`);

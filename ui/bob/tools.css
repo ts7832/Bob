@@ -86,7 +86,7 @@
 .vwin .dv-title{font:19px/1.1 var(--pix)!important;letter-spacing:.02em}
 .vwin .dv-cannot .dv-title,.vwin .dv-cannot{color:#c0261c}
 .vwin .dv-q{font:12px var(--mono)!important;color:#555}
-.vwin .dv-chip,.vwin .dv-badge,.vwin .dv-tag{border:1px solid #1e1e1e!important;background:#fefefe!important;color:#1e1e1e!important;font:15px/1.1 var(--pix)!important;padding:1px 6px!important}
+.vwin .dv-chip,.vwin .dv-tag{border:1px solid #1e1e1e!important;background:#fefefe!important;color:#1e1e1e!important;font:15px/1.1 var(--pix)!important;padding:1px 6px!important}
 .vwin .dv-tier-read{background:#03804a!important;color:#fff!important;border-color:#03804a!important}
 .vwin .dv-tier-measured{background:#1e5fbf!important;color:#fff!important;border-color:#1e5fbf!important}
 .vwin .dv-tier-detected{background:#a35a00!important;color:#fff!important;border-color:#a35a00!important}
@@ -277,3 +277,8 @@ aside button:not(.link):not(.term):not(#faqlist button){border-radius:0!importan
 .bobsprite.hello{width:256px;height:256px;background-size:calc(256px * var(--n)) 256px;animation:bobhello calc(.2s * var(--n)) steps(var(--n)) infinite}
 @keyframes bobhello{to{background-position-x:calc(-256px * var(--n))}}
 #vtools #vlive{background:#1e1e1e;color:#fefefe}#vtools #vlive:hover{background:#fefefe;color:#1e1e1e}
+
+/* the answer card on the drawing: a proper One-bit card with a close button */
+.vwin .dv-badge{position:relative;border:1px solid #1e1e1e!important;box-shadow:4px 4px 0 #1e1e1e!important;background:#fefefe!important;padding:10px 34px 10px 12px!important;color:#1e1e1e!important}
+.bobx{position:absolute;top:6px;right:6px;width:24px;height:22px;border:1px solid #1e1e1e;background:#fefefe;font:18px/1 var(--mono);cursor:pointer;padding:0;pointer-events:auto;z-index:2}
+.bobx:hover{background:#1e1e1e;color:#fefefe}
