@@ -101,7 +101,14 @@ try:
     _layer.subprocess.Popen = _popen
     _orig_discover = _layer._discover
 
+    OPUS_MAX = int(os.environ.get("BOB_OPUS_MAX", "12"))     # Opus readings this server may start (about $1 each)
+    _runs = dict(n=0)
+
     def _discover(*a, **kw):
+        if _runs["n"] >= OPUS_MAX:                           # the budget is used up: our models' reading stays
+            return None, dict(status="skipped", reason=f"the Opus budget of this site ({OPUS_MAX} readings) is used up")
+        _runs["n"] += 1
+        print(f"[bob] Opus reading {_runs['n']} of {OPUS_MAX}")
         _capped.state = dict(hit=False)
         classes, info = _orig_discover(*a, **kw)
         if _capped.state["hit"]:

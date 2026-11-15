@@ -96,7 +96,7 @@
     const capped = st.discovery && st.discovery.capped;
     $("lstage").textContent = stage === "error" ? "Failed: " + (st.detail || "") : stage !== "done" ? (st.label || stage) + "…"
       : reading === "running" ? `Opus is reading the drawing · ${Math.round(st.reading_elapsed || 0)} / ${lim} s` : reading === "done" ? (capped ? `Opus reading: best result at the ${lim} s limit` : `Opus reading complete · ${Math.round(st.reading_seconds || 0)} s`) :
-      reading === "failed" ? "Opus reading did not finish: showing our models' reading" : "Ready";
+      reading === "failed" ? "Opus reading did not finish: showing our models' reading" + (st.discovery && st.discovery.reason ? " (" + String(st.discovery.reason).slice(0, 110) + ")" : "") : "Ready";
     if (reading === "failed" && !$("lretry")) { $("lclose").insertAdjacentHTML("beforebegin", '<button id="lretry">Try again</button>'); $("lretry").onclick = () => start(true); }
     $("lstep").textContent = st.reading_step ? "· " + st.reading_step : "";
     if ($("lwait")) {
@@ -214,13 +214,13 @@
     requestAnimationFrame(step);
   }
 
-  // a file you upload yourself is read live at once
+  // a file you upload yourself: only the Opus chip is refreshed (Opus runs when asked)
   const real = window.fetch.bind(window);
   window.fetch = async (input, init) => {
     const res = await real(input, init);
     try {
       const url = typeof input === "string" ? input : input.url;
-      if (url.startsWith("/api/upload")) res.clone().json().then((d) => { if (d && d.path) setTimeout(start, 1500); }).catch(() => {});
+      if (url.startsWith("/api/upload")) res.clone().json().then((d) => { if (d && d.path) setTimeout(chip, 1500);   /* Opus costs about $1 a reading: it runs only when asked (the OPUS chip) */ }).catch(() => {});
     } catch (e) { /* never break the page */ }
     return res;
   };
