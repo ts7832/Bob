@@ -232,7 +232,10 @@ def patched_load_demo(orig=ui_server.load_demo):
                 except Exception as e:
                     return self._send(500, {"error": f"{type(e).__name__}: {e}"})
             if p.startswith("/bob/mascot/"):           # the mascot sprites and the icon gallery
-                f = os.path.join(REPO, "ui", "bob", "mascot", os.path.basename(p))
+                rel = p[len("/bob/mascot/"):]
+                f = os.path.normpath(os.path.join(REPO, "ui", "bob", "mascot", rel))
+                if not f.startswith(os.path.join(REPO, "ui", "bob", "mascot")):
+                    return self._send(403, {"error": "forbidden"})
                 if os.path.isfile(f) and f.endswith((".png", ".html")):
                     return self._send(200, open(f, "rb").read(), "image/png" if f.endswith(".png") else "text/html; charset=utf-8")
             if p.startswith("/bob/") and os.path.basename(p) in ("onebit.css", "onebit.js", "tools.js", "tools.css", "projects.js", "splash.js"):
