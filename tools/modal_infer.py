@@ -12,7 +12,8 @@ import os, pathlib
 import modal
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-GPU = os.environ.get("DRAWQA_INFER_GPU", "L4")
+# any of these, whichever Modal has free (15 Nov: calls waited forever when no L4 was available)
+GPU = [g.strip() for g in os.environ.get("DRAWQA_INFER_GPU", "L4,A10G,L40S,T4").split(",") if g.strip()]
 # DRAWQA_INFER_APP / DRAWQA_INFER_DETECTOR at deploy time give a second service with other detector weights, e.g.
 #   DRAWQA_INFER_APP=drawqa-infer-e27 DRAWQA_INFER_DETECTOR=e27 modal deploy tools/modal_infer.py   (models/e27.pt)
 # and the client picks it with DRAWQA_INFER_APP=drawqa-infer-e27.

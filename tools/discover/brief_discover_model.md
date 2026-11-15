@@ -81,6 +81,10 @@ the real edges, or drop it. Noise must not stay in the result.
    missing. Repeat until the crops are clean. Count = number of verified items.
 
 ## Output: discovered.json in your work folder
+The user watches discovered.json live while you work. Write it early and keep it current: first right after you have
+checked the start layer (its classes as kept), then again each time you have built a class (the same script that
+builds the class merges it into the file: no extra tool calls). A class you have not verified yet may carry
+"verified": "not yet". The file must always be valid JSON in the format below.
 {"sheet": "one line: what this drawing is",
  "classes": [{"name": "...", "what": "one sentence", "how_drawn": "how you recognise it",
    "geometry": "box|polyline|polygon|point", "count": n, "method": "which tool or script made the items",
