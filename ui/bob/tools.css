@@ -288,3 +288,4 @@ aside button:not(.link):not(.term):not(#faqlist button){border-radius:0!importan
 #livep table{table-layout:fixed}
 #livep td:first-child{width:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #livep td:nth-child(2){width:34px;text-align:right}#livep td:nth-child(3){width:30px;text-align:right}
+#qrveil{z-index:96!important}   /* above the projects screen (55) and the working badge (85) */
