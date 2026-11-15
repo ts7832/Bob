@@ -71,6 +71,37 @@ def _floors(path):
     return dict(building=m.group(1).split("_", 1)[-1].replace("-", " "), floors=fl if len(fl) > 1 else [])
 
 
+UPLOADS = os.path.join(REPO, "data", "uploads", "projects")
+_paths = {}                 # library sheet id -> local file
+_dataset = {}
+
+
+def _slug(s):
+    import re
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", s).strip("_")[:80] or "project"
+
+
+def _local(sid, file_name):
+    if sid in _paths and os.path.exists(_paths[sid]):
+        return _paths[sid]
+    if not _dataset:                            # the dataset's own files, by name (dataset blueprints open with their companions)
+        for root, _, fs in os.walk(os.path.join(REPO, "junction-dataset-preview", "data")):
+            for f in fs:
+                _dataset.setdefault(f, os.path.join(root, f))
+    if file_name in _dataset:
+        _paths[sid] = _dataset[file_name]
+        return _paths[sid]
+    d = os.path.join(UPLOADS, "library", str(sid))            # its own folder: the file keeps its library name (corrections find it)
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, os.path.basename(file_name) or "sheet")
+    if not os.path.exists(path):
+        req = urllib.request.Request(URL + f"/api/sheets/{sid}/original", headers={"x-bob-password": PW})
+        open(path, "wb").write(urllib.request.urlopen(req, timeout=300).read())
+    _paths[sid] = path
+    _ids[os.path.basename(file_name)] = sid
+    return path
+
+
 def _known_id(path):
     """The library id of a file already in the library (never uploads)."""
     name = os.path.basename(path)
@@ -173,6 +204,12 @@ def patched_load_demo(orig=ui_server.load_demo):
             p = u.path
             if p.startswith("/bob/lib/"):
                 return self._proxy("GET")
+            if p == "/bob/local":                   # a library blueprint as a file on this laptop, so the viewer can open it
+                qs = urllib.parse.parse_qs(u.query)
+                try:
+                    return self._send(200, dict(path=_local(int(qs["sid"][0]), (qs.get("file_name") or [""])[0])))
+                except Exception as e:
+                    return self._send(500, {"error": f"{type(e).__name__}: {e}"})
             if p == "/bob/floors":                  # the other floors of the same building (sibling plan files), top floor first
                 path = (urllib.parse.parse_qs(u.query).get("path") or [""])[0]
                 return self._send(200, _floors(path))
@@ -183,7 +220,7 @@ def patched_load_demo(orig=ui_server.load_demo):
                     return self._send(200, dict(id=sid, revision_suggestion=_suggest.pop(sid, None)))
                 except Exception as e:
                     return self._send(500, {"error": f"{type(e).__name__}: {e}"})
-            if p.startswith("/bob/") and os.path.basename(p) in ("onebit.css", "onebit.js", "tools.js", "tools.css"):
+            if p.startswith("/bob/") and os.path.basename(p) in ("onebit.css", "onebit.js", "tools.js", "tools.css", "projects.js"):
                 f = os.path.join(REPO, "ui", "bob", os.path.basename(p))
                 return self._send(200, open(f, "rb").read(), "text/css; charset=utf-8" if p.endswith(".css") else "text/javascript; charset=utf-8")
             return super().do_GET()
@@ -191,6 +228,22 @@ def patched_load_demo(orig=ui_server.load_demo):
         def do_POST(self):
             if self.path.startswith("/bob/lib/"):
                 return self._proxy("POST")
+            u = urllib.parse.urlparse(self.path)
+            if u.path == "/bob/upload":             # a blueprint into a project: kept here for the viewer, registered in the library
+                qs = urllib.parse.parse_qs(u.query)
+                project, name = (qs.get("project") or [""])[0], os.path.basename((qs.get("name") or ["file"])[0])
+                try:
+                    data = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                    d = os.path.join(UPLOADS, _slug(project))
+                    os.makedirs(d, exist_ok=True)
+                    path = os.path.join(d, name)
+                    open(path, "wb").write(data)
+                    up = call("POST", "/api/sheets", data, "application/octet-stream", project=project, name=os.path.splitext(name)[0], file_name=name)
+                    _ids[name] = up["id"]
+                    _paths[up["id"]] = path
+                    return self._send(200, dict(up, path=path))
+                except Exception as e:
+                    return self._send(500, {"error": f"{type(e).__name__}: {e}"})
             return super().do_POST()
 
         def _send(self, code, body, ctype="application/json"):

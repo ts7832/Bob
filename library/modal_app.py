@@ -118,7 +118,14 @@ def web():
     for stmt in SCHEMA.split(";"):
         if stmt.strip():
             q(stmt)
-    for stmt in ("ALTER TABLE answers ADD COLUMN IF NOT EXISTS asked_from VARCHAR(20) DEFAULT ''",
+    for stmt in ("ALTER TABLE sheets ADD COLUMN IF NOT EXISTS kind VARCHAR(40) DEFAULT ''",
+                 "ALTER TABLE sheets ADD COLUMN IF NOT EXISTS level_name VARCHAR(120) DEFAULT ''",
+                 "ALTER TABLE sheets ADD COLUMN IF NOT EXISTS level_order INT NULL",
+                 "ALTER TABLE sheets ADD COLUMN IF NOT EXISTS title VARCHAR(255) DEFAULT ''",
+                 "ALTER TABLE sheets ADD COLUMN IF NOT EXISTS survey_json TEXT NULL",
+                 "ALTER TABLE projects ADD COLUMN IF NOT EXISTS summary_json LONGTEXT NULL",
+                 "ALTER TABLE projects ADD COLUMN IF NOT EXISTS surveyed_at DATETIME NULL",
+                 "ALTER TABLE answers ADD COLUMN IF NOT EXISTS asked_from VARCHAR(20) DEFAULT ''",
                  "ALTER TABLE sheets ADD COLUMN IF NOT EXISTS sheet_no VARCHAR(40) DEFAULT ''",
                  "ALTER TABLE sheets ADD COLUMN IF NOT EXISTS revision_date VARCHAR(20) DEFAULT ''"):
         q(stmt)
@@ -250,7 +257,8 @@ def web():
         return dict(id=r["id"], name=r["name"], file_name=r["file_name"], revision=r["revision"], superseded_by=r["superseded_by"],
                     width=r["width"], height=r["height"], project_id=r["project_id"], has_sheet=r.get("has_sheet", r.get("sheet_json") is not None),
                     convert_seconds=r["convert_seconds"], convert_cost_usd=r["convert_cost_usd"], created_at=str(r["created_at"]),
-                    sheet_no=r.get("sheet_no", ""), revision_date=r.get("revision_date", ""))
+                    sheet_no=r.get("sheet_no", ""), revision_date=r.get("revision_date", ""), kind=r.get("kind", ""), level_name=r.get("level_name", ""),
+                    level_order=r.get("level_order"), title=r.get("title", ""))
 
     @api.get("/", response_class=HTMLResponse)
     @api.get("/phone", response_class=HTMLResponse)
@@ -272,8 +280,26 @@ def web():
     @api.get("/api/projects")
     def projects(request: Request):
         w = ws(request)
-        return q("SELECT p.id, p.name, p.created_at, COUNT(s.id) sheets FROM projects p LEFT JOIN sheets s ON s.project_id=p.id "
-                 "WHERE p.workspace_id=%s GROUP BY p.id ORDER BY p.created_at DESC", (w,))
+        rows = q("SELECT p.id, p.name, p.created_at, p.surveyed_at, COUNT(s.id) sheets, SUBSTRING_INDEX(GROUP_CONCAT(s.id ORDER BY s.level_order DESC, s.id), ',', 4) firsts "
+                 "FROM projects p LEFT JOIN sheets s ON s.project_id=p.id WHERE p.workspace_id=%s GROUP BY p.id ORDER BY p.created_at DESC", (w,))
+        for r in rows:
+            r["created_at"], r["surveyed_at"] = str(r["created_at"]), (str(r["surveyed_at"]) if r["surveyed_at"] else None)
+            r["thumbs"] = [int(x) for x in (r.pop("firsts") or "").split(",") if x]
+            r["questions"] = q("SELECT COUNT(*) n FROM answers a JOIN sheets s ON s.id=a.sheet_id WHERE s.project_id=%s", (r["id"],), one=True)["n"]
+        return rows
+
+    @api.post("/api/projects")
+    def new_project(request: Request, name: str):
+        """Create an empty project (blueprints are added with POST /api/sheets?project=<name>)."""
+        w = ws(request)
+        name = name.strip()[:190]
+        if not name:
+            raise HTTPException(400, "a project needs a name")
+        if q("SELECT id FROM projects WHERE workspace_id=%s AND name=%s", (w, name), one=True):
+            raise HTTPException(409, "a project with this name exists")
+        pid = q("INSERT INTO projects (workspace_id, name) VALUES (%s, %s)", (w, name))
+        dirty.set()
+        return dict(id=pid, name=name)
 
     @api.get("/api/projects/{pid}")
     def project(pid: int, request: Request):
@@ -282,8 +308,11 @@ def web():
         if not p:
             raise HTTPException(404, "no such project in this workspace")
         rows = q("SELECT id, name, file_name, revision, superseded_by, width, height, project_id, sheet_json IS NOT NULL has_sheet, convert_seconds, "
-                 "convert_cost_usd, created_at, sheet_no, revision_date FROM sheets WHERE project_id=%s ORDER BY name", (pid,))
-        return dict(p, sheets=[brief(r) for r in rows])
+                 "convert_cost_usd, created_at, sheet_no, revision_date, kind, level_name, level_order, title FROM sheets WHERE project_id=%s "
+                 "ORDER BY level_order IS NULL, level_order DESC, name", (pid,))
+        sm = q("SELECT summary_json, surveyed_at FROM projects WHERE id=%s", (pid,), one=True)
+        return dict(p, sheets=[brief(r) for r in rows], survey=json.loads(sm["summary_json"]) if sm and sm["summary_json"] else None,
+                    surveyed_at=str(sm["surveyed_at"]) if sm and sm["surveyed_at"] else None)
 
     @api.post("/api/sheets")
     async def add_sheet(request: Request, project: str, name: str = "", file_name: str = "", revision: str = "", supersedes: int = 0,
@@ -946,6 +975,71 @@ If nothing needs fixing, give an empty proposals list and say why in the summary
         dirty.set()
         return dict(note_id=nid, summary=out.get("summary"), proposals=props, model=r.model, cost_usd=round(cost, 5), seconds=sec, paid_by=keypool.last(),
                     tokens=dict(input=r.usage.input_tokens, output=r.usage.output_tokens))
+
+    # ---- project survey: Opus looks at all the blueprints of a project at once ------------------------------------
+    SURVEY_PROMPT = """These are the blueprints of one construction project, one image each, in upload order. Each image is
+preceded by its label "SHEET <id>". Tell us what the set is, so the files can be organised by floor and questions can be
+asked per floor or for the whole project. Use only what you can see (title blocks, labels, the drawings).
+Reply with JSON only:
+{{"project": {{"building": "<what the building is, if shown>", "summary": "<2-3 sentences: what the set contains>",
+  "levels": ["<floor names from the TOP floor down, as printed>"], "scale_notes": "<printed scales, or that none are printed>"}},
+ "sheets": [{{"id": <id>, "kind": "floor plan|elevation|section|site plan|roof plan|schedule|detail|cover|photo|other",
+   "level": "<floor this sheet shows, as printed, or empty>", "level_order": <integer, higher = higher floor; basement < 0; null if not a floor>,
+   "title": "<sheet title or number as printed, short>", "notes": "<one short line: what is on it>"}}]}}
+{names}"""
+
+    @api.post("/api/projects/{pid}/survey")
+    def survey(pid: int, request: Request):
+        """One Opus call over small images of every blueprint in the project: kind, floor and its order, title; and a
+        project summary. Stored on the sheets and the project (re-run after adding blueprints)."""
+        import anthropic, base64
+        w = ws(request)
+        p = q("SELECT id, name FROM projects WHERE id=%s AND workspace_id=%s", (pid, w), one=True)
+        if not p:
+            raise HTTPException(404, "no such project")
+        rows = q("SELECT id, name, file_name FROM sheets WHERE project_id=%s ORDER BY id LIMIT 40", (pid,))
+        if not rows:
+            raise HTTPException(400, "the project has no blueprints yet")
+        content = []
+        for r in rows:
+            im = Image.open(f"{FILES}/{r['id']}/view.jpg").convert("RGB")
+            im.thumbnail((1000, 1000), Image.LANCZOS)
+            buf = io.BytesIO(); im.save(buf, "JPEG", quality=80)
+            content.append({"type": "text", "text": f"SHEET {r['id']} (file {r['file_name']})"})
+            content.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.standard_b64encode(buf.getvalue()).decode()}})
+        content.append({"type": "text", "text": SURVEY_PROMPT.format(names="")})
+        t0 = time.time()
+        client = anthropic.Anthropic(timeout=180.0, max_retries=1)
+        msgs = [{"role": "user", "content": content}]
+        try:
+            r = client.beta.messages.create(model="claude-opus-5-5", max_tokens=6000, betas=["server-side-fallback-2026-07-01"], fallbacks="default", messages=msgs)
+        except TypeError:
+            r = client.messages.create(model="claude-opus-5-5", max_tokens=6000, messages=msgs)
+        text = "".join(getattr(x, "text", "") for x in r.content if getattr(x, "type", "") == "text")
+        try:
+            out = json.loads(text[text.index("{"):text.rindex("}") + 1])
+        except ValueError:
+            raise HTTPException(502, "the survey reply could not be read")
+        cost = call_cost("claude-opus-5-5", r.usage.input_tokens, r.usage.output_tokens)
+        sec = round(time.time() - t0, 1)
+        ids = {x["id"] for x in rows}
+        for sh in out.get("sheets") or []:
+            try:
+                sid = int(sh.get("id"))
+            except (TypeError, ValueError):
+                continue
+            if sid not in ids:
+                continue
+            lo = sh.get("level_order")
+            q("UPDATE sheets SET kind=%s, level_name=%s, level_order=%s, title=%s, survey_json=%s WHERE id=%s",
+              (str(sh.get("kind") or "")[:40], str(sh.get("level") or "")[:120], int(lo) if isinstance(lo, (int, float)) else None,
+               str(sh.get("title") or "")[:255], json.dumps(sh, ensure_ascii=False), sid))
+        summary = dict(out.get("project") or {}, model=r.model, cost_usd=round(cost, 4), seconds=sec, sheets=len(rows), paid_by=keypool.last(),
+                       tokens=dict(input=r.usage.input_tokens, output=r.usage.output_tokens))
+        q("UPDATE projects SET summary_json=%s, surveyed_at=NOW() WHERE id=%s", (json.dumps(summary, ensure_ascii=False), pid))
+        q("INSERT INTO ledger (workspace_id, kind, cost_usd, seconds) VALUES (%s,'opus survey',%s,%s)", (w, cost, sec))
+        dirty.set()
+        return dict(project(pid, request), survey=summary)
 
     # ---- history: every question asked and every photo taken ---------------------------------------------------------
     @api.get("/api/history")

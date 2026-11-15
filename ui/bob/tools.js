@@ -238,14 +238,15 @@
   async function floorStack(path) {
     $("bobstack")?.remove();
     if (!vwin || !path) return;
-    let r;
-    try { r = await fetch("/bob/floors?path=" + encodeURIComponent(path)).then((x) => x.json()); } catch (e) { return; }
+    let r = window.bobProjectFloors ? window.bobProjectFloors(path) : null;          // floors of the open project first
+    if (!r) try { r = await fetch("/bob/floors?path=" + encodeURIComponent(path)).then((x) => x.json()); } catch (e) { return; }
     if (!r.floors || !r.floors.length) return;
     vwin.style.position = "relative";
     vwin.insertAdjacentHTML("beforeend", `<div id="bobstack" class="bobwin"><div class="tb"><span>Building</span><i>${r.floors.length}</i></div>
-      <div class="body">${r.floors.map((f) => `<button class="slab${f.current ? " on" : ""}" data-path="${esc(f.path)}" title="${esc(f.name)}"><i></i><em>${esc(f.name.length > 14 ? f.name.slice(0, 13) + "…" : f.name)}</em></button>`).join("")}</div></div>`);
+      <div class="body">${r.floors.map((f) => `<button class="slab${f.current ? " on" : ""}" data-path="${esc(f.path || "")}" data-sid="${f.sid || ""}" title="${esc(f.name)}"><i></i><em>${esc(f.name.length > 14 ? f.name.slice(0, 13) + "…" : f.name)}</em></button>`).join("")}</div></div>`);
     $("bobstack").querySelectorAll(".slab").forEach((b) => b.onclick = () => {
       if (b.classList.contains("on")) return;
+      if (b.dataset.sid && window.bobOpenProjectSheet) { $("bobstack").querySelectorAll(".slab").forEach((x) => x.classList.toggle("on", x === b)); return window.bobOpenProjectSheet(+b.dataset.sid); }
       const box = $("openpath");
       if (!box) return;
       $("bobstack").querySelectorAll(".slab").forEach((x) => x.classList.toggle("on", x === b));

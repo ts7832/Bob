@@ -144,3 +144,64 @@
 #bobstack .slab.on em{text-decoration:underline}
 #micbtn,header .modebtn,.mic{border-radius:0!important;border:1px solid #1e1e1e!important;background:#fefefe!important;box-shadow:2px 2px 0 #1e1e1e;font:18px var(--pix)!important}
 #micbtn:hover,header .modebtn:hover{background:#1e1e1e!important;color:#fefefe!important}
+
+/* ===== projects ======================================================================================================== */
+#projbtn,#projchip{border:1px solid #1e1e1e;background:#fefefe;font:18px var(--pix);cursor:pointer;box-shadow:2px 2px 0 #1e1e1e;padding:0 10px}
+#projbtn:hover,#projchip:hover{background:#1e1e1e;color:#fefefe}
+#projchip{background:#1e1e1e;color:#fefefe}
+#projhome{position:fixed;left:0;right:0;top:46px;bottom:0;z-index:55;padding:14px 16px 16px;overflow:auto;
+  background:#fefefe repeating-linear-gradient(0deg,rgba(30,30,30,.06) 0 1px,transparent 1px 3px)}
+#projhome[hidden]{display:none}
+.phwin{max-width:1240px;margin:0 auto}
+.phwin .tb i{font-style:normal;background:#fefefe;padding:0 6px}
+.phbody{padding:16px 18px 18px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+.pcard{border:1px solid #1e1e1e;background:#fefefe;box-shadow:4px 4px 0 #1e1e1e;padding:10px;cursor:pointer;display:flex;flex-direction:column;gap:6px;min-height:200px;transition:transform .08s,box-shadow .08s}
+.pcard:hover{transform:translate(-2px,-2px);box-shadow:6px 6px 0 #1e1e1e}
+.pcard b{font:500 19px var(--sans)}
+.pcard small{font:12px var(--mono);color:#555}
+.pthumbs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;height:110px}
+.pthumbs img{width:100%;height:110px;object-fit:cover;border:1px solid #1e1e1e;background:#fff}
+.pempty{grid-column:1/-1;border:1px dashed #1e1e1e;display:flex;align-items:center;justify-content:center;font:16px var(--pix);color:#555}
+.pcard.new{align-items:center;justify-content:center;border-style:dashed;box-shadow:none}
+.pcard.new .plus{font:300 64px/1 var(--sans)}
+.pcard.new input{border:1px solid #1e1e1e;padding:7px 9px;font:15px var(--mono);width:100%}
+.pcard.new button,.pbtn{border:1px solid #1e1e1e;background:#fefefe;font:18px var(--pix);padding:5px 14px;cursor:pointer;box-shadow:2px 2px 0 #1e1e1e;display:inline-block}
+.pbtn.primary,.pcard.new button{background:#1e1e1e;color:#fefefe}
+.pbtn:hover{background:#1e1e1e;color:#fefefe}
+.pbtn:disabled{opacity:.4;cursor:default}
+.phead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.phead h1{margin:0;font:300 40px/1.05 var(--sans);letter-spacing:-.02em}
+.pactions{display:flex;gap:10px}
+.pdrop{margin:14px 0 6px;border:1px dashed #1e1e1e;padding:18px;text-align:center;font:18px var(--pix);color:#555}
+.pdrop.on{background:#1e1e1e;color:#fefefe}
+.psum{border:1px solid #1e1e1e;box-shadow:3px 3px 0 #1e1e1e;padding:10px 14px;margin:12px 0;font-size:14px}
+.psum p{margin:5px 0}
+.psheets{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin:12px 0}
+.psheet{display:grid;grid-template-columns:84px 1fr auto;gap:10px;align-items:center;border:1px solid #1e1e1e;padding:6px;background:#fefefe}
+.psheet img{width:84px;height:64px;object-fit:cover;border:1px solid #1e1e1e;background:#fff}
+.psheet b{display:block;font:500 15px var(--sans)}
+.psheet small{display:block;font:11px var(--mono);color:#555;overflow-wrap:anywhere}
+.ptable{margin-top:14px}
+.ptable table,.projans table{border-collapse:collapse;width:100%;margin-top:6px;font-size:13px}
+.ptable td,.ptable th,.projans td,.projans th{border:1px solid #1e1e1e;padding:5px 8px;text-align:left}
+.ptable th,.projans th{font:16px var(--pix);background:#efefef}
+.ptable td b{font:600 14px var(--mono)}
+.ptable tr.tot td{background:#1e1e1e;color:#fefefe}
+.ptable tr.tot td b{color:#fefefe}
+.revnote{margin-top:8px;border:1px solid #1e1e1e;background:#fff6c8;padding:6px 10px}
+#scopebar{display:flex;margin:8px 0 2px;border:1px solid #1e1e1e;width:max-content}
+#scopebar button{border:0;background:#fefefe;font:17px var(--pix);padding:3px 12px;cursor:pointer}
+#scopebar button + button{border-left:1px solid #1e1e1e}
+#scopebar button.on{background:#1e1e1e;color:#fefefe}
+.projans .big{font:300 56px/1 var(--sans);letter-spacing:-.03em;margin:4px 0}
+#michint{margin-top:8px;border:1px solid #1e1e1e;background:#fff6c8;padding:7px 10px;font-size:13px}
+#michint kbd{border:1px solid #1e1e1e;padding:0 4px;font:12px var(--mono);background:#fefefe}
+#micbtn.on{background:#c0261c!important;color:#fff!important}
+
+/* ===== drag the edge between the blueprint and the panels ============================================================ */
+#bobsplit{flex:0 0 12px;cursor:col-resize;display:flex;align-items:center;justify-content:center;touch-action:none;align-self:stretch}
+#bobsplit i{display:block;width:4px;height:56px;border-left:1px solid #1e1e1e;border-right:1px solid #1e1e1e;transition:height .15s}
+#bobsplit:hover i,body.resizing #bobsplit i{height:120px;background:#1e1e1e}
+body.resizing,body.resizing *{cursor:col-resize!important;user-select:none!important}
+#bobsplit{margin:0 -12px}

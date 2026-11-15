@@ -667,7 +667,7 @@ function CameraRig({ drawing, focus, fitAll, mode, home, insets, refit }: { draw
     controls.smoothTime = 0.45
     controls.draggingSmoothTime = 0.08
     controls.minDistance = max * 0.02
-    controls.maxDistance = max * 12
+    controls.maxDistance = max * 3.2 // about 1.7x the fit-all view: zooming out further eases back to it (was 12x: the plan shrank to a dot)
     const b = controls.mouseButtons, t = controls.touches
     if (mode === '2d') {
       b.left = ACTION.TRUCK; b.right = ACTION.TRUCK; b.middle = ACTION.DOLLY; b.wheel = ACTION.DOLLY
