@@ -195,3 +195,4 @@
 .dv-hoverlabel small { font-weight: 400; opacity: 0.85; }
 .dv-swipe-key { gap: 6px; }
 .dv-swipe-key .dv-glyph { width: 15px; height: 15px; }
+.dv-tools button:disabled { opacity: 0.45; cursor: not-allowed; }

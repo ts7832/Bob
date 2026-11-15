@@ -12,7 +12,7 @@ export function wallsFromImage(img: HTMLImageElement | HTMLCanvasElement, width:
 
 // Walls plus the rooms between them: free space bounded by the walls (door gaps closed for the cut, then each room
 // grown back up to the real walls). Each room is a list of rectangles in sheet px. Display only (3D floors, clean view).
-export function scanLayout(img: HTMLImageElement | HTMLCanvasElement, width: number, height: number): { walls: Pt[][]; rooms: Pt[][][] } {
+export function scanLayout(img: HTMLImageElement | HTMLCanvasElement, width: number, height: number, gaps: Pt[][] = []): { walls: Pt[][]; rooms: Pt[][][] } {
   const iw = img instanceof HTMLImageElement ? img.naturalWidth : img.width, ih = img instanceof HTMLImageElement ? img.naturalHeight : img.height
   const s = Math.min(1, WORK / Math.max(iw, ih))
   const w = Math.max(1, Math.round(iw * s)), h = Math.max(1, Math.round(ih * s))
@@ -50,14 +50,19 @@ export function scanLayout(img: HTMLImageElement | HTMLCanvasElement, width: num
   // a handful of thick pieces is not a building (title-block borders, one thick-outlined foundation): no walls then
   if (kept.length < 12) return { walls: [], rooms: [] }
   const box = (r: Rect): Pt[] => [[r.x0 * sx, r.y0 * sy], [r.x1 * sx, r.y0 * sy], [r.x1 * sx, r.y1 * sy], [r.x0 * sx, r.y1 * sy]]
-  return { walls: kept.map(box), rooms: roomsOf(mask, w, h).map((rs) => rs.map(box)) }
+  // door and window boxes the detector found close their gaps, so rooms split exactly at the doors
+  const gapRects = gaps.map((g) => { const xs = g.map((p) => p[0] / sx), ys = g.map((p) => p[1] / sy); return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) } })
+  return { walls: kept.map(box), rooms: roomsOf(mask, w, h, gapRects).map((rs) => rs.map(box)) }
 }
 
 // Rooms = free-space regions inside the walls. Door gaps are closed by thickening the walls by g, regions touching the
 // border (outside) and specks are dropped, then each region grows back (through free space only) to the real walls.
-function roomsOf(wall: Uint8Array, w: number, h: number): Rect[][] {
-  const n = w * h, g = Math.max(3, Math.round(0.022 * Math.max(w, h)))
+function roomsOf(wall: Uint8Array, w: number, h: number, gaps: Rect[] = []): Rect[][] {
+  const n = w * h, g = Math.max(3, Math.round((gaps.length ? 0.012 : 0.022) * Math.max(w, h))) // detected doors: thin seal is enough
   const thick = dilate(wall, w, h, 2 * g + 1)
+  for (const r of gaps) // seal each detected door / window opening
+    for (let y = Math.max(0, Math.floor(r.y0) - 1); y < Math.min(h, Math.ceil(r.y1) + 1); y++)
+      for (let x = Math.max(0, Math.floor(r.x0) - 1); x < Math.min(w, Math.ceil(r.x1) + 1); x++) thick[y * w + x] = 1
   const lab = new Int32Array(n).fill(-1), q = new Int32Array(n), sizes: number[] = []
   let id = 0
   for (let s = 0; s < n; s++) {

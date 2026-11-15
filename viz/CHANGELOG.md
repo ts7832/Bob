@@ -22,6 +22,11 @@ The drawing view (`viz/`): what exists, and what changed when. Newest first. Usa
 | Evidence that isn't on this sheet (BIM model-wide answers) | yes | says "N of M on this sheet"; selecting one says "Not on this drawing" |
 | Light theme matching the demo page | yes | default |
 
+## 2026-11-15 02:33: scan rooms split at the detected doors; no empty 3D on wall-less sheets
+- **Scan rooms are now sealed at the detector's own door and window boxes** before rooms are found, so rooms split exactly at the doors. Before, the walls were thickened and some rooms merged through door gaps. Result on colorful-11397: tile only in the bathroom, oak in the bedroom.
+- **No empty 3D on sheets without walls:** vector PDF pages (e.g. A477) draw walls as double lines that the view does not read. The 3D button is disabled there, with a tooltip saying why, instead of showing an empty tilted page. CAD, BIM and scan sheets keep 3D.
+- `tests/qa_tour.py` only clicks an enabled 3D button.
+
 ## 2026-11-15 02:21: fixes from the judge-eye QA tour (every sheet in `ui/`: 2D, selected, 3D, Photo, clean view)
 - **The 3D callout no longer duplicates and covers the detail card** in the team page's narrower view. It now appears when you hover an object in 3D; selecting one opens the detail card only.
 - **The clean-view key is icons only** (names on hover), so it covers less of the drawing.

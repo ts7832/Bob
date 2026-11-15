@@ -49,7 +49,7 @@ export async function prepare(render: RenderJSON, plan: PlanJSON | null, sheet: 
     // scans without the segmentation model: display-only walls from the image (not for PDF pages: tables, text).
     // Found lazily, on the first switch to 3D, so opening a sheet in 2D stays fast.
     if (!walls.length && render.source_type === 'raster') {
-      lazyWalls = () => { try { return scanLayout(img, width, height) } catch { return { walls: [], rooms: [] } } }
+      lazyWalls = () => { try { return scanLayout(img, width, height, planEls.filter((p) => p.type === 'door' || p.type === 'window').map((p) => p.polygon)) } catch { return { walls: [], rooms: [] } } }
     }
   } else if (render.type === 'vector') {
     const v = rasterVector(render)
