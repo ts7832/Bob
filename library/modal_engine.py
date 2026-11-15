@@ -7,7 +7,7 @@ which then shows it on the phone and keeps it for the next time.
 
     MODAL_PROFILE=oliver-universitapps modal deploy library/modal_engine.py
 
-Question reading: the pattern router and the Jev-style router (router2, library/jev_cascade.py) read every question; the
+Question reading: the pattern router and the Jev-style router (router3, library/jev_cascade.py) read every question; the
 router's reading wins a disagreement at >= 90%. A question neither reads goes to Claude (llm_router: the model picks the
 tool, code computes the number), Opus first and Haiku if Opus fails. Key and BOB_LLM=1: the `bob-anthropic` secret.
 """
@@ -15,7 +15,7 @@ import os, pathlib
 
 import modal
 
-JEV_MODEL = "router2"          # which Jev-style router on the bob-dataset volume (/ds/jev/<name>)
+JEV_MODEL = "router3"          # which Jev-style router on the bob-dataset volume (/ds/jev/<name>)
 app = modal.App("bob-engine")
 DATA = modal.Volume.from_name("bob-dataset", create_if_missing=True)
 LIB = modal.Volume.from_name("bob-library", create_if_missing=True)

@@ -1,0 +1,18 @@
+router3 vs router2, same code, same questions (2026-11-15 02:59 runs, no language model; jsonl.gz next to this file)
+router3 = router2's Haiku rewordings + 1,348 more (rare types x16 rewordings, 60 synthetic each for 11 types incl. the new "table").
+Test questions are the same as router2's (the trainer keeps router2's split; extra rows only train).
+
+                                 router2   router3
+dataset wording, right            97.0%     97.1%    (vs the key corrected for Swiss doors/windows stored twice in the DXF, Aleks's rule)
+  Swiss / building models         98.8 / 91.2   98.8 / 91.9
+  routers disagree (questions)     2,133        52
+  fast path (agree, combined>=0.6) 77.7%       95.4% of questions
+Haiku rewordings (held out)       85.7%     88.5%
+Qwen rewordings (held out)        60.3%     63.1%
+Router alone, held-out rewordings 97.7%     99.6%
+
+Biggest gains on rewordings: apartments 37.5 -> 100 (Haiku) / 50 -> 100 (Qwen); sanitary any 25 -> 66.7 / 12.5 -> 58.3;
+showers+bathtubs 25 -> 100 / 25 -> 75; sinks 75 -> 100 / 50 -> 87.5; columns (Qwen) 43.8 -> 58.3.
+Losses: Qwen wall area 51.8 -> 42.9, Qwen all rooms 75.0 -> 66.7; dataset wall volume 100 -> 95.5 (n=66).
+US sets 43.8% in both: tables need the language-model reader, off in this run (91.7% with it, earlier run).
+Scans 86.1% in both (the router does not change the detector).

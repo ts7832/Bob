@@ -43,12 +43,12 @@ def correct(pred, q):
 
 @app.function(image=image, volumes={"/ds": DATA}, cpu=2, memory=6144, timeout=3600, max_containers=60,
               secrets=[modal.Secret.from_name("bob-anthropic")])
-def run_chunk(items: list, llm: bool = False):
+def run_chunk(items: list, llm: bool = False, jev_model: str = "router2"):
     import sys
     sys.path.insert(0, "/root/app")
     os.chdir("/root/app")
     import jev_cascade
-    jev_cascade.install("/ds/jev/" + os.environ.get("JEV_MODEL", "router2"))
+    jev_cascade.install("/ds/jev/" + jev_model)
     if llm:
         jev_cascade.use_claude_for_reader()
     from drawqa.solve import solve
@@ -78,7 +78,7 @@ def run_chunk(items: list, llm: bool = False):
 
 
 @app.local_entrypoint()
-def main(rewordings: str = "", limit: int = 0, sources: str = "", llm: bool = False):
+def main(rewordings: str = "", limit: int = 0, sources: str = "", llm: bool = False, jev_model: str = "router2"):
     import collections, sys
     sys.path.insert(0, str(REPO / "library"))
     meaning = json.load(open(REPO / "library" / "eval_meanings.json"))       # question -> meaning label (kind)
@@ -114,9 +114,9 @@ def main(rewordings: str = "", limit: int = 0, sources: str = "", llm: bool = Fa
         chunks.append(cur)
     print(f"{len(items)} questions on {len(groups)} drawings in {len(chunks)} chunks")
     t0 = time.time()
-    rows = [r for part in run_chunk.map(chunks, kwargs={"llm": llm}) for r in part]
+    rows = [r for part in run_chunk.map(chunks, kwargs={"llm": llm, "jev_model": jev_model}) for r in part]
     os.makedirs(REPO / "library" / "eval_out", exist_ok=True)
-    path = REPO / "library" / "eval_out" / f"cascade_{time.strftime('%m%d_%H%M')}.jsonl"
+    path = REPO / "library" / "eval_out" / f"cascade_{jev_model}_{time.strftime('%m%d_%H%M')}.jsonl"
     with open(path, "w") as f:
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
