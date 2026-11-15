@@ -81,10 +81,12 @@ the real edges, or drop it. Noise must not stay in the result.
    missing. Repeat until the crops are clean. Count = number of verified items.
 
 ## Output: discovered.json in your work folder
-The user watches discovered.json live while you work. Write it early and keep it current: first right after you have
-checked the start layer (its classes as kept), then again each time you have built a class (the same script that
-builds the class merges it into the file: no extra tool calls). A class you have not verified yet may carry
-"verified": "not yet". The file must always be valid JSON in the format below.
+The user watches discovered.json live while you work, so it must grow steadily, not appear in one save at the end.
+- It already holds the start layer's classes when you begin. Keep it valid JSON in the format below.
+- With ptool find_like, snap_box, fill and trace, add `--into discovered.json --cls NAME`: each find is saved into
+  its class at once, at no extra step (marked "checked": "not yet").
+- In your own scripts, build at most 3 classes per script and save them into the file in that same script.
+- A class you have not verified yet may carry "verified": "not yet"; your verified save of a class replaces it.
 {"sheet": "one line: what this drawing is",
  "classes": [{"name": "...", "what": "one sentence", "how_drawn": "how you recognise it",
    "geometry": "box|polyline|polygon|point", "count": n, "method": "which tool or script made the items",
