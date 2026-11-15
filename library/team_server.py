@@ -20,6 +20,26 @@ sys.path.insert(0, os.path.join(REPO, "tools"))
 sys.path.insert(0, REPO)
 import ui_server  # noqa: E402
 
+# ifcopenshell crashes the whole process when two threads open the same building model at once (the page asks for the
+# sheet, render, plan and tables of a BIM plan in parallel): building-model reads go one at a time.
+import threading  # noqa: E402
+_IFC_LOCK = threading.RLock()
+try:
+    from drawqa import ifc as _ifc
+
+    def _locked(fn):
+        def run(*a, **kw):
+            with _IFC_LOCK:
+                return fn(*a, **kw)
+        return run
+    for _name in ("load", "plan", "render"):
+        if callable(getattr(_ifc, _name, None)):
+            setattr(_ifc, _name, _locked(getattr(_ifc, _name)))
+    import ifcopenshell as _ios
+    _ios.open = _locked(_ios.open)
+except Exception as _e:  # no building-model support here: nothing to guard
+    print("[bob] building-model lock not installed:", _e)
+
 URL = os.environ.get("BOB_LIBRARY", "https://oliver-universityapps--bob-library-web.us-east.modal.run")
 PW = os.environ.get("BOB_PASSWORD", "123456789")
 PROJECT = os.environ.get("BOB_PROJECT", "Team page")
@@ -60,6 +80,14 @@ def sheet_id(path):
     return sid
 
 
+def _dataset_rel(path):
+    """'data/...' for a file of the dataset (opened that way the page uses its exact reader: building model, CAD file),
+    else None (an uploaded picture or PDF is read as one)."""
+    root = os.path.realpath(os.path.join(REPO, "junction-dataset-preview"))
+    real = os.path.realpath(path)
+    return os.path.relpath(real, root) if real.startswith(root + os.sep) else None
+
+
 def _floors(path):
     import re
     path = path[5:] if path.startswith("file:") else path
@@ -72,7 +100,7 @@ def _floors(path):
     for f in sorted(os.listdir(d)):
         mm = re.match(r"^" + re.escape(m.group(1)) + r"_plan-(\d+)-(.+)\.pdf$", f)
         if mm:
-            fl.append(dict(n=int(mm.group(1)), name=mm.group(2).replace("-", " "), path=os.path.join(d, f), current=f == name))
+            fl.append(dict(n=int(mm.group(1)), name=mm.group(2).replace("-", " "), path=os.path.join(d, f), rel=_dataset_rel(os.path.join(d, f)), current=f == name))
     fl.sort(key=lambda x: -x["n"])
     return dict(building=m.group(1).split("_", 1)[-1].replace("-", " "), floors=fl if len(fl) > 1 else [])
 
@@ -222,9 +250,23 @@ def patched_load_demo(orig=ui_server.load_demo):
             if p == "/bob/local":                   # a library blueprint as a file on this laptop, so the viewer can open it
                 qs = urllib.parse.parse_qs(u.query)
                 try:
-                    return self._send(200, dict(path=_local(int(qs["sid"][0]), (qs.get("file_name") or [""])[0])))
+                    lp = _local(int(qs["sid"][0]), (qs.get("file_name") or [""])[0])
+                    return self._send(200, dict(path=lp, rel=_dataset_rel(lp)))
                 except Exception as e:
                     return self._send(500, {"error": f"{type(e).__name__}: {e}"})
+            if p == "/bob/readstatus":              # has Opus read this file (Aleks's reading, by content)? without starting anything
+                path = (urllib.parse.parse_qs(u.query).get("path") or [""])[0]
+                try:
+                    import hashlib
+                    f = path[5:] if path.startswith("file:") else path
+                    if not os.path.isabs(f):
+                        f = _DEMO["d"].resolve(f)
+                    jid = hashlib.sha1(open(f, "rb").read()).hexdigest()[:10]
+                    if jid not in _DEMO["d"].JOBS:
+                        return self._send(200, dict(started=False))
+                    return self._send(200, dict(_DEMO["d"].job_status(jid), started=True))
+                except Exception as e:
+                    return self._send(200, dict(started=False, error=f"{type(e).__name__}: {e}"))
             if p == "/bob/read":                    # start Aleks's live reading of an open file (models, then Claude step by step)
                 path = (urllib.parse.parse_qs(u.query).get("path") or [""])[0]
                 try:
@@ -252,7 +294,9 @@ def patched_load_demo(orig=ui_server.load_demo):
                     return self._send(403, {"error": "forbidden"})
                 if os.path.isfile(f) and f.endswith((".png", ".html")):
                     return self._send(200, open(f, "rb").read(), "image/png" if f.endswith(".png") else "text/html; charset=utf-8")
-            if p.startswith("/bob/") and os.path.basename(p) in ("onebit.css", "onebit.js", "tools.js", "tools.css", "projects.js", "splash.js", "live.js"):
+            if p == "/bob/flood.js":                  # (the mascot pages load it as ../flood.js)
+                return self._send(200, open(os.path.join(REPO, "ui", "bob", "flood.js"), "rb").read(), "text/javascript; charset=utf-8")
+            if p.startswith("/bob/") and os.path.basename(p) in ("onebit.css", "onebit.js", "tools.js", "tools.css", "projects.js", "splash.js", "live.js", "flood.js"):
                 f = os.path.join(REPO, "ui", "bob", os.path.basename(p))
                 return self._send(200, open(f, "rb").read(), "text/css; charset=utf-8" if p.endswith(".css") else "text/javascript; charset=utf-8")
             return super().do_GET()

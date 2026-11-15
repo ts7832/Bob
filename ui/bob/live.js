@@ -34,6 +34,30 @@
   window.bobLiveReading = start;
   $("vlive").onclick = start;
 
+  // ---- Opus status of the open blueprint: not run / reading (seconds, step) / done; click to watch
+  tools.insertAdjacentHTML("afterbegin", '<span id="opuschip" title="Opus reading of this blueprint (click to watch)">OPUS · …</span>');
+  let chipT = 0;
+  async function chip() {
+    clearTimeout(chipT);
+    const p = typeof current !== "undefined" && current ? current.path : null;
+    if (!p) { $("opuschip").textContent = "OPUS · –"; return; }
+    let r = {};
+    try { r = await fetch("/bob/readstatus?path=" + encodeURIComponent(p)).then((x) => x.json()); } catch (e) { /* */ }
+    const c = $("opuschip");
+    c.className = "";
+    if (!r.started) { c.textContent = "OPUS · NOT RUN ▸"; c.classList.add("off"); }
+    else if (r.stage !== "done") { c.textContent = "OPUS · MODELS READING…"; c.classList.add("busy"); }
+    else if (r.reading === "running") { c.textContent = `OPUS · READING ${Math.round(r.reading_elapsed || 0)} s · ${r.partial_n || 0} STEP${r.partial_n === 1 ? "" : "S"}`; c.classList.add("busy"); }
+    else if (r.reading === "done") { c.textContent = "OPUS · DONE ✓"; c.classList.add("ok"); }
+    else if (r.reading === "failed") { c.textContent = "OPUS · DID NOT FINISH"; c.classList.add("off"); }
+    else { c.textContent = "OPUS · MODELS ONLY"; c.classList.add("off"); }
+    if (r.started && (r.stage !== "done" || r.reading === "running")) chipT = setTimeout(chip, 3000);
+  }
+  window.bobOpusChip = chip;
+  $("opuschip").onclick = () => start();
+  const t = $("title");
+  if (t) new MutationObserver(() => setTimeout(chip, 800)).observe(t, { childList: true, characterData: true, subtree: true });
+
   async function poll() {
     if (!job) return;
     try {
@@ -61,6 +85,7 @@
       const layer = await fetch("/api/v2/layer?id=" + encodeURIComponent(job)).then((x) => x.json()).catch(() => null);
       if (layer) addVersion(layer, versions.length === 0 ? "Our models" : reading === "done" ? "Opus: final" : `Opus step ${st.partial_n}`);
     }
+    if (window.bobOpusChip) window.bobOpusChip();
     if (stage === "error" || (stage === "done" && reading !== "running")) return;
     timer = setTimeout(poll, 1500);
   }

@@ -4,9 +4,9 @@
   const $ = (id) => document.getElementById(id);
   const M = "/bob/mascot/";
   // the working badge: a 32 x 32 Bob (icons32/), chosen in the gallery (/bob/mascot/choose.html); default: with a clipboard
-  const ICONS = { work_k1: 9, work_k2: 9, work_k3: 9, work_k4: 9, work_k5: 4, b1_bust: 1, b2_wink: 4, b3_wave: 4, b4_clipboard: 9, b5_head: 1, b6_head_clipboard: 9 };
-  let ICON = "work_k1";
-  try { const k = localStorage.getItem("bobWorkIcon32"); if (ICONS[k]) ICON = k; } catch (e) { /* */ }
+  const ICONS = { work_e: 8, work_k1: 9, work_k2: 9, work_k3: 9, work_k4: 9, work_k5: 4, b1_bust: 1, b2_wink: 4, b3_wave: 4, b4_clipboard: 9, b5_head: 1, b6_head_clipboard: 9 };
+  let ICON = "work_e";                     // E (peeking over the clipboard, writing): the user's pick for working / loading
+  try { const k = localStorage.getItem("bobWorkIcon32"); if (k === "work_e" && ICONS[k]) ICON = k; } catch (e) { /* */ }
 
   // ------------------------------------------------------------------ the pixel flood: diagonal hatch, pixel blocks, top to bottom
   function flood(onCovered, onDone) {
@@ -40,16 +40,19 @@
     };
     requestAnimationFrame(step);
   }
-  window.bobFlood = flood;
+  // (the transitions live in flood.js: window.bobFlood(variant, onCovered, onDone))
 
   // ------------------------------------------------------------------ opening screen
+  const HELLOS = { hello_1: 8, hello_2: 6, hello_3: 4, hello_4: 4, hello_5: 4 };
+  let HELLO = "hello_1", FLOOD = "rain";
+  try { const h = localStorage.getItem("bobHello"); if (HELLOS[h]) HELLO = h; FLOOD = localStorage.getItem("bobFlood") || FLOOD; } catch (e) { /* */ }
   const LINES = ["Hi, I'm Bob.", "I read your blueprints and answer questions about them: doors, rooms, areas, floors.",
                  "Every number is marked on the drawing, so you can check it."];
   function splash() {
     if (/open=/.test(location.hash)) return;                 // demo deep links go straight to the file
     try { if (sessionStorage.getItem("bobSeen")) return; } catch (e) { /* */ }
     document.body.insertAdjacentHTML("beforeend", `<div id="bobsplash"><div class="spl">
-      <div class="bobsprite wave" role="img" aria-label="Bob, a pixel builder, waving"></div>
+      <div class="bobsprite hello" role="img" aria-label="Bob, a pixel builder, saying hello" style="background-image:url(${M}${HELLO}.png);--n:${HELLOS[HELLO]}"></div>
       <div class="bubble"><p id="bubtext"></p><span class="caret"></span></div></div>
       <div class="spl-hint" id="splhint">click anywhere to start ▸</div></div>`);
     const el = $("bobsplash"), out = $("bubtext");
@@ -67,7 +70,7 @@
     const go = () => {
       el.onclick = null; document.removeEventListener("keydown", key);
       try { sessionStorage.setItem("bobSeen", "1"); } catch (e) { /* */ }
-      flood(() => el.remove());
+      (window.bobFlood ? (cb) => window.bobFlood(FLOOD, cb) : flood)(() => el.remove());
     };
     const key = (e) => { if (e.key === "Enter" || e.key === " " || e.key === "Escape") go(); };
     el.onclick = go; document.addEventListener("keydown", key);

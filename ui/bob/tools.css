@@ -265,3 +265,15 @@ aside button:not(.link):not(.term):not(#faqlist button){border-radius:0!importan
 #livep .dash.d1{border-top-style:dashed}#livep .dash.d2{border-top-style:dotted}#livep .dash.d3{border-top:2px dashed #1e1e1e;width:12px}
 #livep .lstrip{display:flex;gap:6px;align-items:center;padding:6px 10px;border-top:1px solid #1e1e1e;overflow-x:auto}
 #livep .lstrip .muted{font:12px var(--mono);margin-left:6px;white-space:nowrap}
+#vload{display:none;position:absolute;left:0;right:0;top:30px;bottom:0;z-index:6;background:#fefefe;flex-direction:column;align-items:center;justify-content:center;gap:10px;font:20px var(--pix)}
+.vwin.vloading #vload{display:flex}
+.vwin.vloading #viewer{visibility:hidden}
+#opuschip{border:1px solid #1e1e1e;font:15px/1 var(--pix);padding:3px 7px;cursor:pointer;white-space:nowrap;background:#fefefe}
+#opuschip.busy{background:repeating-linear-gradient(45deg,#1e1e1e 0 2px,#fefefe 2px 5px);color:#1e1e1e;text-shadow:0 0 2px #fff,0 0 2px #fff;animation:bobstripe 1s linear infinite;background-size:14px 14px}
+#opuschip.ok{background:#1e1e1e;color:#fefefe}
+#opuschip.off{color:#555;border-style:dashed}
+@keyframes bobstripe{to{background-position:14px 0}}
+.psheet .opusst{display:inline-block;margin-top:4px}
+.bobsprite.hello{width:256px;height:256px;background-size:calc(256px * var(--n)) 256px;animation:bobhello calc(.2s * var(--n)) steps(var(--n)) infinite}
+@keyframes bobhello{to{background-position-x:calc(-256px * var(--n))}}
+#vtools #vlive{background:#1e1e1e;color:#fefefe}#vtools #vlive:hover{background:#fefefe;color:#1e1e1e}

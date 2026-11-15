@@ -73,7 +73,8 @@
     const plans = proj.sheets.filter(isPlan);
     body.innerHTML = `<div class="phead"><h1>${esc(proj.name)}</h1>
         <div class="pactions"><label class="pbtn" for="addfiles">+ Add blueprints</label><input type="file" id="addfiles" multiple hidden accept=".pdf,.png,.jpg,.jpeg,.svg,.dxf,.ifc,image/*,application/pdf">
-        <button class="pbtn primary" id="analyze" ${proj.sheets.length ? "" : "disabled"}>Analyze project</button></div></div>
+        <button class="pbtn primary" id="analyze" ${proj.sheets.length ? "" : "disabled"}>Analyze project</button>
+        <button class="pbtn" id="opusall" ${proj.sheets.length ? "" : "disabled"} title="Opus reads every floor one after the other (Claude Code on this laptop, a few minutes each)">Opus: read all floors</button></div></div>
       <div id="pdrop" class="pdrop">Drop blueprints here (several at once): PDF, PNG, JPG, SVG</div><div id="pprog" class="muted"></div>
       ${sv.summary ? `<div class="psum"><b>What this set is</b> <span class="flag">OPUS SURVEY</span><p>${esc(sv.summary)}</p>
         ${sv.building ? `<p><b>Building:</b> ${esc(sv.building)}</p>` : ""}${(sv.levels || []).length ? `<p><b>Floors (top first):</b> ${sv.levels.map(esc).join(" · ")}</p>` : ""}
@@ -82,13 +83,15 @@
       <div class="psheets">${proj.sheets.map((s) => `<div class="psheet" data-id="${s.id}">
           <img loading="lazy" src="/bob/lib/api/sheets/${s.id}/thumb" alt=""><div><b>${esc(s.level_name || s.title || s.name)}</b>
           <small>${esc([s.kind, s.title && s.level_name ? s.title : "", s.file_name].filter(Boolean).join(" · "))}</small>
-          ${s.superseded_by ? '<span class="flag">REPLACED BY A NEWER REVISION</span>' : ""}</div>
+          ${s.superseded_by ? '<span class="flag">REPLACED BY A NEWER REVISION</span>' : ""}<span class="flag opusst" data-sid="${s.id}">OPUS · …</span></div>
           <button class="pbtn" data-open="${s.id}">Open</button></div>`).join("") || '<p class="muted">No blueprints yet: add some.</p>'}</div>
       ${proj.surveyed_at && plans.length ? `<div class="ptable"><b>Per floor</b> <span class="muted small">(answers computed by code, $0; click a number to see it on the blueprint)</span>
         <table id="ptab"><tr><th>Floor</th>${STD.map(([h]) => `<th>${h}</th>`).join("")}</tr>
         ${plans.map((s) => `<tr data-sid="${s.id}"><td><button class="link" data-open="${s.id}">${esc(s.level_name || s.title || s.name)}</button></td>${STD.map((_, j) => `<td data-c="${j}">·</td>`).join("")}</tr>`).join("")}
         <tr class="tot"><td>Whole project</td>${STD.map((_, j) => `<td data-t="${j}"></td>`).join("")}</tr></table></div>` : ""}`;
     $("analyze").onclick = analyze;
+    $("opusall").onclick = opusAll;
+    opusStatus();
     $("addfiles").onchange = (e) => upload([...e.target.files]);
     const dz = $("pdrop");
     dz.ondragover = (e) => { e.preventDefault(); dz.classList.add("on"); };
@@ -159,17 +162,61 @@
       td.innerHTML = nums.length && units.size === 1 ? `<b>${esc(fmt(nums.reduce((a, r) => a + r.answer, 0), [...units][0]))}</b>${nums.length < vals.length ? ` <small>(${vals.length - nums.length} floor(s) unknown)</small>` : ""}` : "–";
     });
   }
+  // Opus reading per floor: status on each card; "read all floors" runs them one after the other
+  const localOf = async (s) => (await fetch(`/bob/local?sid=${s.id}&file_name=${encodeURIComponent(s.file_name || "")}`).then((x) => x.json()));
+  async function opusStatus() {
+    for (const s of proj.sheets) {
+      const el = document.querySelector(`.opusst[data-sid="${s.id}"]`);
+      if (!el) continue;
+      try {
+        const l = await localOf(s);
+        const r = await fetch("/bob/readstatus?path=" + encodeURIComponent(l.rel || l.path)).then((x) => x.json());
+        el.textContent = !r.started ? "OPUS · NOT RUN" : r.reading === "running" ? `OPUS · READING ${Math.round(r.reading_elapsed || 0)} s` :
+          r.reading === "done" ? "OPUS · DONE ✓" : r.stage !== "done" ? "OPUS · STARTING" : "OPUS · MODELS ONLY";
+        el.classList.toggle("inv", r.reading === "done");
+      } catch (e) { el.textContent = "OPUS · ?"; }
+    }
+  }
+  async function opusAll() {
+    const b = $("opusall"); b.disabled = true;
+    for (const s of proj.sheets) {
+      if (!document.body.contains(b)) return;                        // left the project page: stop queueing
+      const l = await localOf(s);
+      const p = l.rel || l.path;
+      const st = await fetch("/bob/readstatus?path=" + encodeURIComponent(p)).then((x) => x.json());
+      if (st.started && (st.reading === "done" || st.reading === "running")) continue;
+      b.textContent = `Opus reading ${s.level_name || s.title || s.name}…`;
+      await fetch("/bob/read?path=" + encodeURIComponent(p)).then((x) => x.json());
+      for (;;) {                                                     // one floor at a time
+        await new Promise((ok) => setTimeout(ok, 5000));
+        opusStatus();
+        const r = await fetch("/bob/readstatus?path=" + encodeURIComponent(p)).then((x) => x.json());
+        if (r.stage === "error" || (r.stage === "done" && r.reading && r.reading !== "running")) break;
+      }
+    }
+    b.textContent = "Opus: all floors read"; opusStatus();
+  }
+
   async function openSheet(sid) {
     const s = proj.sheets.find((x) => x.id === sid);
     const r = await fetch(`/bob/local?sid=${sid}&file_name=${encodeURIComponent(s.file_name || "")}`).then((x) => x.json());
     if (r.error) { $("pprog").innerHTML = `<span class="err">${esc(r.error)}</span>`; return; }
     home.hidden = true;
-    const box = $("openpath");
-    box.value = r.path;
-    box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    window.bobOpenPath(r.rel || r.path, s.level_name || s.title || s.name);
     scopeBar();
   }
   window.bobOpenProjectSheet = openSheet;
+  // open a file in the viewer: a dataset file by its dataset path (the page then uses the exact reader: the building
+  // model for BIM plans, the CAD file for Swiss plans), anything else as an uploaded file
+  window.bobOpenPath = (p, title) => {
+    document.querySelector(".vwin")?.classList.add("vloading");
+    if (p && !p.startsWith("/") && typeof openDrawing === "function") {
+      return openDrawing({ path: p, title: (title ? title + " · " : "") + p.split("/").pop(), questions: [] });
+    }
+    const box = $("openpath");
+    box.value = p;
+    box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  };
 
   // ------------------------------------------------------------------ ask: this floor, or the whole project
   const asksec = $("q")?.closest("section");

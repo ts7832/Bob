@@ -349,3 +349,182 @@ def k5(t):   # waving hello, clipboard tucked under the other arm
 if __name__ == "__main__" and "--cute" in sys.argv:
     for name, fn, n in [("work_k1.png", k1, 9), ("work_k2.png", k2, 9), ("work_k3.png", k3, 9), ("work_k4.png", k4, 9), ("work_k5.png", k5, 4)]:
         print(sheet([fn(t) for t in range(n)], name))
+
+
+# ---------------------------------------------------------------------------------------------------------------- E at rest (the user's pick: E is the working Bob)
+def e_base(d, look=0, mood="smile", clip=True, lines=3, top=0, blink=False):
+    """E exactly (face 16,12 r7; hat 16,0 r9 brim 11; clipboard 5..27 x 17..31), not writing."""
+    face(d, 16, 12 + top, 7, mood, look=look)
+    hat(d, 16, 0 + top, 9, brim=11)
+    if blink:
+        for ex in (16 - 7 // 2 - 1 + look, 16 + 7 // 2 + look):
+            d.rectangle([ex, 11 + top, ex + 1, 12 + top], fill=W)
+            d.line([ex, 12 + top, ex + 1, 12 + top], fill=K)
+    if clip:
+        d.rectangle([5, 17, 27, 31], fill=W, outline=K)
+        d.rectangle([13, 15, 19, 18], fill=K)
+        for i, y in enumerate((21, 24, 27)[:lines]):
+            d.line([8, y, 24 - (6 if i == lines - 1 else 0), y], fill=K)
+
+
+def idle_1(t):   # resting smile, blinks now and then
+    im, d = canvas(32, 32); e_base(d, blink=(t == 5)); return onebit(im)
+
+
+def idle_2(t):   # looks around: left, ahead, right, ahead
+    im, d = canvas(32, 32); e_base(d, look=(-1, 0, 0, 1, 1, 0)[t % 6]); return onebit(im)
+
+
+def idle_3(t):   # done: a big tick on the clipboard, smiling
+    im, d = canvas(32, 32); e_base(d, lines=0)
+    pts = [(10, 24), (14, 28), (23, 19)]
+    n = min(t + 1, 3)
+    if n >= 2:
+        d.line(pts[:n], fill=K, width=2)
+    return onebit(im)
+
+
+def idle_4(t):   # thumbs up beside the clipboard
+    im, d = canvas(32, 32); e_base(d)
+    up = (0, -1, -2, -1)[t % 4]
+    d.rectangle([26, 19 + up, 30, 24 + up], fill=W, outline=K)                 # fist
+    d.rectangle([27, 15 + up, 29, 19 + up], fill=W, outline=K)                 # thumb
+    return onebit(im)
+
+
+def idle_5(t):   # waves the pencil hello
+    im, d = canvas(32, 32); e_base(d)
+    a = math.radians(-70 + (0, 18, 30, 18)[t % 4])
+    x, y = 26, 22
+    d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=W, outline=K)
+    pencil(d, x + 1, y - 2, ang=-90 + (0, 18, 30, 18)[t % 4] - 20, n=8)
+    return onebit(im)
+
+
+def idle_6(t):   # tips his hat
+    im, d = canvas(32, 32); e_base(d, top=0)
+    if t % 4 in (1, 2):                                                        # the hat lifts a little
+        im2, d2 = canvas(32, 32)
+        face(d2, 16, 12, 7, "smile"); hat(d2, 16, -2, 9, brim=11)
+        d2.rectangle([5, 17, 27, 31], fill=W, outline=K); d2.rectangle([13, 15, 19, 18], fill=K)
+        for i, y in enumerate((21, 24, 27)):
+            d2.line([8, y, 24 - (6 if i == 2 else 0), y], fill=K)
+        return onebit(im2)
+    return onebit(im)
+
+
+def idle_7(t):   # dozing while waiting: eyes shut, a little z drifts up
+    im, d = canvas(32, 32); e_base(d, blink=True, mood="focus")
+    zx, zy = 26 + (t % 4), 10 - (t % 4) * 2
+    d.line([zx, zy, zx + 3, zy], fill=K); d.line([zx + 3, zy, zx, zy + 3], fill=K); d.line([zx, zy + 3, zx + 3, zy + 3], fill=K)
+    return onebit(im)
+
+
+def idle_8(t):   # whistling: little notes float up
+    im, d = canvas(32, 32); e_base(d, mood="focus")
+    d.ellipse([15, 16, 17, 18], outline=K)                                     # round mouth
+    nx, ny = 24 + (t % 3), 12 - (t % 3) * 3
+    d.rectangle([nx, ny, nx + 1, ny + 1], fill=K); d.line([nx + 1, ny - 4, nx + 1, ny], fill=K); d.point((nx + 2, ny - 4), fill=K)
+    return onebit(im)
+
+
+def idle_9(t):   # nods, pleased, holding the finished sheet
+    im, d = canvas(32, 32); e_base(d, top=(0, 1, 0, 0)[t % 4])
+    return onebit(im)
+
+
+def idle_10(t):  # winks
+    im, d = canvas(32, 32); e_base(d)
+    if t % 6 == 3:
+        ex = 16 + 7 // 2
+        d.rectangle([ex, 11, ex + 1, 12], fill=W); d.line([ex - 1, 12, ex + 2, 12], fill=K)
+    return onebit(im)
+
+
+IDLE = [("idle_1.png", idle_1, 8, "Resting smile, blinks"), ("idle_2.png", idle_2, 6, "Looks around"), ("idle_3.png", idle_3, 4, "Done: big tick"),
+        ("idle_4.png", idle_4, 4, "Thumbs up"), ("idle_5.png", idle_5, 4, "Waves the pencil"), ("idle_6.png", idle_6, 4, "Tips his hat"),
+        ("idle_7.png", idle_7, 4, "Dozing while waiting (z)"), ("idle_8.png", idle_8, 3, "Whistling"), ("idle_9.png", idle_9, 4, "Nods, pleased"),
+        ("idle_10.png", idle_10, 6, "Winks")]
+if __name__ == "__main__" and "--idle" in sys.argv:
+    for name, fn, n, _ in IDLE:
+        print(sheet([fn(t) for t in range(n)], name))
+
+
+# ---------------------------------------------------------------------------------------------------------------- hello: E's head, greeting (opening screen)
+def e_head(d, top=0, look=0, mood="smile", blink=False):
+    face(d, 16, 12 + top, 7, mood, look=look)
+    hat(d, 16, 0 + top, 9, brim=11)
+    if blink:
+        for ex in (16 - 7 // 2 - 1 + look, 16 + 7 // 2 + look):
+            d.rectangle([ex, 11 + top, ex + 1, 12 + top], fill=W); d.line([ex, 12 + top, ex + 1, 12 + top], fill=K)
+
+
+def e_body(d, top=20):
+    d.rectangle([14, top - 1, 17, top + 1], fill=W, outline=K)                       # neck
+    d.rounded_rectangle([9, top, 22, top + 8], radius=3, fill=G, outline=K)          # checked shirt
+    d.rounded_rectangle([12, top + 2, 19, top + 8], radius=1, fill=W, outline=K)     # bib
+    d.rectangle([10, top + 8, 14, top + 11], fill=K); d.rectangle([17, top + 8, 21, top + 11], fill=K)   # boots
+
+
+def arm_up(d, ang, sx=22, sy=22, n=9):
+    a = math.radians(-30 + ang)                                                   # out to the side, clear of the ear
+    hx, hy = sx + n * math.cos(a), sy + n * math.sin(a)
+    d.line([sx, sy, hx, hy], fill=K, width=3); d.line([sx, sy, hx, hy], fill=W, width=1)
+    d.rectangle([round(hx) - 2, round(hy) - 2, round(hx) + 2, round(hy) + 2], fill=W, outline=K)   # open hand
+    d.point((round(hx) - 1, round(hy) - 3), fill=K); d.point((round(hx) + 1, round(hy) - 3), fill=K)  # fingers
+
+
+def g1(t):   # waves with the right hand, smiling, blinks once
+    im, d = canvas(32, 32); e_body(d); d.rectangle([7, 22, 9, 26], fill=W, outline=K)
+    arm_up(d, (0, -16, -28, -16)[t % 4]); e_head(d, blink=(t == 5)); return onebit(im)
+
+
+def g2(t):   # E's pose: peeks over the clipboard and pops a hand up to wave
+    im, d = canvas(32, 32); e_base(d)
+    up = (0, -3, -5, -3, 0, 0)[t % 6]
+    if up:
+        x, y = 26, 19 + up
+        d.rectangle([x - 2, y - 2, x + 2, y + 2], fill=W, outline=K); d.point((x - 1, y - 3), fill=K); d.point((x + 1, y - 3), fill=K)
+    return onebit(im)
+
+
+def g3(t):   # hooray: both arms up, a little hop
+    im, d = canvas(32, 32)
+    hop = (0, -1, -2, -1)[t % 4]
+    im2, d2 = canvas(32, 32); e_body(d2, top=20 + hop)
+    for sx, sgn in ((9, -1), (22, 1)):
+        a = math.radians(-90 + sgn * (35 + (0, 6, 10, 6)[t % 4]))
+        hx, hy = sx + 7 * math.cos(a), 22 + hop + 7 * math.sin(a)
+        d2.line([sx, 22 + hop, hx, hy], fill=K, width=3); d2.line([sx, 22 + hop, hx, hy], fill=W, width=1)
+        d2.rectangle([round(hx) - 1, round(hy) - 1, round(hx) + 1, round(hy) + 1], fill=W, outline=K)
+    e_head(d2, top=hop)
+    return onebit(im2)
+
+
+def g4(t):   # tips his hat to you
+    im, d = canvas(32, 32); e_body(d); d.rectangle([7, 22, 9, 26], fill=W, outline=K)
+    lift = (0, -2, -3, -2)[t % 4]
+    face(d, 16, 12, 7, "smile")
+    hat(d, 16 + (1 if lift else 0), lift, 9, brim=11)
+    d.line([22, 22, 25, 8 + lift], fill=K, width=3); d.line([22, 22, 25, 8 + lift], fill=W, width=1)   # arm up to the brim
+    d.rectangle([24, 6 + lift, 27, 9 + lift], fill=W, outline=K)
+    return onebit(im)
+
+
+def g5(t):   # waves next to a little speech bubble that says HI
+    im, d = canvas(32, 32); e_body(d); d.rectangle([7, 22, 9, 26], fill=W, outline=K)
+    arm_up(d, (0, -16, -28, -16)[t % 4], n=6)
+    e_head(d)
+    if t % 4 != 0:                                                                   # the bubble pops in
+        d.rectangle([22, 0, 31, 7], fill=W, outline=K); d.line([24, 7, 22, 10], fill=K)
+        d.line([24, 2, 24, 5], fill=K); d.line([26, 2, 26, 5], fill=K); d.line([24, 3, 26, 3], fill=K)   # H
+        d.line([28, 2, 28, 5], fill=K)                                               # I
+    return onebit(im)
+
+
+HELLO = [("hello_1.png", g1, 8, "Waves, blinks"), ("hello_2.png", g2, 6, "Peeks over the clipboard, pops a hand up"),
+         ("hello_3.png", g3, 4, "Hooray: both arms up, a little hop"), ("hello_4.png", g4, 4, "Tips his hat"),
+         ("hello_5.png", g5, 4, "Waves, says HI")]
+if __name__ == "__main__" and "--hello" in sys.argv:
+    for name, fn, n, _ in HELLO:
+        print(sheet([fn(t) for t in range(n)], name))

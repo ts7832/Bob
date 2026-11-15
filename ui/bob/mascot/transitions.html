@@ -1,0 +1,22 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bob transitions</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Fragment+Mono&family=Geist:wght@300;500&display=swap" rel="stylesheet">
+<style>body{margin:0;font:14px Geist,sans-serif;color:#1e1e1e;background:#fefefe repeating-linear-gradient(0deg,rgba(30,30,30,.06) 0 1px,transparent 1px 3px);height:100vh;overflow:hidden}
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:200;display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;padding:12px;background:#fefefe;border-top:1px solid #1e1e1e}
+.bar button{border:1px solid #1e1e1e;background:#fefefe;font:20px VT323,monospace;padding:6px 14px;cursor:pointer;box-shadow:2px 2px 0 #1e1e1e}.bar button:hover,.bar button.on{background:#1e1e1e;color:#fefefe}
+.bar small{font:12px "Fragment Mono",monospace;color:#555;width:100%;text-align:center}
+.page{position:absolute;inset:0 0 70px 0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px}
+.a .s{width:256px;height:256px;image-rendering:pixelated;background:url(hello_1.png) 0 0/2048px 256px no-repeat;animation:h 1.6s steps(8) infinite}@keyframes h{to{background-position-x:-2048px}}
+.a p{font:28px VT323,monospace;border:2px solid #1e1e1e;box-shadow:6px 6px 0 #1e1e1e;padding:14px 20px;background:#fefefe}
+.b .w{border:1px solid #1e1e1e;box-shadow:4px 4px 0 #1e1e1e;background:#fefefe;width:min(900px,90vw);height:55vh;padding:20px;font:300 40px Geist}
+</style></head><body>
+<div class="page a" id="pa"><div class="s"></div><p>Hi, I'm Bob. Pick how the page changes.</p></div>
+<div class="page b" id="pb" hidden><div class="w">Projects</div></div>
+<div class="bar" id="bar"><small>Click one to play it; the one you played last is used on the site (saved in this browser). Tell Claude which to keep.</small></div>
+<script src="../flood.js"></script>
+<script>
+const names={drop:"1 · Drop",rain:"2 · Pixel rain",blocks:"3 · Falling blocks",blinds:"4 · Blinds",dither:"5 · Dither dissolve",bricks:"6 · Bricks (built, then knocked down)"};
+const cur=localStorage.getItem("bobFlood")||"rain";
+document.getElementById("bar").insertAdjacentHTML("afterbegin",bobFloodVariants.map(v=>`<button data-v="${v}" class="${v===cur?"on":""}">${names[v]}</button>`).join(""));
+document.querySelectorAll("[data-v]").forEach(b=>b.onclick=()=>{localStorage.setItem("bobFlood",b.dataset.v);document.querySelectorAll("[data-v]").forEach(x=>x.classList.toggle("on",x===b));
+ bobFlood(b.dataset.v,()=>{const a=document.getElementById("pa"),c=document.getElementById("pb");a.hidden=!a.hidden;c.hidden=!c.hidden;});});
+</script></body></html>

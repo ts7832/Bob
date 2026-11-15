@@ -1159,12 +1159,10 @@ async function init() {
   $("modebtn").onclick = () => setMode(!simpleMode());
   try { [gold, samples] = await Promise.all([getJSON("/api/gold"), getJSON("/api/samples")]); }
   catch (e) { return setStatus(`<div class="error">Could not load the drawing lists: ${esc(e.message)}</div>`); }
-  renderLists();
-  const first = $("tab-gold").querySelector(".item");
-  if (first) first.click();
+  renderLists();   // nothing is opened by itself: the start screen is the projects list (ui/bob/projects.js)
 }
 init();
 </script>
-<script src="/bob/onebit.js"></script><script src="/bob/tools.js"></script><script src="/bob/projects.js"></script><script src="/bob/splash.js"></script><script src="/bob/live.js"></script><!-- Bob layer (library/team_server.py only) -->
+<script src="/bob/onebit.js"></script><script src="/bob/tools.js"></script><script src="/bob/projects.js"></script><script src="/bob/flood.js"></script><script src="/bob/splash.js"></script><script src="/bob/live.js"></script><!-- Bob layer (library/team_server.py only) -->
 </body>
 </html>

@@ -52,6 +52,11 @@
   .card, li, .note, b { overflow-wrap: anywhere; min-width: 0; }
   html, body { overflow-x: hidden; }
   [hidden] { display: none !important; }
+  .toggles button { font-size: 18px; padding: 9px 8px; }
+  .toggles button.on { background: var(--ink); color: var(--paper); }
+  #sug, #saved { margin-top: 10px; }
+  #sug li { font: 14px var(--mono); cursor: pointer; }
+  #sug li:active { background: var(--ink); color: var(--paper); }
 </style>
 </head>
 <body>
@@ -95,8 +100,10 @@
     </div>
 
     <div class="card" id="savedcard" hidden>
-      <h2><span>Already answered on this blueprint</span></h2>
-      <ul id="saved"></ul>
+      <h2><span>More</span></h2>
+      <div class="row seg toggles"><button id="tsug">Suggested ▸</button><button id="tsaved">Already answered ▸</button></div>
+      <ul id="sug" hidden></ul>
+      <ul id="saved" hidden></ul>
     </div>
 
     <div class="card" id="nomatch" hidden>
@@ -184,8 +191,20 @@ function setScope() {
 $("one").onclick = () => { scopeAll = false; setScope(); };
 $("all").onclick = () => { scopeAll = true; setScope(); };
 
+const SUGGEST = ["How many doors are on this floor plan?", "How many windows are on this floor plan?", "How many rooms are there?",
+                 "What is the total floor area?", "How many bathrooms are there?", "How many bedrooms are there?"];
+function toggles(n) {                        // both lists closed by default: one tap opens, another closes
+  $("tsaved").textContent = `Already answered (${n}) ${$("saved").hidden ? "▸" : "▾"}`;
+  $("tsug").textContent = `Suggested ${$("sug").hidden ? "▸" : "▾"}`;
+  $("tsaved").classList.toggle("on", !$("saved").hidden); $("tsug").classList.toggle("on", !$("sug").hidden);
+}
+$("tsaved").onclick = () => { $("saved").hidden = !$("saved").hidden; $("sug").hidden = true; toggles($("saved").children.length); };
+$("tsug").onclick = () => { $("sug").hidden = !$("sug").hidden; $("saved").hidden = true; toggles($("saved").children.length); };
 function showSaved(list) {
-  $("savedcard").hidden = !list.length;
+  $("savedcard").hidden = false;
+  $("sug").innerHTML = SUGGEST.map((q) => `<li class="sq">${esc(q)}</li>`).join("");
+  $("sug").querySelectorAll(".sq").forEach((li) => li.onclick = () => { $("question").value = li.textContent; $("sug").hidden = true; toggles(list.length); $("ask").click(); });
+  setTimeout(() => toggles(list.length), 0);
   $("saved").innerHTML = list.map((a) => `<li><div class="q">${esc(a.question)}</div><div class="a">${esc(value(a.answer))}</div>
     <span class="tag">${esc((a.answer.honesty || {}).tier || a.answer.tier || "")}</span><span class="tag">first cost ${money(a.cost_usd)}</span><span class="tag ok">NOW $0</span></li>`).join("");
 }

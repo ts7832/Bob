@@ -26,11 +26,16 @@ image = (
     modal.Image.debian_slim(python_version="3.12")
     .apt_install("libgl1", "libglib2.0-0")
     .pip_install("ifcopenshell", "pymupdf", "opencv-python-headless", "numpy<2", "pillow", "ezdxf", "anthropic",
-                 "torch==2.5.1", "transformers==4.47.1", "sentencepiece")
+                 "torch==2.5.1", "transformers==4.47.1", "sentencepiece",
+                 "rapidocr==3.10.0", "onnxruntime", "shapely")          # OCR and outline post-processing run here too (detection on the GPU)
     .add_local_dir(str(REPO / "drawqa"), "/root/app/drawqa", ignore=["__pycache__"])
     .add_local_file(str(REPO / "library" / "jev_cascade.py"), "/root/app/jev_cascade.py")
     .add_local_file(str(REPO / "library" / "keypool.py"), "/root/app/keypool.py")
     .add_local_dir(str(REPO / "data" / "predictions"), "/root/app/data/predictions")
+    # the detector and segmenter files: inference runs on the drawqa-infer GPU, but drawqa reads only when the weights
+    # exist here (detect.available / segment.available) and takes the detector's thresholds from the file next to them.
+    # Without them every uploaded drawing was read with no detections (0 doors, 0 windows), 15 Nov.
+    .add_local_dir(str(REPO / "models"), "/root/app/models")
 )
 
 

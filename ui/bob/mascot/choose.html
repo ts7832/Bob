@@ -12,7 +12,24 @@ h1{font:300 34px Geist;margin:0 0 4px}p{font:13px "Fragment Mono",monospace;colo
 <div class="o"><b>F8</b><img src="src/flat_8.png"><small>flat tones, white face (160)</small></div>
 <div class="o"><b>F9</b><img src="src/flat_9.png"><small>flat tones, white face (240)</small></div>
 </div>
-<h1 style="margin-top:30px">B + E combined (new)</h1><p>E's hat and eyes right under the brim, B's body and clipboard, rounder, with a neck. Click one to use it as the "Bob is working" badge.</p>
+<h1>Bob says hello (opening screen)</h1><p>E's head and a little body. Click one to use it on the opening screen (saved in this browser); tell Claude the number.</p>
+<div class="g" id="hello"></div>
+<script>
+const HE=[[1,8,"Waves, blinks"],[2,6,"Peeks over the clipboard, pops a hand up"],[3,4,"Hooray: both arms up, a little hop"],[4,4,"Tips his hat"],[5,4,"Waves, says HI"]];
+const dhe=()=>{const cur=localStorage.getItem("bobHello")||"hello_1";document.getElementById("hello").innerHTML=HE.map(([k,n,t])=>`<div class="o ${"hello_"+k===cur?"on":""}" data-k="hello_${k}"><b>H${k}</b><div class="row">${["x4","x2","x1"].map(z=>`<div class="ic ${z}" style="background-image:url(hello_${k}.png);--n:${n}"></div>`).join("")}</div><small>${t}</small></div>`).join("");
+document.querySelectorAll("#hello .o").forEach(o=>o.onclick=()=>{localStorage.setItem("bobHello",o.dataset.k);dhe();});};
+document.addEventListener("DOMContentLoaded",dhe);
+</script>
+<h1>Bob at rest (E, not working)</h1><p>Same E (hat, face, clipboard unchanged); what he does when nothing is loading. Tell Claude the number (e.g. I3).
+E itself (writing) is now the "working / loading" badge.</p>
+<div class="g" id="idle"></div>
+<script>
+const ID=[[1,8,"Resting smile, blinks"],[2,6,"Looks around"],[3,4,"Done: big tick"],[4,4,"Thumbs up"],[5,4,"Waves the pencil"],[6,4,"Tips his hat"],
+[7,4,"Dozing while waiting (z)"],[8,3,"Whistling"],[9,4,"Nods, pleased"],[10,6,"Winks"]];
+document.addEventListener("DOMContentLoaded",()=>{document.getElementById("idle").innerHTML=`<div class="o"><b>E (working)</b><div class="row">${["x4","x2","x1"].map(z=>`<div class="ic ${z}" style="background-image:url(work_e.png);--n:8"></div>`).join("")}</div><small>writing: the loading badge</small></div>`+
+ID.map(([k,n,t])=>`<div class="o"><b>I${k}</b><div class="row">${["x4","x2","x1"].map(z=>`<div class="ic ${z}" style="background-image:url(idle_${k}.png);--n:${n}"></div>`).join("")}</div><small>${t}</small></div>`).join("");});
+</script>
+<h1 style="margin-top:30px">B + E combined</h1><p>E's hat and eyes right under the brim, B's body and clipboard, rounder, with a neck. Click one to use it as the "Bob is working" badge.</p>
 <div class="g" id="ke"></div>
 <script>
 const KE=[["work_k1",9,"K1: writing at his side, eyes follow the pencil, blinks"],["work_k2",9,"K2: chubbier, writing"],["work_k3",9,"K3: nods on each stroke, smiles at the end of a line"],

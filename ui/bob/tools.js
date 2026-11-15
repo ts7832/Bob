@@ -162,7 +162,14 @@
     cmp().catch((e) => { $("cmp").textContent = e.message; });
   }
   const title = $("title");
-  if (title) new MutationObserver(() => setTimeout(onOpen, 300)).observe(title, { childList: true, characterData: true, subtree: true });
+  let loadT = 0;
+  if (title) new MutationObserver(() => {
+    if (vwin) { vwin.classList.add("vloading"); clearTimeout(loadT); loadT = setTimeout(() => vwin.classList.remove("vloading"), 60000); }   // never stay hidden
+    setTimeout(onOpen, 300);
+  }).observe(title, { childList: true, characterData: true, subtree: true });
+  if (vwin) vwin.insertAdjacentHTML("beforeend", '<div id="vload"><div class="bobsprite work" style="background-image:url(/bob/mascot/work_e.png);--n:8"></div><span>Loading blueprint…</span></div>');
+  const hookLoad = () => { if (typeof view !== "undefined" && view && view.onLoad) view.onLoad(() => setTimeout(() => vwin && vwin.classList.remove("vloading"), 120)); else setTimeout(hookLoad, 300); };
+  hookLoad();
 
   // the edit tools are always on the blueprint window (no question needed first)
   const vtb = document.querySelector(".vwin > .tb");
@@ -276,15 +283,12 @@
     if (!r.floors || !r.floors.length) return;
     vwin.style.position = "relative";
     vwin.insertAdjacentHTML("beforeend", `<div id="bobstack" class="bobwin"><div class="tb"><span>Building</span><i>${r.floors.length}</i></div>
-      <div class="body">${r.floors.map((f) => `<button class="slab${f.current ? " on" : ""}" data-path="${esc(f.path || "")}" data-sid="${f.sid || ""}" title="${esc(f.name)}"><i></i><em>${esc(f.name.length > 14 ? f.name.slice(0, 13) + "…" : f.name)}</em></button>`).join("")}</div></div>`);
+      <div class="body">${r.floors.map((f) => `<button class="slab${f.current ? " on" : ""}" data-path="${esc(f.path || "")}" data-rel="${esc(f.rel || "")}" data-sid="${f.sid || ""}" title="${esc(f.name)}"><i></i><em>${esc(f.name.length > 14 ? f.name.slice(0, 13) + "…" : f.name)}</em></button>`).join("")}</div></div>`);
     $("bobstack").querySelectorAll(".slab").forEach((b) => b.onclick = () => {
       if (b.classList.contains("on")) return;
       if (b.dataset.sid && window.bobOpenProjectSheet) { $("bobstack").querySelectorAll(".slab").forEach((x) => x.classList.toggle("on", x === b)); return window.bobOpenProjectSheet(+b.dataset.sid); }
-      const box = $("openpath");
-      if (!box) return;
       $("bobstack").querySelectorAll(".slab").forEach((x) => x.classList.toggle("on", x === b));
-      box.value = b.dataset.path;
-      box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      window.bobOpenPath(b.dataset.rel || b.dataset.path, b.title);
     });
   }
 
