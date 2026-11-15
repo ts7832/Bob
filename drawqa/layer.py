@@ -27,7 +27,7 @@ DISCOVER_EFFORT = os.environ.get("DRAWQA_DISCOVER_EFFORT", "medium")  # user's c
 
 
 WALL_CLASSES = ("wall", "wall perimeter")  # made by the wall model and geometry; kept out of the Claude step, merged back
-LAYER_VERSION = 12  # v12: window cutoff 0.40; door/window candidates below the cutoff checked by Claude; v11: walls are whole walls with their openings in them (length through openings, solid length); v10: detector e27; joined-wall perimeters as citable items; v9: wall perimeters (outside face, inside faces) in the notes; v8: wall ends trimmed to ink, collinear pieces merged, one outline for drawing; v7: walls as clean rectangles, overlapping pieces dropped; v6: walls cut at their doors and windows; v5: windows completed from exact repeats (drawqa/repeats.py); v4: walls kept out of the Claude step and merged back; bump when the reading changes (v2: no whole-sheet wall/room model on big sheets; v3: tiled walls, 4-way detector on big sheets, rooms as whole spaces)
+LAYER_VERSION = 13  # v13: SVG drawings (IFC plan exports read exactly); v12: window cutoff 0.40; door/window candidates below the cutoff checked by Claude; v11: walls are whole walls with their openings in them (length through openings, solid length); v10: detector e27; joined-wall perimeters as citable items; v9: wall perimeters (outside face, inside faces) in the notes; v8: wall ends trimmed to ink, collinear pieces merged, one outline for drawing; v7: walls as clean rectangles, overlapping pieces dropped; v6: walls cut at their doors and windows; v5: windows completed from exact repeats (drawqa/repeats.py); v4: walls kept out of the Claude step and merged back; bump when the reading changes (v2: no whole-sheet wall/room model on big sheets; v3: tiled walls, 4-way detector on big sheets, rooms as whole spaces)
 
 
 def _key(path, page):
@@ -48,6 +48,12 @@ def page_source(path, page=0):
         from . import cad
         path = cad.to_pdf(path)["pdf"]
         kind = "pdf"
+    if kind == "svg":  # a vector drawing: PyMuPDF turns it into a PDF page, which keeps its text and linework
+        import pymupdf
+        pdf = os.path.join(out, "page.pdf")
+        if not os.path.exists(pdf):
+            open(pdf, "wb").write(pymupdf.open(path).convert_to_pdf())
+        path, kind = pdf, "pdf"
     if kind == "pdf":
         import cv2, pymupdf
         from . import pdfsheet
@@ -211,8 +217,38 @@ def ingest(path, page=0, discover=True, refresh=False, progress=None):
     from PIL import Image
     Image.MAX_IMAGE_PIXELS = None
     w, h = Image.open(png).size
+    exact = None
+    if path.lower().endswith(".svg"):  # a plan exported from a building model names its elements: read them exactly
+        from . import svgplan
+        exact = svgplan.read(path, w, h)
+    if exact:
+        have = {c["name"] for c in exact}
+        replaced = {"door": ("door", "door candidate"), "window": ("window", "window candidate"),
+                    "room": ("room",), "wall": ("wall", "wall perimeter")}
+        drop = {n for k, ns in replaced.items() if k in have for n in ns}
+        start = dict(start, classes=[c for c in start["classes"] if c["name"] not in drop] + exact)
+        from shapely.geometry import Point, Polygon
+        rooms = [it for c in exact if c["name"] == "room" for it in c["items"] if len(it.get("polygon") or []) >= 3]
+        shapes = [Polygon(it["polygon"]).buffer(0) for it in rooms]
+        names = {}
+        for t in start["texts"]:  # the file names rooms by number ("Rum nr. K08"); the drawing prints the name ("Depot")
+            x = t["text"].strip()
+            pt = Point((t["bbox"][0] + t["bbox"][2]) / 2, (t["bbox"][1] + t["bbox"][3]) / 2)
+            holders = [i for i, g in enumerate(shapes) if g.contains(pt)]
+            if x and holders:  # a text belongs to the smallest room around it (a corridor wraps other rooms)
+                i = min(holders, key=lambda i: shapes[i].area)
+                if x not in (rooms[i].get("label") or "") and not x.startswith(("Rum nr", "Room no")):
+                    names.setdefault(i, []).append(x)
+        for i, xs in names.items():
+            rooms[i]["name"] = " ".join(dict.fromkeys(xs))
+        notes.append("this drawing is a plan exported from a building model: "
+                     + ", ".join(f"{c['name']} {len(c['items'])}" for c in exact)
+                     + " were read exactly from the file's IFC classes (with their names), not detected")
+        skip = ("wall_note", "perimeter_note") if "wall" in have else ()
+    else:
+        skip = ()
     for k in ("legend_note", "detector_note", "outline_note", "repeat_note", "wall_note", "perimeter_note"):
-        if sheet.get(k):
+        if sheet.get(k) and k not in skip:
             notes.append(sheet[k])
     layer = dict(source=os.path.abspath(path), page=page, kind=sheet.get("kind"), picture=os.path.abspath(png), width=w, height=h,
                  m_per_px=start["m_per_px"], scale_source=start["scale_source"], classes=start["classes"], texts=start["texts"],
