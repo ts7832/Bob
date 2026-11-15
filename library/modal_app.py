@@ -1071,6 +1071,19 @@ Reply with JSON only:
             n["created_at"] = str(n["created_at"])
         return dict(questions=out, scans=scans_, notes=notes)
 
+    @api.delete("/api/sheets/{sid}/answers")
+    def clear_answers(sid: int, request: Request, only_unread: int = 0):
+        """Forget this blueprint's stored answers so they are worked out again (only_unread=1: only those made when the
+        drawing could not be read: 'no element found by the trained detector')."""
+        w = ws(request)
+        sheet_row(w, sid)
+        rows = q("SELECT id, answer_json FROM answers WHERE sheet_id=%s", (sid,))
+        gone = [r["id"] for r in rows if not only_unread or "no element found by the trained detector" in (r["answer_json"] or "")]
+        for aid in gone:
+            q("DELETE FROM answers WHERE id=%s", (aid,))
+        save_now()
+        return dict(cleared=len(gone))
+
     @api.delete("/api/scans/{scan_id}")
     def delete_scan(scan_id: int, request: Request):
         """Remove one scan and its photo (test scans)."""
