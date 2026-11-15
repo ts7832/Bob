@@ -200,6 +200,17 @@ def convert(path, page=0, use_detector=True):
                 sheet["repeat_note"] = (f"{len(more)} windows were added as exact copies of windows the detector found with "
                                         "confidence elsewhere on this sheet (template match plus the pattern along the wall); "
                                         "they are marked found_by 'repeat of a detected window'")
+        if os.environ.get("DRAWQA_CANDIDATES", "1") == "1":
+            # doors and windows the detector saw but scored below its cutoff (often sliding or folding doors, which are
+            # rare in its training data): kept apart as candidates for the Claude step to check on a crop. They never
+            # count unless confirmed there (drawqa/layer.py drops unchecked candidates).
+            from .repeats import _overlap
+            thr = detect.thresholds()
+            low = {c: min(0.15, thr[c]) for c in ("door", "window") if c in thr}
+            wider = apply(raw, dict(thr, **low), detect.tuned().get("rules"))
+            sheet["candidates"] = [dict(cls=d["cls"], bbox=d["bbox"], conf=d["conf"]) for d in wider
+                                   if d["cls"] in low and d["conf"] < thr[d["cls"]]
+                                   and not any(_overlap(d["bbox"], k["bbox"]) > 0.3 for k in dets if k["cls"] in ("door", "window"))]
         add_elements(sheet, dets, found_by="detector")
         sheet["model"] = "element detector"
         sheet["detector_classes"] = sorted(detect.thresholds()) or None  # what this detector was trained to find

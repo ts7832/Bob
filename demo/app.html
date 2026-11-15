@@ -52,6 +52,7 @@ button.primary { background: var(--accent); color: #fff; border-color: var(--acc
 #qa { padding: 12px 14px; flex: 1; display: flex; flex-direction: column; min-height: 0; }
 form { display: flex; gap: 8px; }
 #q { flex: 1; font: inherit; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); }
+.reading { color: var(--accent); }
 #q:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .chip { font-size: 12.5px; background: var(--chip); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
@@ -97,7 +98,7 @@ form { display: flex; gap: 8px; }
 const $ = id => document.getElementById(id);
 const PAL = ["#e8590c", "#1c7ed6", "#2b8a3e", "#ae3ec9", "#0c8599", "#d6336c", "#5c940d", "#f08c00", "#4263eb", "#862e9c", "#087f5b", "#c2255c", "#495057", "#a61e4d", "#364fc7"];
 const STEPS = [["picture", "Drawing the page as a picture"], ["models", "Our trained models: doors, windows, fixtures, walls, rooms, text"],
-               ["claude", "Claude (Opus, medium effort) reads the whole drawing"], ["done", "Ready to answer questions"]];
+               ["done", "Ready to answer questions (Claude goes on reading the whole drawing in the background)"]];
 let job = null, st = null, layer = [], img = null, hidden = new Set(), hi = null, view = { s: 1, x: 0, y: 0 };
 
 // ---- upload ----
@@ -137,30 +138,55 @@ async function poll() {
 }
 
 // ---- after reading ----
+// The drawing is ready as soon as our models have read it (seconds); Claude's full reading goes on in the background
+// and its extra classes (furniture and other details) appear here when it finishes.
 async function ready() {
   layer = await (await fetch("/api/v2/layer?id=" + job)).json();
   img = new Image(); img.src = "/api/v2/picture?id=" + job;
   await img.decode();
   $("progress").style.display = "none"; $("view").style.display = "block";
   sizeCanvas(); fit();
+  renderFound();
+  $("q").disabled = false; $("go").disabled = false; $("q").focus();
+  if (st.reading === "running") setTimeout(watchReading, 3000);
+}
+async function watchReading() {
+  const d = await (await fetch("/api/v2/status?id=" + job)).json();
+  if (d.reading === "running") {
+    const r = $("reading"); if (r) r.textContent = readingText(d);
+    return setTimeout(watchReading, 3000);
+  }
+  st = d; layer = await (await fetch("/api/v2/layer?id=" + job)).json();
+  renderFound(); draw();
+}
+function readingText(d) {
+  return `Claude (Opus) is still reading the whole drawing (${Math.round(d.reading_elapsed || 0)} s): furniture and other details appear here when it finishes. Doors, windows, fixtures, rooms, areas and walls can be asked now.`;
+}
+function renderFound() {
   const disc = st.discovery || {};
   $("found").innerHTML = "<h3>What was found</h3>";
+  if (st.reading === "running") {
+    const r = document.createElement("div"); r.id = "reading"; r.className = "meta reading"; r.textContent = readingText(st);
+    $("found").appendChild(r);
+  } else if (st.reading === "failed") {
+    const r = document.createElement("div"); r.className = "meta"; r.textContent = "Claude's full reading did not finish; answers use our models' reading.";
+    $("found").appendChild(r);
+  }
   layer.forEach((c, i) => {
     const row = document.createElement("label"); row.className = "cls";
     if (c.hidden) hidden.add(c.name);  // e.g. wall perimeter: drawn when an answer cites it
-    row.innerHTML = `<input type="checkbox" ${c.hidden ? "" : "checked"}><span class="sw" style="background:${PAL[i % PAL.length]}"></span>${esc(c.name.replace(/_/g, " "))}
+    row.innerHTML = `<input type="checkbox" ${hidden.has(c.name) ? "" : "checked"}><span class="sw" style="background:${PAL[i % PAL.length]}"></span>${esc(c.name.replace(/_/g, " "))}
       <span class="src">${/detector|model/.test(c.source || "") ? "model" : "Claude"}</span><span class="n">${c.items.length}</span>`;
     row.querySelector("input").onchange = e => { e.target.checked ? hidden.delete(c.name) : hidden.add(c.name); draw(); };
     $("found").appendChild(row);
   });
   const m = document.createElement("div"); m.className = "meta";
-  m.innerHTML = `Read in ${Math.round(st.seconds || st.elapsed)} s` + (disc.cost_usd ? ` · Claude ${Math.round(disc.seconds)} s, $${disc.cost_usd.toFixed(2)}` : "")
+  m.innerHTML = `Models read it in ${Math.round(st.seconds || st.elapsed)} s` + (disc.cost_usd ? ` · Claude ${Math.round(disc.seconds)} s, $${disc.cost_usd.toFixed(2)}` : "")
     + (st.scale.m_per_px ? `<br>Scale: ${(st.scale.m_per_px * 1000).toFixed(1)} mm per px (${esc(st.scale.source || "")})` : "<br>Scale: not known")
     + (st.notes.length ? "<br>" + st.notes.map(esc).join("<br>") : "");
   $("found").appendChild(m);
-  $("q").disabled = false; $("go").disabled = false; $("q").focus();
-  const top = [...layer].filter(c => c.name !== "wall" && c.name !== "room").sort((a, b) => b.items.length - a.items.length)[0];
-  const ex = ["How many doors are there?", top ? `How many ${top.name.replace(/_/g, " ")} are there?` : null, "Which room is the largest?", "What is the scale of the drawing?", "What is the ceiling height?"].filter(Boolean);
+  const top = [...layer].filter(c => !["wall", "room", "wall perimeter"].includes(c.name)).sort((a, b) => b.items.length - a.items.length)[0];
+  const ex = ["How many doors are there?", top ? `How many ${top.name.replace(/_/g, " ")} are there?` : null, "Which room is the largest?", "What is the scale of the drawing?", "What is the perimeter of the walls?"].filter(Boolean);
   $("chips").replaceChildren(...ex.map(t => { const c = document.createElement("span"); c.className = "chip"; c.textContent = t; c.onclick = () => { $("q").value = t; askQ(); }; return c; }));
 }
 

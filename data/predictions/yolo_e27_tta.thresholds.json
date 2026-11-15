@@ -5,7 +5,7 @@
  "plans": 479,
  "thresholds": {
   "door": 0.4,
-  "window": 0.45,
+  "window": 0.4,
   "wc": 0.5,
   "sink": 0.325,
   "bathtub": 0.45,
@@ -101,5 +101,6 @@
   "swiss:wc": "95/96",
   "swiss:windows": "89/96"
  },
- "overall_exact": 0.8794
+ "overall_exact": 0.8794,
+ "window_note": "window cutoff 0.40 set by hand (tuned 0.45): same preview score (272/482), Swiss 122 vs 124/130, US dorm sheet 107 vs 92 windows"
 }
