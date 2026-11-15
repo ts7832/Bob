@@ -16,7 +16,7 @@ Then:
 Layer: {source, page, picture, width, height, m_per_px, scale_source, classes:[{name, source, geometry, count,
 items:[{id, bbox|polygon|polyline|point, ...}]}], texts:[{text, bbox}], notes:[...], discovery:{...}}
 """
-import hashlib, json, os, re, shutil, subprocess, time
+import glob, hashlib, json, os, re, shutil, subprocess, time
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 CACHE = os.path.join(ROOT, "data", "cache", "layers")
@@ -204,12 +204,18 @@ def _discover(png, w, h, wd, start, on_event=None):
                 for b in (ev.get("message") or {}).get("content") or []:
                     if b.get("type") == "tool_use":
                         tell("claude_step", _step_text(b))
+                        fp = (b.get("input") or {}).get("file_path") or ""
+                        if b.get("name") == "Read" and fp.lower().endswith((".png", ".jpg", ".jpeg")) and os.path.exists(fp):
+                            tell("claude_view", fp)  # the image Claude is looking at right now (its own crops)
         if os.path.exists(f):  # a new version of the result: pass it on (a half-written file is skipped until next time)
             m = os.path.getmtime(f)
             if m != seen:
                 try:
-                    tell("claude_partial", json.load(open(f)).get("classes", []))
+                    cls = json.load(open(f)).get("classes", [])
                     seen = m
+                    n_saved = len(glob.glob(os.path.join(wd, "discovered_v*.json"))) + 1
+                    shutil.copy(f, os.path.join(wd, f"discovered_v{n_saved}_{round(time.time() - t0)}s.json"))  # every version kept
+                    tell("claude_partial", cls)
                 except Exception:
                     pass
         if proc.poll() is not None and lines.empty():

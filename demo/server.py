@@ -275,6 +275,9 @@ def start_reading(f, name):
             def live(st, d):  # what Claude is doing, and its result so far (redrawn on the page as it grows)
                 if st == "claude_step":
                     J["reading_step"] = d
+                elif st == "claude_view":
+                    J["view"] = d
+                    J["view_n"] = J.get("view_n", 0) + 1
                 elif st == "claude_partial":
                     J["partial"] = d
                     J["partial_n"] = J.get("partial_n", 0) + 1
@@ -296,7 +299,8 @@ def job_status(jid):
     out = dict(id=jid, name=J["name"], stage=J["stage"], label=STAGES.get(J["stage"], J["stage"]), detail=J.get("detail"),
                elapsed=round(time.time() - J["started"], 1), steps=J["steps"], reading=J.get("reading"),
                reading_elapsed=round(time.time() - J.get("reading_started", time.time()), 1), reading_seconds=J.get("reading_seconds"),
-               reading_step=J.get("reading_step"), partial_n=J.get("partial_n", 0))
+               reading_step=J.get("reading_step"), partial_n=J.get("partial_n", 0), view_n=J.get("view_n", 0),
+               view_name=os.path.basename(J.get("view") or ""))
     L = J.get("layer")
     if L:
         W, Hh = L["width"], L["height"]
@@ -320,6 +324,24 @@ def job_picture(jid):
         buf = io.BytesIO(); im.save(buf, "JPEG", quality=85)
         J["jpg"] = buf.getvalue()
     return J["jpg"]
+
+
+def job_view(jid):
+    """The image Claude is looking at right now (one of its own crops in its work folder), as a JPEG."""
+    from PIL import Image
+    import io
+    J = JOBS[jid]
+    f = J.get("view")
+    cache = os.path.realpath(os.path.join(ROOT, "data", "cache", "layers"))
+    own = {os.path.realpath(p) for p in (J.get("path"), (J.get("layer") or {}).get("picture")) if p}
+    if not f or not (os.path.realpath(f).startswith(cache + os.sep) or os.path.realpath(f) in own):
+        raise KeyError("no view")  # only the drawing itself and the files the reading made
+    im = Image.open(f).convert("RGB")
+    s = min(1.0, 900 / max(im.size))
+    if s < 1:
+        im = im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
+    buf = io.BytesIO(); im.save(buf, "JPEG", quality=85)
+    return buf.getvalue()
 
 
 def job_layer(jid):
@@ -396,6 +418,8 @@ class H(BaseHTTPRequestHandler):
                 return self._send(200, job_status(parse_qs(u.query)["id"][0]))
             if u.path == "/api/v2/picture":
                 return self._send(200, job_picture(parse_qs(u.query)["id"][0]), "image/jpeg")
+            if u.path == "/api/v2/view":
+                return self._send(200, job_view(parse_qs(u.query)["id"][0]), "image/jpeg")
             if u.path == "/api/v2/layer":
                 return self._send(200, job_layer(parse_qs(u.query)["id"][0]))
             if u.path == "/api/samples":
