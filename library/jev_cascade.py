@@ -72,7 +72,7 @@ def to_intent(label, q, ifc=None):
     if ifc and cands:
         storey = cands[-1]
     kind, _, what = label.partition(":")
-    if label == "other":
+    if label in ("other", "table"):              # "other": the language model reads it; "table": answer() sends it to the table reader
         return None
     if kind == "count" and what in ("door", "window"):
         return dict(intent="ifc_count", cls=what, storey=storey) if ifc else dict(intent="count_openings", cls=what)
@@ -180,12 +180,30 @@ def answer(path, question, generic=False, llm=False):
     """The order Aleks's page uses (demo/server.py /api/ask): a question naming a table on the sheet is answered from
     the table; otherwise from the drawing; and when the drawing cannot answer, from a table if one can."""
     from drawqa import solve as S
+    from drawqa import router
+    if "/cubicasa5k/" in path and os.environ.get("DRAWQA_LIVE") != "1":
+        from drawqa import scan
+        if os.path.basename(path) not in scan.predictions():     # no stored detector output: run the detector now
+            os.environ["DRAWQA_LIVE"] = "1"                         # (Aleks's models on the Modal GPU, drawqa-infer)
+            try:
+                return answer(path, question, generic, llm)
+            finally:
+                os.environ.pop("DRAWQA_LIVE", None)
     try:
         tabs = S._tables(path)
     except Exception:
         tabs = []
     res = None
-    if tabs and S.names_a_table(question, tabs):
+    _state.last = None                                  # never report the previous question's reading
+    named = bool(tabs) and S.names_a_table(question, tabs)
+    if tabs and not named and getattr(router.parse, "_cascade", False):
+        label, p, top = predict(question)               # router3+: "table" = asked about a schedule/list on the sheet
+        if label == "table" and p >= MIN_PROB:
+            named = True
+            _state.last = dict(by="jev router", label=label, probability=round(p, 4), top=[(l, round(v, 4)) for l, v in top],
+                               pattern_meaning=None, intent={"intent": "table"}, agree=None, alt=None,
+                               note="the question is about a table on the sheet")
+    if named:
         res = S.table_answer(path, question, use_model=llm)
         if res is not None and res.get("answer") is None:
             res = None

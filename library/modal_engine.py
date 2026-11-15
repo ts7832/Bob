@@ -15,6 +15,7 @@ import os, pathlib
 
 import modal
 
+JEV_MODEL = "router2"          # which Jev-style router on the bob-dataset volume (/ds/jev/<name>)
 app = modal.App("bob-engine")
 DATA = modal.Volume.from_name("bob-dataset", create_if_missing=True)
 LIB = modal.Volume.from_name("bob-library", create_if_missing=True)
@@ -121,7 +122,7 @@ def _router_audit(r, how, fallback):
     by = how.get("by") or ""
     pat = how.get("pattern_meaning")
     if by.startswith("jev router"):
-        actor = "Jev-style router (router2)" + (" overrides the pattern router" if "override" in by else "")
+        actor = f"Jev-style router ({JEV_MODEL})" + (" overrides the pattern router" if "override" in by else "")
     elif by == "pattern router":
         actor = "pattern router" + (", Jev-style router agrees" if agree else ", Jev-style router disagrees (pattern reading kept)" if agree is False else "")
     else:
@@ -180,7 +181,7 @@ def solve_full(sheet_id: int, file_name: str, question: str):
     sys.path.insert(0, "/root/app")
     os.chdir("/root/app")
     import jev_cascade
-    jev_cascade.install("/ds/jev/router2")
+    jev_cascade.install("/ds/jev/" + JEV_MODEL)
     jev_cascade.use_claude_for_reader()           # table queries: Claude via our key (Aleks's reader is in his workspace)
     from drawqa.solve import solve
     from drawqa import llm_router
