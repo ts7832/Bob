@@ -126,6 +126,12 @@ def web():
         q("INSERT INTO workspaces (name, password_sha) VALUES ('Demo', %s)", (hashlib.sha256(PASSWORD.encode()).hexdigest(),))
 
     dirty = threading.Event()
+    for r in q("SELECT id FROM sheets"):
+        if not os.path.exists(f"{FILES}/{r['id']}/match.png"):
+            print("dropping sheet record without files:", r["id"])
+            q("UPDATE sheets SET superseded_by=NULL WHERE superseded_by=%s", (r["id"],))
+            q("DELETE FROM sheets WHERE id=%s", (r["id"],))
+    q("DELETE FROM projects WHERE id NOT IN (SELECT DISTINCT project_id FROM sheets)")
 
     def saver():
         while True:
@@ -138,6 +144,10 @@ def web():
             except Exception as e:
                 print("dump failed", e)
     threading.Thread(target=saver, daemon=True).start()
+
+    def save_now():
+        subprocess.run(f"mariadb-dump --socket={SOCK} -uroot --single-transaction bob > {DUMP}.tmp && mv {DUMP}.tmp {DUMP}", shell=True, check=True)
+        VOL.commit()
 
     # ---- picture fingerprint and detail matching --------------------------------------------------------------------
     net = timm.create_model("vit_small_patch14_dinov2.lvd142m", pretrained=True, num_classes=0, img_size=448).eval()
@@ -172,6 +182,8 @@ def web():
         """Local details of a stored sheet (computed once, kept in memory)."""
         if sid not in feats:
             g = cv2.imread(f"{FILES}/{sid}/match.png", cv2.IMREAD_GRAYSCALE)
+            if g is None:                              # a record whose files are gone (never let one sheet break every scan)
+                return np.zeros((0, 2), np.float32), None, (1, 1)
             k, d = sift.detectAndCompute(g, None)
             feats[sid] = (np.float32([p.pt for p in k]) if k else np.zeros((0, 2), np.float32), d, g.shape)
         return feats[sid]
@@ -697,7 +709,9 @@ def web():
         return round(sum(call_cost(c.get("model", ""), c.get("in", 0), c.get("out", 0)) for c in ((result or {}).get("audit") or {}).get("model_calls") or []), 6)
 
     # ---- corrections: a person's fixes to what the system read, applied to every answer on that blueprint ----------
-    def corrections_of(sid, status="applied"):
+    def corrections_of(sid, status="applied", upto=None):
+        if upto is not None:
+            return q("SELECT * FROM corrections WHERE sheet_id=%s AND status=%s AND id<=%s ORDER BY id", (sid, status, upto))
         return q("SELECT * FROM corrections WHERE sheet_id=%s AND status=%s ORDER BY id", (sid, status))
 
     def counted_classes(result):
@@ -707,12 +721,12 @@ def web():
             cl.add(str(it["cls"]).lower())
         return {c for c in cl if c}
 
-    def present(sid, question, result):
+    def present(sid, question, result, upto=None):
         """The answer as the library shows it: the system's answer with every applied correction for this blueprint on top.
         The system's own number is kept (engine_answer) and the audit says who changed what."""
         if not isinstance(result, dict):
             return result
-        cs = corrections_of(sid)
+        cs = [c for c in corrections_of(sid, upto=upto) if c["kind"] != "note"]
         if not cs:
             return result
         r = json.loads(json.dumps(result, default=str))
@@ -757,6 +771,58 @@ def web():
                 r["corrected"] = dict(by=c["author"], kind="area")
                 steps.append(dict(stage="Corrected", actor=c["author"] or "a person", detail=f"area of {ev[0].get('id')} set to {c['value']} (system: {r['engine_answer']})"))
         return r
+
+    def _box(v):
+        try:
+            b = json.loads(v) if v else None
+            return b if isinstance(b, list) and len(b) == 4 else None
+        except ValueError:
+            return None
+
+    @api.get("/api/sheets/{sid}/edits")
+    def edits(sid: int, request: Request):
+        """What the reading of this blueprint looks like after the applied corrections (for the viewer): items removed by id,
+        items added with their box in view-image pixels, and the view image's size (to convert to sheet pixels)."""
+        w = ws(request)
+        r = sheet_row(w, sid)
+        k = min(1.0, 2400 / max(r["width"] or 1, r["height"] or 1))
+        cs = [c for c in corrections_of(sid) if c["kind"] in ("add", "remove")]
+        return dict(width=r["width"], height=r["height"], view_scale=k,
+                    removed=[dict(id=c["item_id"], cls=c["cls"], correction=c["id"], bbox=_box(c["value"])) for c in cs if c["kind"] == "remove" and c["item_id"]],
+                    added=[dict(id=f"c{c['id']}", cls=c["cls"], bbox=json.loads(c["bbox_json"]) if c["bbox_json"] else None, by=c["author"]) for c in cs if c["kind"] == "add"])
+
+    @api.get("/api/sheets/{sid}/timeline")
+    def timeline(sid: int, request: Request):
+        """Every change to what the system read on this blueprint, oldest first, with the answers before and after each one.
+        Linear: going back to a step undoes everything after it (kept as 'undone', nothing is deleted)."""
+        w = ws(request)
+        sheet_row(w, sid)
+        cs = q("SELECT * FROM corrections WHERE sheet_id=%s AND kind<>'note' AND status IN ('applied','undone') ORDER BY id", (sid,))
+        notes = {n["id"]: n for n in q("SELECT id, note, author FROM corrections WHERE sheet_id=%s AND kind='note'", (sid,))}
+        ans = q("SELECT question, answer_json FROM answers WHERE sheet_id=%s AND status='done' ORDER BY hits DESC, id LIMIT 12", (sid,))
+        def values(upto):
+            out = []
+            for a in ans:
+                r = present(sid, a["question"], json.loads(a["answer_json"]), upto=upto)
+                out.append(dict(question=a["question"], answer=r.get("answer"), unit=r.get("unit")))
+            return out
+        steps = [dict(id=0, what="the system's own reading (no corrections)", when=None, by="the system", status="applied", answers=values(0))]
+        for c in cs:
+            what = {"add": f"+1 {c['cls']}", "remove": f"-1 {c['cls']}" + (f" ({c['item_id']})" if c["item_id"] else ""), "answer": f"answer set to {c['value']}",
+                    "area": f"area of {c['item_id']} set to {c['value']}", "rename": f"renamed {c['item_id']} to {c['value']}"}.get(c["kind"], c["kind"])
+            n = notes.get(c["note_id"])
+            steps.append(dict(id=c["id"], what=what, why=c["note"], from_note=(n["note"] if n else None), when=str(c["created_at"]), by=c["author"],
+                              source=c["source"], status=c["status"], answers=values(c["id"]) if c["status"] == "applied" else None))
+        return dict(steps=steps)
+
+    @api.post("/api/sheets/{sid}/revert_to/{cid}")
+    def revert_to(sid: int, cid: int, request: Request):
+        """Go back to the state right after change cid (0 = the system's own reading): later changes become 'undone'."""
+        w = ws(request)
+        sheet_row(w, sid)
+        q("UPDATE corrections SET status='undone' WHERE sheet_id=%s AND id>%s AND status='applied' AND kind<>'note'", (sid, cid))
+        dirty.set()
+        return dict(ok=True)
 
     @api.get("/api/sheets/{sid}/corrections")
     def list_corrections(sid: int, request: Request):
@@ -807,7 +873,7 @@ Propose concrete fixes to the reading, only what you can actually see in the ima
   "add"    an item of class cls that is drawn here but missing from the reading (box = where it is)
   "remove" an item of class cls that the reading has here but is not really there / is something else (box = where)
   "answer" the right value for the question, if the image alone settles it (value)
-Classes: door, window, wc, sink, shower, bathtub, stair, column, room, other (use the closest).
+Classes: door, window, wall, wc, sink, shower, bathtub, stair, column, room, other (use the closest).
 Boxes are fractions of the image: [x0, y0, x1, y1] with 0,0 top left.
 Reply with JSON only: {{"summary": "<one sentence on what you see>", "proposals": [{{"kind": "...", "cls": "...", "box": [..], "value": null, "reason": "<short>"}}]}}
 If nothing needs fixing, give an empty proposals list and say why in the summary."""
@@ -823,11 +889,13 @@ If nothing needs fixing, give an empty proposals list and say why in the summary
         box = b.get("box") or [0, 0, 1, 1]
         nid = q("INSERT INTO corrections (sheet_id, kind, bbox_json, note, author, source, status) VALUES (%s,'note',%s,%s,%s,'person','applied')",
                 (sid, json.dumps(box), b.get("comment") or "", (b.get("author") or "")[:80]))
-        inside = [x for x in (b.get("counted_inside") or []) if x.get("id")][:30]   # counted items whose mark lies inside the circle
+        counted = [x for x in (b.get("counted_inside") or []) if x.get("id")][:30]   # counted for the answer, mark inside the circle
+        others = [x for x in (b.get("items_inside") or []) if x.get("id") and x["id"] not in {c["id"] for c in counted}][:40]
+        inside = counted + others
         ctx = ""
-        if b.get("counted_inside") is not None:
-            ctx += ("Items the reading COUNTED inside the circled part: " + ", ".join(f"{x.get('cls')} (mark {x.get('mark') or x['id']})" for x in inside)
-                    if inside else "The reading counted NO items inside the circled part.") + " A 'remove' can only refer to one of these.\n"
+        if b.get("counted_inside") is not None or b.get("items_inside") is not None:
+            ctx += ("Items our reading has inside the circled part: " + ", ".join(f"{x.get('cls')}" + (f" (counted, mark {x.get('mark')})" if x in counted else "") for x in inside)
+                    if inside else "Our reading has NO items inside the circled part.") + " A 'remove' can only refer to one of these.\n"
         if b.get("question"):
             ctx = f"The question on screen: {b['question']}\nThe system's answer: {b.get('answer')}"
             if b.get("evidence_classes"):
@@ -859,12 +927,13 @@ If nothing needs fixing, give an empty proposals list and say why in the summary
             if p.get("kind") not in ("add", "remove", "answer"):
                 continue
             item_id = None
-            if p["kind"] == "remove" and b.get("counted_inside") is not None:   # bind to a counted item in the circle, or drop
-                same = [x for x in inside if (x.get("cls") or "").lower() == (p.get("cls") or "").lower()] or inside
+            if p["kind"] == "remove" and (b.get("counted_inside") is not None or b.get("items_inside") is not None):   # bind to an item in the circle, or drop
+                same = [x for x in inside if (x.get("cls") or "").lower() == (p.get("cls") or "").lower()]
                 if not same:
                     out["summary"] = (out.get("summary") or "") + " (A removal was proposed, but nothing counted is inside the circle, so it was left out.)"
                     continue
                 item_id, p["cls"] = same[0]["id"], same[0].get("cls") or p.get("cls")
+                p["value"] = json.dumps(same[0].get("bbox")) if same[0].get("bbox") else None
                 inside = [x for x in inside if x["id"] != item_id]
             pb = p.get("box")
             vb = [x0 + pb[0] * (x1 - x0), y0 + pb[1] * (y1 - y0), x0 + pb[2] * (x1 - x0), y0 + pb[3] * (y1 - y0)] if isinstance(pb, list) and len(pb) == 4 else None
@@ -898,6 +967,7 @@ If nothing needs fixing, give an empty proposals list and say why in the summary
                    "WHERE c.workspace_id=%s ORDER BY c.id DESC LIMIT %s", (w, limit))
         for c in scans_:
             c["created_at"] = str(c["created_at"])
+            c["test"] = "mozilla" not in (c.get("device") or "").lower()    # sent by a script (tests), not from a phone browser
             c["photo"] = f"/api/scans/{c['id']}/photo" if os.path.exists(f"{V}/library/scans/{c['id']}.jpg") else None
         notes = q("SELECT c.id, c.sheet_id, s.name sheet, c.note, c.author, c.created_at, (SELECT COUNT(*) FROM corrections x WHERE x.note_id=c.id) proposals, "
                   "(SELECT COUNT(*) FROM corrections x WHERE x.note_id=c.id AND x.status='applied') accepted FROM corrections c JOIN sheets s ON s.id=c.sheet_id "
@@ -905,6 +975,18 @@ If nothing needs fixing, give an empty proposals list and say why in the summary
         for n in notes:
             n["created_at"] = str(n["created_at"])
         return dict(questions=out, scans=scans_, notes=notes)
+
+    @api.delete("/api/scans/{scan_id}")
+    def delete_scan(scan_id: int, request: Request):
+        """Remove one scan and its photo (test scans)."""
+        w = ws(request)
+        q("DELETE FROM scans WHERE id=%s AND workspace_id=%s", (scan_id, w))
+        try:
+            os.remove(f"{V}/library/scans/{scan_id}.jpg")
+        except OSError:
+            pass
+        save_now()
+        return dict(deleted=scan_id)
 
     @api.get("/api/scans/{scan_id}/photo")
     def scan_photo(scan_id: int, request: Request):
@@ -928,7 +1010,7 @@ If nothing needs fixing, give an empty proposals list and say why in the summary
             q("DELETE FROM projects WHERE id=%s", (r["project_id"],))
         shutil.rmtree(f"{FILES}/{sid}", ignore_errors=True)
         feats.pop(sid, None)
-        dirty.set()
+        save_now()
         return dict(deleted=sid)
 
     # ---- money saved ------------------------------------------------------------------------------------------------

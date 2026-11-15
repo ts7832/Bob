@@ -70,3 +70,77 @@
 #cmp td,#cmp th{border:1px solid var(--fg);padding:3px 5px;text-align:left}
 #cmp tr.chg td{background:#fff6c8;font-weight:600}
 @media (max-width:820px){.mk,.diffwrap{flex-direction:column}.mkside,.diffside{width:auto}#mkstage{min-height:55vh}#savings small{display:none}}
+
+/* ===== One-bit over the viewer (viz/ classes, restyled from here; Oliver's code untouched) ===================== */
+.vwin .dv-root{--dv-panel:#fefefe;--dv-line:#1e1e1e;--dv-chip:#efefef;--dv-ink:#1e1e1e;--dv-muted:#555;--dv-accent:#1e1e1e;--dv-accent-soft:#1e1e1e;--dv-accent-line:#1e1e1e;--dv-float:3px 3px 0 #1e1e1e}
+.vwin .dv-tools button,.vwin .dv-tools select,.vwin .dv-step button,.vwin .dv-cut{border:1px solid #1e1e1e!important;border-radius:0!important;background:#fefefe!important;color:#1e1e1e!important;
+  font:18px/1 var(--pix)!important;padding:5px 11px!important;box-shadow:2px 2px 0 #1e1e1e!important;letter-spacing:.02em}
+.vwin .dv-tools button:hover,.vwin .dv-step button:hover{background:#1e1e1e!important;color:#fefefe!important}
+.vwin .dv-tools .dv-on{background:#1e1e1e!important;color:#fefefe!important;outline:0!important}
+.vwin .dv-tools button:disabled{opacity:.35;box-shadow:none!important}
+.vwin .dv-tools select{appearance:none;-webkit-appearance:none;padding-right:26px!important;
+  background:#fefefe url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z' fill='%231e1e1e'/%3E%3C/svg%3E") no-repeat right 9px center!important}
+.vwin .dv-root [class*="dv-"]{border-radius:0!important}
+.vwin .dv-callout,.vwin .dv-detail,.vwin .dv-overlay{border:1px solid #1e1e1e!important;box-shadow:4px 4px 0 #1e1e1e!important;background:#fefefe!important}
+.vwin .dv-value{font:300 44px/1.05 var(--sans)!important;letter-spacing:-.02em}
+.vwin .dv-title{font:19px/1.1 var(--pix)!important;letter-spacing:.02em}
+.vwin .dv-cannot .dv-title,.vwin .dv-cannot{color:#c0261c}
+.vwin .dv-q{font:12px var(--mono)!important;color:#555}
+.vwin .dv-chip,.vwin .dv-badge,.vwin .dv-tag{border:1px solid #1e1e1e!important;background:#fefefe!important;color:#1e1e1e!important;font:15px/1.1 var(--pix)!important;padding:1px 6px!important}
+.vwin .dv-tier-read{background:#03804a!important;color:#fff!important;border-color:#03804a!important}
+.vwin .dv-tier-measured{background:#1e5fbf!important;color:#fff!important;border-color:#1e5fbf!important}
+.vwin .dv-tier-detected{background:#a35a00!important;color:#fff!important;border-color:#a35a00!important}
+.vwin .dv-tier-estimated{background:#8a3fb0!important;color:#fff!important;border-color:#8a3fb0!important}
+.vwin .dv-legend{border:1px solid #1e1e1e!important;box-shadow:3px 3px 0 #1e1e1e!important;background:#fefefe!important;font:12px var(--mono)!important}
+.vwin .dv-peek,.vwin .dv-hoverlabel,.vwin .dv-viewtag{background:#1e1e1e!important;color:#fefefe!important;font:15px var(--pix)!important}
+.vwin .dv-mlabel{background:#1e1e1e!important;font:600 12px var(--mono)!important}
+.vwin .dv-mlabel.est,.vwin .est{color:#8a3fb0}
+.vwin .dv-measure{border:1px solid #1e1e1e!important;box-shadow:3px 3px 0 #1e1e1e!important;font:12px var(--mono)!important}
+
+/* ===== legend of answer kinds: big enough to read ===================================================================== */
+#answersec .legend{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}
+#answersec .legend .pill{font:16px/1.15 var(--pix)!important;padding:3px 9px!important;border:1px solid #1e1e1e!important;border-radius:0!important;letter-spacing:.03em}
+.pill{border-radius:0!important}
+
+/* ===== Question window: the title stays readable while the window is in use ============================================ */
+#asksec.on > h2 span{background:var(--fg)!important;color:var(--panel)!important}
+
+/* ===== FAQ: the suggested questions in a hover list next to the microphone ============================================ */
+#asksec #suggested,#asksec #chips{display:none!important}
+#faqwrap{position:relative;display:inline-block}
+#faqbtn{border:1px solid #1e1e1e;background:#fefefe;font:19px/1 var(--pix);padding:0 14px;height:100%;min-height:38px;cursor:pointer;box-shadow:2px 2px 0 #1e1e1e}
+#faqwrap:hover #faqbtn,#faqwrap.open #faqbtn{background:#1e1e1e;color:#fefefe}
+#faqlist{display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:40;width:min(460px,80vw);max-height:340px;overflow:auto;background:#fefefe;
+  border:1px solid #1e1e1e;box-shadow:4px 4px 0 #1e1e1e}
+#faqwrap:hover #faqlist,#faqwrap.open #faqlist{display:block}
+#faqlist::before{content:"";position:absolute;left:0;right:0;top:-8px;height:8px}
+#faqlist button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #1e1e1e;background:#fefefe;font:13px/1.35 var(--mono);padding:9px 12px;cursor:pointer}
+#faqlist button:hover{background:#1e1e1e;color:#fefefe}
+#faqlist .faqh{font:16px var(--pix);padding:6px 12px;border-bottom:1px solid #1e1e1e;background:repeating-linear-gradient(0deg,#1e1e1e 0 1px,#fefefe 1px 3px)}
+#faqlist .faqh span{background:#fefefe;padding:0 5px}
+
+/* ===== change history ================================================================================================== */
+.tl{padding:12px 16px}
+.tlstep{border:1px solid #1e1e1e;margin:10px 0;padding:8px 10px;box-shadow:3px 3px 0 #1e1e1e}
+.tlstep.undone{opacity:.5;box-shadow:none;border-style:dashed}
+.tlstep.now{border-width:2px}
+.tlhead{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tlhead .n{border:1px solid #1e1e1e;font:16px var(--pix);padding:0 6px}
+.tlhead button{margin-left:auto;border:1px solid #1e1e1e;background:#fefefe;font:inherit;font-size:12px;padding:3px 9px;cursor:pointer;box-shadow:2px 2px 0 #1e1e1e}
+.tlhead button:hover{background:#1e1e1e;color:#fefefe}
+.tlstep table{border-collapse:collapse;width:100%;margin-top:6px;font-size:12px}
+.tlstep td,.tlstep th{border:1px solid #1e1e1e;padding:3px 6px;text-align:left}
+.tlstep tr.chg td{background:#fff6c8;font-weight:600}
+
+/* ===== building: floors of this building, bottom left of the blueprint (as in the design concept) ===================== */
+#bobstack{position:absolute;left:14px;bottom:64px;width:190px;z-index:6}
+#bobstack .tb i{font-style:normal;background:#fefefe;padding:0 6px}
+#bobstack .body{padding:8px 10px 6px;max-height:46vh;overflow:auto}
+#bobstack .slab{display:flex;align-items:center;gap:6px;width:100%;border:0;background:none;padding:0;margin:0 0 5px;cursor:pointer;text-align:left}
+#bobstack .slab i{display:block;flex:0 0 58%;height:12px;margin-left:8px;border:1px solid #1e1e1e;background:#fefefe;transform:skewX(-30deg)}
+#bobstack .slab em{font:15px/1 var(--pix);font-style:normal;white-space:nowrap}
+#bobstack .slab:hover i{background:#bdbdbd}
+#bobstack .slab.on i{background:#1e1e1e}
+#bobstack .slab.on em{text-decoration:underline}
+#micbtn,header .modebtn,.mic{border-radius:0!important;border:1px solid #1e1e1e!important;background:#fefefe!important;box-shadow:2px 2px 0 #1e1e1e;font:18px var(--pix)!important}
+#micbtn:hover,header .modebtn:hover{background:#1e1e1e!important;color:#fefefe!important}

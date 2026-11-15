@@ -54,6 +54,75 @@ def sheet_id(path):
     return sid
 
 
+def _floors(path):
+    import re
+    path = path[5:] if path.startswith("file:") else path
+    full = path if os.path.isabs(path) else os.path.join(REPO, "junction-dataset-preview", path)
+    d, name = os.path.split(full)
+    m = re.match(r"^(.*)_plan-(\d+)-(.+)\.pdf$", name)
+    if not m or not os.path.isdir(d):
+        return dict(floors=[])
+    fl = []
+    for f in sorted(os.listdir(d)):
+        mm = re.match(r"^" + re.escape(m.group(1)) + r"_plan-(\d+)-(.+)\.pdf$", f)
+        if mm:
+            fl.append(dict(n=int(mm.group(1)), name=mm.group(2).replace("-", " "), path=os.path.join(d, f), current=f == name))
+    fl.sort(key=lambda x: -x["n"])
+    return dict(building=m.group(1).split("_", 1)[-1].replace("-", " "), floors=fl if len(fl) > 1 else [])
+
+
+def _known_id(path):
+    """The library id of a file already in the library (never uploads)."""
+    name = os.path.basename(path)
+    if name in _ids:
+        return _ids[name]
+    try:
+        _ids[name] = call("GET", "/api/find", file_name=name)["id"]
+        return _ids[name]
+    except Exception:
+        return None
+
+
+def _same(a, b, tol=1.5):
+    return a and b and len(a) == 4 and len(b) == 4 and all(abs(float(x) - float(y)) <= tol for x, y in zip(a, b))
+
+
+def _corrected(kind, path, body):
+    sid = _known_id(path)
+    if not sid:
+        return body
+    ed = call("GET", f"/api/sheets/{sid}/edits", timeout=20)
+    if not ed["removed"] and not ed["added"]:
+        return body
+    gone = {r["id"] for r in ed["removed"]}
+    boxes = [r["bbox"] for r in ed["removed"] if r.get("bbox")]
+    body = dict(body)
+    if kind == "/api/sheet":
+        for k in ("rooms", "openings", "fixtures", "walls", "elements", "floors"):
+            if isinstance(body.get(k), list):
+                body[k] = [x for x in body[k] if not (isinstance(x, dict) and x.get("id") in gone)]
+    else:
+        body["items"] = [x for x in body.get("items") or [] if not any(_same(x.get("bbox"), b) for b in boxes)]
+    raster = (body.get("render") or {}).get("type") == "image" or body.get("kind") == "raster" or body.get("units") == "px"
+    W = ((body.get("render") or {}).get("width")) or ed["width"]
+    if raster and ed["added"]:
+        f = (W / ed["width"]) / ed["view_scale"]          # view-image px -> sheet px
+        for a in ed["added"]:
+            if not a.get("bbox"):
+                continue
+            bb = [round(v * f, 1) for v in a["bbox"]]
+            if kind == "/api/sheet":
+                grp = "openings" if a["cls"] in ("door", "window") else "walls" if a["cls"] == "wall" else "fixtures"
+                item = dict(id=a["id"], cls=a["cls"], bbox=bb, conf=1.0, found_by=f"person: {a.get('by') or ''}".strip(), exact=False)
+                if grp == "walls":
+                    item["polygon"] = [[bb[0], bb[1]], [bb[2], bb[1]], [bb[2], bb[3]], [bb[0], bb[3]]]
+                body[grp] = list(body.get(grp) or []) + [item]
+            else:
+                body["items"] = list(body.get("items") or []) + [dict(type=a["cls"], how="person", label=None, conf=1.0, bbox=bb)]
+    body["corrections_applied"] = dict(removed=len(gone), added=len(ed["added"]))
+    return body
+
+
 def patched_load_demo(orig=ui_server.load_demo):
     demo = orig()
     local_solve = demo.solve
@@ -104,6 +173,9 @@ def patched_load_demo(orig=ui_server.load_demo):
             p = u.path
             if p.startswith("/bob/lib/"):
                 return self._proxy("GET")
+            if p == "/bob/floors":                  # the other floors of the same building (sibling plan files), top floor first
+                path = (urllib.parse.parse_qs(u.query).get("path") or [""])[0]
+                return self._send(200, _floors(path))
             if p == "/bob/sid":                     # the library id of an open file (registered the first time), and a revision guess
                 path = (urllib.parse.parse_qs(u.query).get("path") or [""])[0]
                 try:
@@ -120,6 +192,20 @@ def patched_load_demo(orig=ui_server.load_demo):
             if self.path.startswith("/bob/lib/"):
                 return self._proxy("POST")
             return super().do_POST()
+
+        def _send(self, code, body, ctype="application/json"):
+            """The viewer's reading and plan with the library's applied corrections on top (removed items gone, added ones in),
+            so the marks, the clean view and the 3D model follow a correction at once."""
+            u = urllib.parse.urlparse(self.path)
+            if code == 200 and u.path in ("/api/sheet", "/api/plan"):
+                try:
+                    raw = body if isinstance(body, dict) else json.loads(body.decode() if isinstance(body, bytes) else body)
+                    fixed = _corrected(u.path, (urllib.parse.parse_qs(u.query).get("path") or [""])[0], raw)
+                    if fixed is not raw:
+                        body = fixed if isinstance(body, dict) else json.dumps(fixed, ensure_ascii=False, default=str).encode()
+                except Exception as e:  # a correction must never break the viewer
+                    print("[bob] corrections not applied:", type(e).__name__, e)
+            return super()._send(code, body, ctype)
 
     demo.H = H
     return demo

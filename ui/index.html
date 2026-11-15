@@ -739,21 +739,21 @@ async function makeCard(w) {
     const g = c.getContext("2d");
     g.fillStyle = "#ffffff"; g.fillRect(0, 0, W, DH + TH);
     await drawSheetPart(g, W, DH, w);
-    g.fillStyle = "#f4f4f1"; g.fillRect(0, DH, W, TH);
+    g.fillStyle = "#fefefe"; g.fillRect(0, DH, W, TH); g.fillStyle = "#1e1e1e"; g.fillRect(0, DH, W, 3); for (let yy = DH + 6; yy < DH + 18; yy += 3) g.fillRect(0, yy, W, 1);
     const work = w;   // the lines below describe this answer
     const res = work.res, tier = res.honesty?.tier || (res.answer == null ? "cannot determine" : "");
     let y = DH + 56;
-    g.fillStyle = "#ff6a00"; g.font = "700 40px system-ui, sans-serif"; g.fillText("DrawQA", 40, y);
-    g.fillStyle = "#6a6a64"; g.font = "20px system-ui, sans-serif"; g.fillText(fileName(current.path), 220, y - 4);
+    g.fillStyle = "#1e1e1e"; g.font = "500 40px Geist, system-ui, sans-serif"; g.fillText("DrawQA", 40, y);
+    g.fillStyle = "#6a6a64"; g.font = "20px 'Fragment Mono', ui-monospace, monospace"; g.fillText(fileName(current.path), 220, y - 4);
     y += 60;
-    g.fillStyle = "#1c1c1a"; g.font = "700 46px system-ui, sans-serif";
+    g.fillStyle = "#1c1c1a"; g.font = "300 52px Geist, system-ui, sans-serif";
     const changed = work.correctable && (work.excluded.size || work.added);
     const valueText = res.answer == null ? "Cannot determine" : fmt(res.answer, res.unit) + (changed ? `  →  ${correctedValue(work)} after human check` : "");
     g.fillText(valueText, 40, y);
     y += 42; g.font = "24px system-ui, sans-serif"; g.fillStyle = "#3a3a36";
     y = wrap(g, work.question, 40, y, W - 80, 30, 2);
     const tierColor = { read: "#1f7a3f", measured: "#1d5fa8", detected: "#a86400", estimated: "#7a3fa8", "cannot determine": "#9b2c2c" }[tier] || "#6a6a64";
-    y += 14; g.fillStyle = tierColor; g.font = "700 24px system-ui, sans-serif"; g.fillText((TIER[tier] || [tier])[0], 40, y);
+    y += 14; g.fillStyle = tierColor; g.font = "30px VT323, ui-monospace, monospace"; g.fillText((TIER[tier] || [tier])[0], 40, y);
     g.fillStyle = "#3a3a36"; g.font = "20px system-ui, sans-serif";
     y += 34; y = wrap(g, res.honesty?.basis || res.explanation || "", 40, y, W - 80, 26, 3);
     const cost = res.cost ? `Cost ${res.cost.usd === null ? "≥ " + usd(res.cost.usd_known) : usd(res.cost.usd)} · ${res.cost.text}` : "";
@@ -998,7 +998,7 @@ async function exportReport() {
       const img = await makeCard(w);
       if (res.cost) { if (res.cost.usd === null) unknown = true; total += res.cost.usd_known || 0; }
       const changed = w.correctable && (w.excluded.size || w.added);
-      parts.push(`<section><h2>${i + 1}. ${esc(e.question)}</h2>
+      parts.push(`<section><h2><span>${i + 1}. ${esc(e.question)}</span></h2>
         <p class="ans">${esc(res.answer == null ? "Cannot determine" : fmt(res.answer, res.unit))}${changed ? ` → <b>${esc(String(correctedValue(w)))}</b> after human check (${w.excluded.size} left out, ${w.added} added)` : ""}
         · <span class="tier">${esc((TIER[res.honesty?.tier] || [res.honesty?.tier || ""])[0])}</span></p>
         <p>${esc(res.honesty?.basis || "")}</p>${res.explanation && res.explanation !== res.honesty?.basis ? `<p class="muted">${esc(res.explanation)}</p>` : ""}
@@ -1006,10 +1006,19 @@ async function exportReport() {
         <img src="${img}" alt="answer card"></section>`);
     }
     const doc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DrawQA report</title>
-      <style>body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:0 auto;padding:24px;color:#1c1c1a}h1{margin:0}h1 span{color:#ff6a00}
-      section{border-top:1px solid #ddd;padding:16px 0}h2{font-size:17px;margin:0 0 6px}.ans{font-size:20px;margin:4px 0}.tier{font-size:14px;color:#1d5fa8}
-      .muted{color:#6a6a64;font-size:13px}img{width:100%;border:1px solid #ddd;border-radius:8px}</style></head><body>
-      <h1>Draw<span>QA</span> report</h1><p class="muted">${esc(fileName(current.path))} · ${h.length} question${h.length === 1 ? "" : "s"} · total model cost ${esc((unknown ? "≥ " : "") + usd(total))} · ${esc(new Date().toLocaleString())}</p>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Fragment+Mono&family=Geist:wght@300;400;500;600&display=swap">
+      <style>body{font:15px/1.5 Geist,system-ui,sans-serif;max-width:1000px;margin:0 auto;padding:28px 20px;color:#1e1e1e;
+        background:#fefefe repeating-linear-gradient(0deg,rgba(30,30,30,.06) 0 1px,transparent 1px 3px)}
+      h1{margin:0;font:500 34px Geist,sans-serif;letter-spacing:-.01em}h1 span{color:inherit}
+      .head{border:1px solid #1e1e1e;background:#fefefe;box-shadow:4px 4px 0 #1e1e1e;padding:14px 18px;margin-bottom:22px}
+      section{border:1px solid #1e1e1e;background:#fefefe;box-shadow:4px 4px 0 #1e1e1e;padding:0 0 14px;margin:0 0 22px}
+      h2{margin:0 0 10px;padding:6px 10px;font:20px/1.2 VT323,monospace;letter-spacing:.02em;border-bottom:1px solid #1e1e1e;
+        background:repeating-linear-gradient(0deg,#1e1e1e 0 1px,#fefefe 1px 3px)}h2 span{background:#fefefe;padding:0 6px}
+      section > p,section > img{margin-left:16px;margin-right:16px}
+      .ans{font:300 30px/1.15 Geist,sans-serif;margin:6px 16px}.ans b{font-weight:500}
+      .tier{font:18px VT323,monospace;border:1px solid #1e1e1e;padding:1px 6px;vertical-align:4px}
+      .muted{color:#555;font:12px "Fragment Mono",monospace}img{width:calc(100% - 32px);border:1px solid #1e1e1e;display:block}</style></head><body>
+      <div class="head"><h1>Draw<span>QA</span> report</h1><p class="muted">${esc(fileName(current.path))} · ${h.length} question${h.length === 1 ? "" : "s"} · total model cost ${esc((unknown ? "≥ " : "") + usd(total))} · ${esc(new Date().toLocaleString())}</p></div>
       ${parts.join("")}</body></html>`;
     download(URL.createObjectURL(new Blob([doc], { type: "text/html" })), `drawqa-${fileName(current.path).replace(/\.[^.]+$/, "")}-report.html`);
   } catch (e) { setStatus(`<div class="error">Report failed: ${esc(e.message)}</div>`); }

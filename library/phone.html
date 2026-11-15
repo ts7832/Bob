@@ -109,7 +109,8 @@
 const $ = (id) => document.getElementById(id);
 let pw = sessionStorage.getItem("bobpw") || "", scan = null, scopeAll = false;
 const api = (path, opt = {}) => fetch(path, { ...opt, headers: { "x-bob-password": pw, ...(opt.headers || {}) } })
-  .then(async (r) => { if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText); return r.json(); });
+  .then(async (r) => { if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `the server answered ${r.status}${r.statusText ? " " + r.statusText : ""} (try again; if it repeats, tell the team)`); return r.json(); })
+  .catch((e) => { throw new Error(e.message === "Failed to fetch" || e.message === "Load failed" ? "no connection to the library (check the internet connection)" : e.message); });
 const money = (x) => "$" + (x || 0).toFixed(4);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const value = (a) => a == null || a.answer == null ? "cannot determine" : a.answer + (a.unit && a.unit !== "count" ? " " + a.unit : "");

@@ -66,7 +66,7 @@
         <div class="ha"><b>${esc(x.status === "pending" ? "…" : fmtVal(x.answer, x.unit))}</b>${x.corrected ? ` <s>${esc(fmtVal(x.engine_answer, x.unit))}</s>` : ""}
           <span class="muted"> · ${esc(x.tier || "")} · ${esc(x.sheet)}${x.revision ? " rev " + esc(x.revision) : ""} · ${x.cost_usd ? "$" + x.cost_usd.toFixed(4) : "$0"}</span></div></div>`).join("") || '<p class="muted">No questions yet.</p>';
     if (histTab === "p") $("histbody").innerHTML = `<div class="photos">${hist.scans.map((c) => `<figure>${c.photo ? `<img loading="lazy" src="/bob/lib${c.photo}">` : '<div class="nophoto">no photo</div>'}
-        <figcaption>${t(c.created_at)} · ${c.sheet ? "→ " + esc(c.sheet) : "<b>no match</b>"} · ${c.details} details · ${(+c.seconds).toFixed(1)} s</figcaption></figure>`).join("")}</div>` || "";
+        <figcaption>${c.test ? '<span class="flag">TEST (SCRIPT)</span> ' : '<span class="flag inv">PHONE</span> '}${t(c.created_at)} · ${c.sheet ? "→ " + esc(c.sheet) : "<b>no match</b>"} · ${c.details} details · ${(+c.seconds).toFixed(1)} s</figcaption></figure>`).join("")}</div>` || "";
     if (histTab === "n") $("histbody").innerHTML = hist.notes.map((n) => `<div class="hrow"><div class="hmeta">${t(n.created_at)} · ${esc(n.author || "someone")} · ${esc(n.sheet)}</div>
         <div class="hq">${esc(n.note || "(no comment)")}</div><div class="muted">${n.proposals} proposal(s) from Opus, ${n.accepted} accepted</div></div>`).join("") || '<p class="muted">No notes yet.</p>';
   }
@@ -91,7 +91,7 @@
   async function onOpen() {
     const p = (typeof current !== "undefined" && current) ? current.path : null;
     if (!p || p === seenPath) return;
-    seenPath = p; bar("");
+    seenPath = p; bar(""); setTimeout(savings, 1500); floorStack(p);
     try {
       const id = await sheetIdFor(p);
       const rv = await lib(`/api/sheets/${id}/revisions`);
@@ -172,7 +172,17 @@
   if (ansBox) new MutationObserver(() => {
     if (lastRes && !$("bobtools") && !/Working on it/.test(ansBox.textContent) && ansBox.textContent.trim()) tools();
   }).observe(ansBox, { childList: true });
-  const reask = () => { if (lastQ && $("q") && $("askbtn")) { $("q").value = lastQ; $("askbtn").click(); } };
+  const reask = async () => {
+    try {                                                    // the reading, the clean view and the 3D model follow the change at once
+      if (typeof current !== "undefined" && current && current.path) {
+        const qp = encodeURIComponent(current.path);
+        current.sheetP = fetch("/api/sheet?path=" + qp).then((r) => r.json()).catch(() => null);
+        if (typeof view !== "undefined" && view && view.open) await view.open(current.path);
+      }
+    } catch (e) { console.warn("bob: reload", e); }
+    if (lastQ && $("q") && $("askbtn")) { $("q").value = lastQ; $("askbtn").click(); }
+    setTimeout(savings, 1500);
+  };
 
   function tools() {
     const box = $("answer");
@@ -183,7 +193,8 @@
         <b>${esc(fmtVal(r.answer, r.unit))}</b>.${mine.length ? ' <button class="link" id="undolast">undo my last correction</button>' : ""}</div>` : "";
     box.insertAdjacentHTML("beforeend", `<div id="bobtools">${corrected}
       <div class="row"><button id="fixbtn">✎ Correct this answer</button><button id="circlebtn">◯ Circle a problem</button>
-      <button id="savecheck" hidden>Keep my check</button></div><div id="fixform"></div></div>`);
+      <button id="savecheck" hidden>Keep my check</button><button id="tlbtn">⟲ Change history</button></div><div id="fixform"></div></div>`);
+    $("tlbtn").onclick = showTimeline;
     $("fixbtn").onclick = fixForm;
     $("circlebtn").onclick = openMarkup;
     $("savecheck").onclick = saveCheck;
@@ -205,7 +216,8 @@
     const clsOf = (id) => (ev.find((e) => e.id === id) || {}).cls || lastRes?.intent?.cls || (w.items.find((i) => i.id === id) || {}).kind || "item";
     const main = lastRes?.intent?.cls || (ev[0] || {}).cls || (w.items[0] || {}).kind || "item";
     $("savecheck").disabled = true; $("savecheck").textContent = "Saving…";
-    for (const id of w.excluded) mine.push((await post(`/api/sheets/${sid}/corrections`, { kind: "remove", item_id: id, cls: clsOf(id), author: who(), note: "left out on screen" })).id);
+    const boxOf = (id) => { const e = ev.find((x) => x.id === id); return e && Array.isArray(e.bbox) ? JSON.stringify(e.bbox) : null; };
+    for (const id of w.excluded) mine.push((await post(`/api/sheets/${sid}/corrections`, { kind: "remove", item_id: id, cls: clsOf(id), value: boxOf(id), author: who(), note: "left out on screen" })).id);
     for (let i = 0; i < w.added; i++) mine.push((await post(`/api/sheets/${sid}/corrections`, { kind: "add", cls: main, author: who(), note: "added on screen" })).id);
     reask();
   }
@@ -222,6 +234,100 @@
     };
   }
 
+  // ------------------------------------------------------------------ building: the floors of this building, click to go
+  async function floorStack(path) {
+    $("bobstack")?.remove();
+    if (!vwin || !path) return;
+    let r;
+    try { r = await fetch("/bob/floors?path=" + encodeURIComponent(path)).then((x) => x.json()); } catch (e) { return; }
+    if (!r.floors || !r.floors.length) return;
+    vwin.style.position = "relative";
+    vwin.insertAdjacentHTML("beforeend", `<div id="bobstack" class="bobwin"><div class="tb"><span>Building</span><i>${r.floors.length}</i></div>
+      <div class="body">${r.floors.map((f) => `<button class="slab${f.current ? " on" : ""}" data-path="${esc(f.path)}" title="${esc(f.name)}"><i></i><em>${esc(f.name.length > 14 ? f.name.slice(0, 13) + "…" : f.name)}</em></button>`).join("")}</div></div>`);
+    $("bobstack").querySelectorAll(".slab").forEach((b) => b.onclick = () => {
+      if (b.classList.contains("on")) return;
+      const box = $("openpath");
+      if (!box) return;
+      $("bobstack").querySelectorAll(".slab").forEach((x) => x.classList.toggle("on", x === b));
+      box.value = b.dataset.path;
+      box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+  }
+
+  // ------------------------------------------------------------------ FAQ: kokoro's suggested questions in a hover list
+  const mic = $("micbtn"), askRow = mic ? mic.parentElement : null;
+  if (askRow && !$("faqwrap")) {
+    askRow.insertAdjacentHTML("beforeend", '<span id="faqwrap"><button id="faqbtn" type="button" title="Questions you can ask this blueprint">FAQ</button><div id="faqlist"></div></span>');
+    const fill = () => {
+      const src = [...document.querySelectorAll("#suggested button, #suggested .chip, #chips button, #chips .chip")].filter((b) => b.textContent.trim());
+      $("faqlist").innerHTML = src.length ? '<div class="faqh"><span>Questions for this blueprint</span></div>' : '<div class="faqh"><span>Open a blueprint first</span></div>';
+      src.forEach((b) => {
+        const x = document.createElement("button");
+        x.type = "button"; x.textContent = b.textContent.trim();
+        x.onclick = () => { b.click(); $("faqwrap").classList.remove("open"); };
+        $("faqlist").appendChild(x);
+      });
+    };
+    for (const id of ["suggested", "chips"]) if ($(id)) new MutationObserver(fill).observe($(id), { childList: true, subtree: true });
+    fill();
+    $("faqbtn").onclick = () => $("faqwrap").classList.toggle("open");          // touch screens: tap to open, tap again to close
+    document.addEventListener("pointerdown", (e) => { if (!$("faqwrap").contains(e.target)) $("faqwrap").classList.remove("open"); });
+  }
+
+  // ------------------------------------------------------------------ change history: linear, every step with before/after
+  async function showTimeline() {
+    await sheetIdFor(current.path);
+    modal("Change history", '<div class="tl" id="tl"><p class="muted">Loading…</p></div>');
+    const draw = async () => {
+      const t = await lib(`/api/sheets/${sid}/timeline`);
+      const cur = [...t.steps].reverse().find((x) => x.status === "applied");
+      const ansRow = (st, prev) => (st.answers || []).map((a, i) => {
+        const b = prev && prev.answers ? prev.answers[i] : null, changed = b && String(b.answer) !== String(a.answer);
+        return `<tr class="${changed ? "chg" : ""}"><td>${esc(a.question)}</td><td>${b ? esc(fmtVal(b.answer, b.unit)) : ""}</td><td><b>${esc(fmtVal(a.answer, a.unit))}</b></td></tr>`;
+      }).join("");
+      let prev = null;
+      $("tl").innerHTML = `<p class="muted">Every change to what the system read on this blueprint, oldest first. Going back undoes the later
+        changes (they stay listed as undone, nothing is deleted).</p>` + t.steps.map((st, i) => {
+        const html = `<div class="tlstep ${st.status}${cur && cur.id === st.id ? " now" : ""}">
+          <div class="tlhead"><span class="n">${i}</span><b>${esc(st.what)}</b> <span class="muted">${esc(st.by || "")}${st.when ? " · " + esc(st.when.slice(5, 16)) : ""}${st.status === "undone" ? " · UNDONE" : ""}</span>
+          ${cur && cur.id === st.id ? '<span class="flag inv">NOW</span>' : `<button data-rev="${st.id}">Go back to here</button>`}</div>
+          ${st.why || st.from_note ? `<div class="muted small">${st.from_note ? "note: " + esc(st.from_note) + " · " : ""}${esc(st.why || "")}</div>` : ""}
+          ${st.answers && st.answers.length ? `<table><tr><th>question</th><th>before</th><th>after</th></tr>${ansRow(st, prev)}</table>` : ""}</div>`;
+        if (st.status === "applied") prev = st;
+        return html;
+      }).join("");
+      $("tl").querySelectorAll("[data-rev]").forEach((b) => b.onclick = async () => {
+        b.disabled = true; await post(`/api/sheets/${sid}/revert_to/${b.dataset.rev}`); await draw(); changed = true;
+      });
+    };
+    let changed = false;
+    onClose = () => { if (changed) reask(); };
+    draw().catch((e) => { $("tl").textContent = e.message; });
+  }
+
+  // ------------------------------------------------------------------ measure: say exactly where the scale came from
+  const scaleText = async () => {
+    try {
+      const sh = current && current.sheetP ? await current.sheetP : null, sc = (sh && sh.scale) || {};
+      if (!sc.m_per_px) return null;
+      if (sc.estimated) return `≈ scale ESTIMATED: ${String(sc.source || "").replace(/^estimated:\s*/, "")} (error ${sc.length_error || "unknown"}) — not printed on the sheet`;
+      return `scale: ${sc.source || (sc.denominator ? "printed 1:" + sc.denominator : "from the sheet")}`;
+    } catch (e) { return null; }
+  };
+  const vw = $("viewer");
+  if (vw) new MutationObserver(async () => {
+    const tags = [...vw.querySelectorAll(".dv-mlabel")].filter((el) => !el.textContent.startsWith("≈"));
+    const hits = [...vw.querySelectorAll("*")].filter((el) => el.childNodes.length === 1 && el.firstChild.nodeType === 3 && /scale: from the sheet/.test(el.textContent));
+    if (!hits.length && !tags.length) return;
+    const t = await scaleText();
+    if (t && t.startsWith("≈")) for (const el of tags) if (el.childNodes.length === 1 && el.firstChild.nodeType === 3) el.textContent = "≈ " + el.textContent;
+    if (!hits.length) return;
+    for (const el of hits) {
+      if (t) { el.textContent = el.textContent.replace("scale: from the sheet", t); if (t.startsWith("≈")) el.classList.add("est"); }
+      else el.textContent = el.textContent.replace("scale: from the sheet", "scale: unknown source — treat as approximate");
+    }
+  }).observe(vw, { childList: true, subtree: true, characterData: true });
+
   // ------------------------------------------------------------------ circle a problem: Opus proposes, a person accepts
   async function openMarkup() {
     const path = current && current.path;
@@ -232,12 +338,21 @@
       <textarea id="mkcomment" placeholder="e.g. there is a door here that was not counted"></textarea>
       <input id="mkwho" placeholder="your name" value="${esc(who())}"><button id="mksend" disabled>Send to Opus</button><div id="mkout"></div></div></div>`);
     const cv = $("mkc"), g = cv.getContext("2d"), img = new Image();
-    let k0 = 1, marks = [];                                    // view-image px per original px; counted items with boxes
+    let k0 = 1, marks = [], reading = [];                      // view-image px per original px; counted items; everything else read
     try {
       const info = await lib(`/api/sheets/${sid}`);
       const ev = (lastRes?.evidence || []).filter((e) => Array.isArray(e.bbox) && e.bbox.length === 4);
       const raster = /raster|image/i.test(String(lastRes?.source_type || "")) || ev.every((e) => e.bbox.every((v) => v >= 0));
       marks = raster ? ev.map((e, i) => ({ id: e.id, cls: e.cls, mark: e.label || String(i + 1), b: e.bbox })) : [];
+      const sh = raster && current.sheetP ? await current.sheetP : null;
+      const boxOf = (x) => Array.isArray(x.bbox) && x.bbox.length === 4 ? x.bbox : Array.isArray(x.polygon) && x.polygon.length
+        ? [Math.min(...x.polygon.map((p) => p[0])), Math.min(...x.polygon.map((p) => p[1])), Math.max(...x.polygon.map((p) => p[0])), Math.max(...x.polygon.map((p) => p[1]))] : null;
+      const counted = new Set(marks.map((m) => m.id));
+      reading = [];
+      for (const k of ["openings", "fixtures", "walls", "rooms"]) for (const x of (sh && sh[k]) || []) {
+        const b = boxOf(x);
+        if (b && x.id && !counted.has(x.id)) reading.push({ id: x.id, cls: x.cls || (k === "walls" ? "wall" : k.replace(/s$/, "")), b });
+      }
       img.onloadOnce = () => { k0 = img.naturalWidth / (info.width || img.naturalWidth); };
     } catch (e) { marks = []; }
     let s = 1, ox = 0, oy = 0, pts = [], drawing = false, panning = null, props = [], accepted = 0;
@@ -256,6 +371,10 @@
     function draw() {
       g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = "#fefefe"; g.fillRect(0, 0, cv.width, cv.height);
       g.setTransform(s, 0, 0, s, ox, oy); g.drawImage(img, 0, 0);
+      for (const m of reading) {                               // everything else the system read (faint), so a wall or a room can be circled too
+        const [a, b2, c3, d] = m.b.map((v) => v * k0);
+        g.setLineDash([4 / s, 3 / s]); g.lineWidth = 1 / s; g.strokeStyle = "rgba(30,30,30,.45)"; g.strokeRect(a, b2, c3 - a, d - b2);
+      }
       for (const m of marks) {                                 // what the system counted, numbered like on the page
         const [a, b2, c3, d] = m.b.map((v) => v * k0);
         g.setLineDash([]); g.lineWidth = 2 / s; g.strokeStyle = "#e8650a"; g.strokeRect(a, b2, c3 - a, d - b2);
@@ -298,13 +417,17 @@
       const crop = document.createElement("canvas");
       crop.width = Math.round((x1 - x0) * k); crop.height = Math.round((y1 - y0) * k);
       crop.getContext("2d").drawImage(img, x0, y0, x1 - x0, y1 - y0, 0, 0, crop.width, crop.height);
+      const inBox = (m) => {                                 // the item's centre (or, for long walls, any overlap) inside the circle
+        const [a, b2, c3, d] = m.b.map((v) => v * k0), cx = (a + c3) / 2, cy = (b2 + d) / 2;
+        return (cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1) || (/wall/.test(m.cls || "") && a < x1 && c3 > x0 && b2 < y1 && d > y0);
+      };
       $("mksend").disabled = true; $("mkout").innerHTML = '<p><span class="spinner"></span>Opus is looking at the circled part…</p>';
       try {
         const ev = lastRes?.evidence || [];
         const r = await post(`/api/sheets/${sid}/notes`, { image: crop.toDataURL("image/jpeg", 0.9), box: bb, comment: $("mkcomment").value.trim(), author: who(),
           question: lastQ, answer: lastRes ? fmtVal(lastRes.answer, lastRes.unit) : null, evidence_classes: [...new Set(ev.map((e) => e.cls).filter(Boolean))],
-          counted_inside: marks.length ? marks.filter((m) => { const cx = (m.b[0] + m.b[2]) / 2 * k0, cy = (m.b[1] + m.b[3]) / 2 * k0; return cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1; })
-                                              .map((m) => ({ id: m.id, cls: m.cls, mark: m.mark })) : null });
+          counted_inside: marks.length ? marks.filter(inBox).map((m) => ({ id: m.id, cls: m.cls, mark: m.mark, bbox: m.b })) : null,
+          items_inside: reading.length ? reading.filter(inBox).map((m) => ({ id: m.id, cls: m.cls, bbox: m.b })) : null });
         props = r.proposals.map((p, i) => ({ ...p, n: i + 1, status: "proposed" }));
         draw();
         const row = (p) => `<div class="prop" data-id="${p.id}"><b>${p.n}. ${esc(p.kind)}${p.cls ? " " + esc(p.cls) : ""}${p.value != null ? " = " + esc(p.value) : ""}</b>
