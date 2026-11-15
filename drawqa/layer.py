@@ -204,6 +204,9 @@ def _discover(png, w, h, wd, start, on_event=None):
                 for b in (ev.get("message") or {}).get("content") or []:
                     if b.get("type") == "tool_use":
                         tell("claude_step", _step_text(b))
+                        fp = (b.get("input") or {}).get("file_path") or ""
+                        if b.get("name") == "Read" and fp.lower().endswith((".png", ".jpg", ".jpeg")) and os.path.exists(fp):
+                            tell("claude_view", fp)  # the image Claude is looking at right now (its own crops)
         if os.path.exists(f):  # a new version of the result: pass it on (a half-written file is skipped until next time)
             m = os.path.getmtime(f)
             if m != seen:
