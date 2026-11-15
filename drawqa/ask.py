@@ -40,8 +40,9 @@ Rules:
   reading (for example "dishwashers were not identified on this sheet"). Do not guess from names alone.
 - Areas and lengths need the scale. If the scale is marked as estimated or unknown, say so (tier "estimated").
 - Walls (from the notes): "perimeter" of the walls, building or apartment = the OUTSIDE face of the walls; give that
-  number and add the inside total in the explanation; cite the 'wall perimeter' items you used (face outside/inside). A room's perimeter = its inside face. "Total wall length" = the
-  sum of wall centre lines (solid wall, corners from both sides); say which measure you give.
+  number, add the inside total in the explanation, and cite the 'wall perimeter' items you used. A room's perimeter =
+  its inside face. "Wall length" = the walls' length_m (whole walls through their doors and windows, as in quantity
+  take-offs); give the solid length (solid_length_m) in the explanation. Say which measure you give.
 - Cite the ids your answer rests on in answer(evidence=...). Be brief. You have at most {turns} tool calls."""
 
 
