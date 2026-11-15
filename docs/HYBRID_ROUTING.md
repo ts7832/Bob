@@ -65,6 +65,28 @@ Effect of each threshold on dataset wording:
 
 When the routers disagree, the pattern reading is right only 84.3% of the time, against 97.7% when they agree. So disagreement is the cheapest warning sign we have, and it should send the question to the agent.
 
+### Update: router3 (live in bob-engine since 2026-11-15 ~03:10)
+
+router3 = router2 plus rare question types and a `table` label. Same test questions as router2. Scored against the Swiss key corrected for doors/windows stored twice (your rule from DATASET_ISSUES, applied to every question).
+
+| test set | all right | fast path takes | fast path right |
+|---|---|---|---|
+| dataset wording | 97.1% | 95.4% | 98.4% |
+| Haiku rewordings | 88.5% (router2: 85.7%) | 32.1% | 97.3% |
+| Qwen rewordings | 63.1% (router2: 60.3%) | 23.3% | 93.4% |
+
+- The routers now disagree on 52 dataset questions (router2: 2,133), so far more dataset-wording questions take the fast path.
+- Fast path by source:
+
+  | source | questions | right |
+  |---|---|---|
+  | Swiss | 37,532 | 98.9% |
+  | building models | 2,308 | 98.4% |
+  | scans | 3,051 | 93.1% |
+
+  Scans stay on the checked layer for counts.
+- Details: `library/eval_out/router3_vs_router2.txt` on scan-library.
+
 ## Interface (all in `library/jev_cascade.py`, no change to drawqa files needed to use it)
 
 ```python
