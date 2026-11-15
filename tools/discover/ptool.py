@@ -31,13 +31,17 @@ whole sheet at once is slow and uses a lot of memory.
       the two drawn edges (or on the single line), turns with the drawing through bends and elbows, and coasts
       straight through valves, flanges and cross marks of the same run. Stops at the run's end, a tee or a big change
       of width. Prints a dense centreline (curves kept), the width along it, and why it stopped.
+  --into discovered.json --cls NAME   (with find_like, snap_box, fill, trace)
+      Also adds the result to class NAME in discovered.json at once (created if missing; boxes already there are not
+      added twice). The user watches discovered.json live, so this shows each find as soon as you make it, at no
+      extra step. Such items carry "checked": "not yet"; your own later save of the class replaces them.
   crops <image> <items.json> <out.png> [--pad 40] [--cols 6] [--max 60] [--class NAME]
       items.json: a list of {"bbox"|"polyline"|"polygon"|"point", "label"?}, a find_like output, or a discovered.json
       (--class NAME for one class).
       Draws each item on a full-resolution crop around it, numbered, in a grid: the sheet for checking that every
       item sits on its object.
 """
-import json, sys
+import json, os, sys
 import cv2
 import numpy as np
 
@@ -138,6 +142,39 @@ def _find(img, box, lo=0.7, rot=False, scales=None, region=None):
     return _dedupe(hits)
 
 
+def _into(a, items, geometry):
+    """--into FILE --cls NAME: merge these items into class NAME of a discovered.json (written atomically)."""
+    if "--into" not in a:
+        return
+    f = a[a.index("--into") + 1]
+    name = a[a.index("--cls") + 1] if "--cls" in a else None
+    if not name:
+        print("--into needs --cls NAME: nothing saved"); return
+    try:
+        d = json.load(open(f))
+    except Exception:
+        d = {"sheet": "", "classes": []}
+    c = next((c for c in d.get("classes", []) if c.get("name") == name), None)
+    if c is None:
+        c = dict(name=name, source="Claude", geometry=geometry, method="ptool", verified="not yet", items=[])
+        d.setdefault("classes", []).append(c)
+    def iou(p, q):
+        ix, iy = max(0, min(p[2], q[2]) - max(p[0], q[0])), max(0, min(p[3], q[3]) - max(p[1], q[1]))
+        u = (p[2] - p[0]) * (p[3] - p[1]) + (q[2] - q[0]) * (q[3] - q[1]) - ix * iy
+        return ix * iy / u if u > 0 else 0
+    added = 0
+    for it in items:
+        if "bbox" in it and any("bbox" in o and iou(o["bbox"], it["bbox"]) > 0.5 for o in c.get("items", [])):
+            continue
+        c.setdefault("items", []).append(dict(it, checked="not yet"))
+        added += 1
+    c["count"] = len(c["items"])
+    tmp = f + ".tmp"
+    json.dump(d, open(tmp, "w"))
+    os.replace(tmp, f)  # atomic: a reader never sees a half-written file
+    print(f"saved into {f}: {added} added, class {name} now has {len(c['items'])} items")
+
+
 def find_like(a):
     img = load(a[2]); box = [int(float(v)) for v in a[3:7]]; out = a[7]
     reg = opt(a, "--in", 4, lambda v: int(float(v)))
@@ -148,6 +185,7 @@ def find_like(a):
         sys.exit(str(e))
     json.dump(keep, open(out, "w"), indent=0)
     print(f"{len(keep)} hits >= {lo} (best {keep[0]['score'] if keep else '-'}, worst {keep[-1]['score'] if keep else '-'}) -> {out}")
+    _into(a, [dict(bbox=h["bbox"], score=h.get("score")) for h in keep], "box")
     if "--sheet" in a:
         crops(["", "", a[2], out, a[a.index("--sheet") + 1], "--pad", "20"])
 
@@ -218,6 +256,7 @@ def snap_box(a):
         print("no ink of an object in the box (only long lines, or paper)"); return
     b = [int(xs.min()) + bx[0] + X0, int(ys.min()) + bx[1] + Y0, int(xs.max()) + 1 + bx[0] + X0, int(ys.max()) + 1 + bx[1] + Y0]
     print(json.dumps(dict(bbox=[int(v) for v in b], moved_px=int(max(abs(b[0] - x0), abs(b[1] - y0), abs(b[2] - x1), abs(b[3] - y1))))))
+    _into(a, [dict(bbox=[int(v) for v in b])], "box")
 
 
 def snap_line(a):
@@ -289,6 +328,7 @@ def fill(a):
     c = max(cs, key=cv2.contourArea)
     poly = cv2.approxPolyDP(c, 3, True)[:, 0, :].tolist()
     print(json.dumps(dict(polygon=poly, area_px=int(cv2.contourArea(c)), corners=len(poly))))
+    _into(a, [dict(polygon=poly)], "polygon")
 
 
 def crops(a):
@@ -457,6 +497,7 @@ def trace(a):
     if "--out" in a:
         json.dump(res, open(a[a.index("--out") + 1], "w"))
     print(json.dumps(res) if len(json.dumps(res)) < 1500 else json.dumps(dict(res, polyline=f"{len(res['polyline'])} points (use --out)")))
+    _into(a, [dict(polyline=res["polyline"])], "polyline")
 
 
 def lint_layer(a):

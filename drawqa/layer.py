@@ -180,6 +180,9 @@ def _discover(png, w, h, wd, start, on_event=None):
               f"Work folder: {wd} (start_layer.json and start_overlay.png from our trained models are already in it).")
     t0 = time.time()
     f = os.path.join(wd, "discovered.json")
+    # the live result starts as the models' reading, so tool saves (ptool --into) land in a complete file
+    json.dump(dict(sheet="", classes=start["classes"]), open(f, "w"))
+    first = os.path.getmtime(f)
     proc = subprocess.Popen([exe, "-p", prompt, "--model", "opus", "--effort", DISCOVER_EFFORT, "--output-format", "stream-json",
                              "--verbose", "--allowedTools", "Bash", "Read", "Write", "Edit", "Glob", "Grep",
                              "--add-dir", wd, "--add-dir", TOOLS, "--add-dir", os.path.dirname(os.path.abspath(png))],
@@ -187,7 +190,7 @@ def _discover(png, w, h, wd, start, on_event=None):
     import queue, threading
     lines = queue.Queue()
     threading.Thread(target=lambda: [lines.put(l) for l in proc.stdout] and None, daemon=True).start()
-    meta, seen, timed_out = {}, None, False
+    meta, seen, timed_out = {}, first, False  # the file we started with is not news
     while True:
         try:
             line = lines.get(timeout=1.0)
@@ -224,8 +227,9 @@ def _discover(png, w, h, wd, start, on_event=None):
             proc.kill()
             timed_out = True
             break
+    wrote = os.path.exists(f) and os.path.getmtime(f) != first  # the models' reading we put there does not count
     if timed_out:
-        if os.path.exists(f):  # it had already written a result: use it, and say it is partial
+        if wrote:  # it had already written a result: use it, and say it is partial
             try:
                 return json.load(open(f)).get("classes", []), dict(status="partial", seconds=round(time.time() - t0),
                                                                      reason=f"the Claude step ran out of time ({limit} s); its last written result is used")
@@ -234,7 +238,7 @@ def _discover(png, w, h, wd, start, on_event=None):
         return None, dict(status="timeout", seconds=round(time.time() - t0), reason=f"the Claude step took over {limit} s")
     info = dict(status="done", seconds=round(time.time() - t0), model=f"Opus, {DISCOVER_EFFORT} effort",
                 cost_usd=meta.get("total_cost_usd"), turns=meta.get("num_turns"), report=(meta.get("result") or "")[-3000:])
-    if not os.path.exists(f):
+    if not wrote:
         err = proc.stderr.read()[-300:] if proc.stderr else ""
         return None, dict(info, status="failed", reason="the Claude step wrote no result" + (f": {err}" if err else ""))
     try:
