@@ -132,7 +132,7 @@ def web():
         q(stmt)
     if not q("SELECT id FROM workspaces WHERE name='Demo'"):
         q("INSERT INTO workspaces (name, password_sha) VALUES ('Demo', %s)", (hashlib.sha256(PASSWORD.encode()).hexdigest(),))
-    else:                                       # the password lives in the bob-site-password secret: the stored hash follows it
+    else:                                       # the stored hash follows BOB_PASSWORD (default: the demo password)
         q("UPDATE workspaces SET password_sha=%s WHERE name='Demo'", (hashlib.sha256(PASSWORD.encode()).hexdigest(),))
 
     dirty = threading.Event()
