@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DrawQA</title>
+<title>Bob</title>
 <style>
 :root{
   --bg:#f4f4f1; --panel:#ffffff; --fg:#1c1c1a; --muted:#6a6a64; --line:#e2e2dc; --soft:#f0f0ec;
@@ -139,10 +139,9 @@ details.more summary{cursor:pointer;color:var(--muted);font-size:13px;min-height
 </head>
 <body class="simple">
 <header>
-  <div class="brand">Draw<span>QA</span></div>
+  <div class="brand">Bob</div>
   <div class="title" id="title">Open a drawing</div>
   <button id="modebtn" class="modebtn" title="Switch between a simple view and the full details">Expert view</button>
-  <a href="/classic" class="expert-only">classic demo page</a>
 </header>
 <main>
   <div id="viewer"></div>
@@ -720,7 +719,7 @@ async function lookedHtml(res, sheet) {
 async function exportCard() {
   const btn = $("exportbtn"); btn.disabled = true; btn.textContent = "Exporting…";
   try {
-    download(await makeCard(work), `drawqa-${fileName(current.path).replace(/\.[^.]+$/, "")}-answer.png`);
+    download(await makeCard(work), `bob-${fileName(current.path).replace(/\.[^.]+$/, "")}-answer.png`);
   } catch (e) {
     $("playline").textContent = "Export failed: " + e.message;
   } finally { btn.disabled = false; btn.textContent = "Export card"; }
@@ -743,7 +742,7 @@ async function makeCard(w) {
     const work = w;   // the lines below describe this answer
     const res = work.res, tier = res.honesty?.tier || (res.answer == null ? "cannot determine" : "");
     let y = DH + 56;
-    g.fillStyle = "#1e1e1e"; g.font = "500 40px Geist, system-ui, sans-serif"; g.fillText("DrawQA", 40, y);
+    g.fillStyle = "#1e1e1e"; g.font = "500 40px Geist, system-ui, sans-serif"; g.fillText("Bob", 40, y);
     g.fillStyle = "#6a6a64"; g.font = "20px 'Fragment Mono', ui-monospace, monospace"; g.fillText(fileName(current.path), 220, y - 4);
     y += 60;
     g.fillStyle = "#1c1c1a"; g.font = "300 52px Geist, system-ui, sans-serif";
@@ -982,7 +981,7 @@ function exportCsv() {
   });
   if (w.added) rows.push([w.question, res.answer, res.unit, res.honesty?.tier, "", "", "added by reviewer", "", "", "", "", `yes (${w.added} added, no position)`, "", "", "", ""].map(q).join(","));
   const csv = "﻿" + [head.join(","), ...rows].join("\r\n");   // BOM so Excel reads UTF-8
-  download(URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })), `drawqa-${fileName(current.path).replace(/\.[^.]+$/, "")}-takeoff.csv`);
+  download(URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })), `bob-${fileName(current.path).replace(/\.[^.]+$/, "")}-takeoff.csv`);
 }
 
 async function exportReport() {
@@ -1005,7 +1004,7 @@ async function exportReport() {
         <p class="muted">${w.items.length} evidence marks${res.cost ? ` · cost ${esc(res.cost.usd === null ? "≥ " + usd(res.cost.usd_known) : usd(res.cost.usd))}` : ""} · ${res._seconds ? res._seconds.toFixed(1) + " s" : ""}</p>
         <img src="${img}" alt="answer card"></section>`);
     }
-    const doc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DrawQA report</title>
+    const doc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bob report</title>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Fragment+Mono&family=Geist:wght@300;400;500;600&display=swap">
       <style>body{font:15px/1.5 Geist,system-ui,sans-serif;max-width:1000px;margin:0 auto;padding:28px 20px;color:#1e1e1e;
         background:#fefefe repeating-linear-gradient(0deg,rgba(30,30,30,.06) 0 1px,transparent 1px 3px)}
@@ -1018,9 +1017,9 @@ async function exportReport() {
       .ans{font:300 30px/1.15 Geist,sans-serif;margin:6px 16px}.ans b{font-weight:500}
       .tier{font:18px VT323,monospace;border:1px solid #1e1e1e;padding:1px 6px;vertical-align:4px}
       .muted{color:#555;font:12px "Fragment Mono",monospace}img{width:calc(100% - 32px);border:1px solid #1e1e1e;display:block}</style></head><body>
-      <div class="head"><h1>Draw<span>QA</span> report</h1><p class="muted">${esc(fileName(current.path))} · ${h.length} question${h.length === 1 ? "" : "s"} · total model cost ${esc((unknown ? "≥ " : "") + usd(total))} · ${esc(new Date().toLocaleString())}</p></div>
+      <div class="head"><h1>Bob report</h1><p class="muted">${esc(fileName(current.path))} · ${h.length} question${h.length === 1 ? "" : "s"} · total model cost ${esc((unknown ? "≥ " : "") + usd(total))} · ${esc(new Date().toLocaleString())}</p></div>
       ${parts.join("")}</body></html>`;
-    download(URL.createObjectURL(new Blob([doc], { type: "text/html" })), `drawqa-${fileName(current.path).replace(/\.[^.]+$/, "")}-report.html`);
+    download(URL.createObjectURL(new Blob([doc], { type: "text/html" })), `bob-${fileName(current.path).replace(/\.[^.]+$/, "")}-report.html`);
   } catch (e) { setStatus(`<div class="error">Report failed: ${esc(e.message)}</div>`); }
   finally { btn.disabled = false; btn.textContent = "Download report of all answers"; }
 }

@@ -39,7 +39,13 @@ def sheet_id(path):
     """The library sheet for this file, registered (uploaded) the first time."""
     name = os.path.basename(path)
     if name in _ids:
-        return _ids[name]
+        try:                                   # still in the library? (a deleted sheet must not be used again)
+            call("GET", f"/api/sheets/{_ids[name]}", timeout=20)
+            return _ids[name]
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                raise
+            _ids.pop(name, None)
     try:
         sid = call("GET", "/api/find", file_name=name)["id"]
     except urllib.error.HTTPError as e:
@@ -122,7 +128,12 @@ def _corrected(kind, path, body):
     sid = _known_id(path)
     if not sid:
         return body
-    ed = call("GET", f"/api/sheets/{sid}/edits", timeout=20)
+    try:
+        ed = call("GET", f"/api/sheets/{sid}/edits", timeout=20)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:                       # deleted from the library: forget it
+            _ids.pop(os.path.basename(path), None)
+        return body
     if not ed["removed"] and not ed["added"]:
         return body
     gone = {r["id"] for r in ed["removed"]}

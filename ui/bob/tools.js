@@ -35,8 +35,10 @@
     });
   }
   let sv = null;
+  const rate = () => { try { return { h: +localStorage.getItem("bobEurH") || 60, m: +localStorage.getItem("bobMinItem") || 6 }; } catch (e) { return { h: 60, m: 6 }; } };
   async function savings() {
-    try { sv = await lib("/api/savings"); } catch (e) { return; }
+    const r = rate();
+    try { sv = await lib(`/api/savings?eur_per_hour=${r.h}&minutes_per_answer=${r.m}`); } catch (e) { return; }
     $("sv-eur").textContent = "€" + money(sv.person.eur_saved);
     $("sv-ai").textContent = "$" + money(sv.ai.saved_usd);
     $("svbody").innerHTML = `<div class="big">€${money(sv.person.eur_saved)}</div><p>${sv.person.hours_saved.toLocaleString("en")} hours of a person's take-off work:
@@ -44,10 +46,33 @@
       <p class="muted">Assumption: ${esc(sv.person.assumption)}.</p><hr>
       <div class="big">$${money(sv.ai.saved_usd)}</div><p>AI cost avoided: all of it through Opus would cost $${money(sv.ai.opus_for_everything_usd)}; we spent
       $${sv.ai.spent_usd.toFixed(2)} (most answers come from code, at $0, and repeats from the library).</p>
-      <p class="muted">Assumption: ${esc(sv.ai.assumption)}.</p><p class="muted">${sv.scans} phone scans.${sv.since ? ` Counting since ${esc(sv.since.slice(0, 16))} (earlier use stays in the ledger).` : ""}</p>`;
+      <p class="muted">Assumption: ${esc(sv.ai.assumption)}.</p>
+      <div class="svset"><b>Your numbers</b>
+        <label>Price per hour <span><input type="range" id="svh" min="20" max="200" step="5" value="${rate().h}"><input type="number" id="svhn" min="1" max="1000" value="${rate().h}"> €/h</span></label>
+        <label>Time per counted or measured item <span><input type="range" id="svm" min="1" max="30" step="0.5" value="${rate().m}"><input type="number" id="svmn" min="0.1" max="120" step="0.1" value="${rate().m}"> min</span></label></div>
+      <p class="muted">${sv.scans} phone scans.${sv.since ? ` Counting since ${esc(sv.since.slice(0, 16))} (earlier use stays in the ledger).` : ""}</p>`;
   }
+  // the price per hour and minutes per item: slider or typed, kept in this browser, applied at once
+  let svT = 0;
+  document.addEventListener("input", (e) => {
+    const id = e.target.id;
+    if (!/^sv[hm]n?$/.test(id)) return;
+    const v = +e.target.value;
+    if (!(v > 0)) return;
+    const k = id.startsWith("svh") ? "h" : "m";
+    const other = k === "h" ? (id === "svh" ? "svhn" : "svh") : (id === "svm" ? "svmn" : "svm");
+    if ($(other)) $(other).value = v;
+    try { localStorage.setItem(k === "h" ? "bobEurH" : "bobMinItem", v); } catch (err) { /* */ }
+    if (sv) {                                   // instant: recompute here, then confirm with the library
+      const r = rate(), hours = sv.answers * r.m / 60;
+      $("sv-eur").textContent = "€" + money(hours * r.h);
+      const big = document.querySelector("#svbody .big");
+      if (big) big.textContent = "€" + money(hours * r.h);
+    }
+    clearTimeout(svT); svT = setTimeout(() => { const keep = document.activeElement && document.activeElement.id; savings().then(() => keep && $(keep) && $(keep).focus()); }, 600);
+  });
   savings();
-  setInterval(savings, 30000);
+  setInterval(() => { if ($("svpop").hidden) savings(); }, 30000);
 
   let hist = null, histTab = "q";
   async function history_() {
@@ -258,21 +283,25 @@
   // ------------------------------------------------------------------ FAQ: kokoro's suggested questions in a hover list
   const mic = $("micbtn"), askRow = mic ? mic.parentElement : null;
   if (askRow && !$("faqwrap")) {
-    askRow.insertAdjacentHTML("beforeend", '<span id="faqwrap"><button id="faqbtn" type="button" title="Questions you can ask this blueprint">FAQ</button><div id="faqlist"></div></span>');
+    askRow.insertAdjacentHTML("beforeend", '<span id="faqwrap"><button id="faqbtn" type="button" title="Questions you can ask this blueprint" aria-expanded="false">FAQ</button></span>');
+    askRow.insertAdjacentHTML("afterend", '<div id="faqlist" hidden></div>');      // inside the panel: always as wide as the panel
     const fill = () => {
       const src = [...document.querySelectorAll("#suggested button, #suggested .chip, #chips button, #chips .chip")].filter((b) => b.textContent.trim());
       $("faqlist").innerHTML = src.length ? '<div class="faqh"><span>Questions for this blueprint</span></div>' : '<div class="faqh"><span>Open a blueprint first</span></div>';
       src.forEach((b) => {
         const x = document.createElement("button");
         x.type = "button"; x.textContent = b.textContent.trim();
-        x.onclick = () => { b.click(); $("faqwrap").classList.remove("open"); };
+        x.onclick = () => { b.click(); setFaq(false); };
         $("faqlist").appendChild(x);
       });
     };
     for (const id of ["suggested", "chips"]) if ($(id)) new MutationObserver(fill).observe($(id), { childList: true, subtree: true });
     fill();
-    $("faqbtn").onclick = () => $("faqwrap").classList.toggle("open");          // touch screens: tap to open, tap again to close
-    document.addEventListener("pointerdown", (e) => { if (!$("faqwrap").contains(e.target)) $("faqwrap").classList.remove("open"); });
+    const setFaq = (on) => { $("faqlist").hidden = !on; $("faqwrap").classList.toggle("open", on); $("faqbtn").setAttribute("aria-expanded", on); };
+    window.bobSetFaq = setFaq;
+    $("faqbtn").onclick = () => setFaq($("faqlist").hidden);                           // a button: click opens, click again closes
+    document.addEventListener("pointerdown", (e) => { if (!$("faqwrap").contains(e.target) && !$("faqlist").contains(e.target)) setFaq(false); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") setFaq(false); });
   }
 
   // ------------------------------------------------------------------ change history: linear, every step with before/after

@@ -81,7 +81,7 @@
 .vwin .dv-tools select{appearance:none;-webkit-appearance:none;padding-right:26px!important;
   background:#fefefe url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0h10L5 6z' fill='%231e1e1e'/%3E%3C/svg%3E") no-repeat right 9px center!important}
 .vwin .dv-root [class*="dv-"]{border-radius:0!important}
-.vwin .dv-callout,.vwin .dv-detail,.vwin .dv-overlay{border:1px solid #1e1e1e!important;box-shadow:4px 4px 0 #1e1e1e!important;background:#fefefe!important}
+.vwin .dv-callout,.vwin .dv-detail{border:1px solid #1e1e1e!important;box-shadow:4px 4px 0 #1e1e1e!important;background:#fefefe!important}   /* never .dv-overlay: it covers the whole drawing */
 .vwin .dv-value{font:300 44px/1.05 var(--sans)!important;letter-spacing:-.02em}
 .vwin .dv-title{font:19px/1.1 var(--pix)!important;letter-spacing:.02em}
 .vwin .dv-cannot .dv-title,.vwin .dv-cannot{color:#c0261c}
@@ -107,16 +107,14 @@
 
 /* ===== FAQ: the suggested questions in a hover list next to the microphone ============================================ */
 #asksec #suggested,#asksec #chips{display:none!important}
-#faqwrap{position:relative;display:inline-block}
-#faqbtn{border:1px solid #1e1e1e;background:#fefefe;font:19px/1 var(--pix);padding:0 14px;height:100%;min-height:38px;cursor:pointer;box-shadow:2px 2px 0 #1e1e1e}
-#faqwrap:hover #faqbtn,#faqwrap.open #faqbtn{background:#1e1e1e;color:#fefefe}
-#faqlist{display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:40;width:min(460px,80vw);max-height:340px;overflow:auto;background:#fefefe;
-  border:1px solid #1e1e1e;box-shadow:4px 4px 0 #1e1e1e}
-#faqwrap:hover #faqlist,#faqwrap.open #faqlist{display:block}
-#faqlist::before{content:"";position:absolute;left:0;right:0;top:-8px;height:8px}
-#faqlist button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #1e1e1e;background:#fefefe;font:13px/1.35 var(--mono);padding:9px 12px;cursor:pointer}
+#faqwrap{display:inline-flex}
+#faqbtn{border:1px solid #1e1e1e;background:#fefefe;font:19px/1 var(--pix);padding:0 14px;min-height:38px;cursor:pointer;box-shadow:2px 2px 0 #1e1e1e}
+#faqbtn:hover,#faqwrap.open #faqbtn{background:#1e1e1e;color:#fefefe}
+#faqlist{margin:10px 0 0;width:100%;max-height:min(340px,45vh);overflow:auto;background:#fefefe;border:1px solid #1e1e1e;box-shadow:4px 4px 0 #1e1e1e;box-sizing:border-box}
+#faqlist[hidden]{display:none}
+#faqlist button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #1e1e1e;background:#fefefe;font:13px/1.35 var(--mono);padding:9px 12px;cursor:pointer;white-space:normal;overflow-wrap:anywhere;box-sizing:border-box}
 #faqlist button:hover{background:#1e1e1e;color:#fefefe}
-#faqlist .faqh{font:16px var(--pix);padding:6px 12px;border-bottom:1px solid #1e1e1e;background:repeating-linear-gradient(0deg,#1e1e1e 0 1px,#fefefe 1px 3px)}
+#faqlist .faqh{font:16px var(--pix);padding:6px 12px;border-bottom:1px solid #1e1e1e;background:repeating-linear-gradient(0deg,#1e1e1e 0 1px,#fefefe 1px 3px);position:sticky;top:0}
 #faqlist .faqh span{background:#fefefe;padding:0 5px}
 
 /* ===== change history ================================================================================================== */
@@ -205,3 +203,17 @@
 #bobsplit:hover i,body.resizing #bobsplit i{height:120px;background:#1e1e1e}
 body.resizing,body.resizing *{cursor:col-resize!important;user-select:none!important}
 #bobsplit{margin:0 -12px}
+
+/* ===== every chip and button square (One-bit), never rounded ========================================================= */
+aside *:not(.spinner),header *:not(.spinner),#projhome *:not(.spinner),#bobveil *:not(.spinner){border-radius:0!important}
+aside .fchip,aside .chip,#understood .fchip{border:1px solid #1e1e1e!important;background:#fefefe!important;color:#1e1e1e!important;box-shadow:2px 2px 0 #1e1e1e;font:13px var(--sans)}
+aside .fchip:hover,aside .chip:hover{background:#1e1e1e!important;color:#fefefe!important}
+aside .fchip:hover .orig,aside .fchip:hover b{color:#fefefe!important}
+aside .fchip.on,aside .chip.on{background:#1e1e1e!important;color:#fefefe!important}
+aside .fchip b{font:600 13px var(--mono)}
+aside button:not(.link):not(.term):not(#faqlist button){border-radius:0!important}
+.svset{border:1px solid #1e1e1e;padding:8px 10px;margin:10px 0;display:grid;gap:8px}
+.svset label{display:grid;gap:3px;font-size:13px}
+.svset span{display:flex;align-items:center;gap:8px;font:12px var(--mono)}
+.svset input[type=range]{flex:1;accent-color:#1e1e1e}
+.svset input[type=number]{width:70px;border:1px solid #1e1e1e;padding:3px 5px;font:13px var(--mono)}
