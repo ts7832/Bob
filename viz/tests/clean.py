@@ -37,7 +37,7 @@ with sync_playwright() as p:
     print(f"     changed px left {left}, right {right}")
     check("left of the divider is redrawn", left > 5000)
     check("right of the divider is the untouched original", right < 300)
-    key = pg.locator(".dv-swipe-key span").all_inner_texts()
+    key = pg.evaluate("() => [...document.querySelectorAll('.dv-swipe-key span')].map(e => e.title)")  # icons, names on hover
     check(f"legend lists the symbols {key}", "doors" in key and "windows" in key)
 
     h = pg.locator(".dv-swipe-handle").bounding_box()

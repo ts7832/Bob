@@ -580,8 +580,8 @@ function Highlight({ el, loaded, drawing, tex, clean, hatch, tier, measure, crow
             <div className={`dv-tag${active ? ' dv-tag-active' : ''}${low ? ' dv-tag-low' : ''}${side ? ` dv-tag-${side}` : ''}`} style={low ? undefined : { background: color }}>
               {glyph && (glyphs || active) && <svg className="dv-glyph" viewBox="0 0 16 16" aria-hidden="true"><path d={glyph} /></svg>}{tag}
             </div>
-            {/* C: in 3D the selected item gets a callout naming it and its source */}
-            {selected && lifted && model && (
+            {/* in 3D, the item under the pointer gets a callout naming it and its source (a selection opens the detail card) */}
+            {hovered && !selected && lifted && model && (
               <div className="dv-callout">
                 <b>{el.cls ? CLS_NAME[el.cls as Cls]?.[0] ?? el.cls : 'Item'}{el.label ? ` · ${el.label} of ${total}` : ''}</b>
                 <small>{el.id} · {TIER_SHORT[tier ?? ''] ?? 'evidence'}</small>
