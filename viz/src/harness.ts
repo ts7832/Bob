@@ -52,6 +52,11 @@ async function openStem(s: string) {
 }
 
 async function showAsk(i: number) {
+  if (qi === i) { // clicking the shown question again clears it
+    qi = -1; view.clear(); $('answer').innerHTML = ''
+    document.querySelectorAll('.qs button').forEach((b) => b.classList.remove('on'))
+    syncUrl(); return
+  }
   qi = i
   const a = asks[i]
   document.querySelectorAll('.qs button').forEach((b) => b.classList.toggle('on', (b as HTMLElement).dataset.i === String(i)))

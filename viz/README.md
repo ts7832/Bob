@@ -64,6 +64,7 @@ Modelled on takeoff and BIM viewers (Bluebeam markups list and measure, Autodesk
 | Control | What it does |
 |---|---|
 | **‹ ›** in the answer card, or **← →** | Step through the evidence one item at a time: zooms to it and shows the crop of the original (e.g. "4 of 13") |
+| **Hover** / **click** any object (no question needed) | Hover: what it is and where that came from. Click: zoom in, a "What this is" card with the crop; in 3D its model turns blue. Esc closes. |
 | **Click** an item / **double-click** anywhere | Zoom to the item / zoom in towards that spot |
 | **F** | Frame the selection (or the whole answer) again |
 | **Original** (hold), or hold **Space** | Hide every highlight and show the untouched drawing |

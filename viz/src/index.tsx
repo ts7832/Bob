@@ -64,7 +64,7 @@ export function mount(el: HTMLElement, opts: MountOptions = {}): DrawViewHandle 
   }
 
   const apply = (loaded: Loaded) => {
-    store.set({ loaded, answer: null, selectedId: null, hoverId: null, loading: false, error: null, mpts: [], mclosed: false, hidden: [], viewFocus: null })
+    store.set({ loaded, answer: null, selectedId: null, hoverId: null, loading: false, error: null, mpts: [], mclosed: false, hidden: [], viewFocus: null, inspected: null })
     if (pending) { const [a, q] = pending; pending = null; handle.showAnswer(a, q) }
   }
 
@@ -111,9 +111,9 @@ export function mount(el: HTMLElement, opts: MountOptions = {}): DrawViewHandle 
       ensureAttached()
       const { loaded, loading } = store.get()
       if (!loaded || loading) { pending = [ask, question]; return }
-      store.set({ answer: toAnswer(ask, loaded, question), selectedId: null, hoverId: null, hidden: [], viewFocus: null })
+      store.set({ answer: toAnswer(ask, loaded, question), selectedId: null, hoverId: null, hidden: [], viewFocus: null, inspected: null })
     },
-    clear() { pending = null; store.set({ answer: null, selectedId: null, hoverId: null }) },
+    clear() { pending = null; store.set({ answer: null, selectedId: null, hoverId: null, inspected: null }) },
     reset() { store.set({ selectedId: null, fitAll: store.get().fitAll + 1 }) },
     select(id) { store.set({ selectedId: id }) },
     setMode(mode) { store.set({ mode }) },
