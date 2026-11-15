@@ -1,16 +1,22 @@
 """Plan drawings exported from a building model (SVG with one group per IFC element, as in the Junction dataset's
-ifc_models/*_plan-*.svg and similar exports): the elements are read exactly from the file instead of being detected.
+ifc_models/*_plan-*.svg, or drawn here from an .ifc by drawqa/ifcdraw.py): the elements are read exactly from the file
+instead of being detected.
 
     read(svg_path, width_px, height_px) -> layer classes (picture pixel coordinates) or None when the SVG carries no
     IFC classes. Each item keeps the element's name and GUID; the source says they were read from the file.
+
+An element drawn in several pieces (IfcOpenShell writes one group per piece, ids "...-product-<guid>-...") is one item.
 """
 import re
+import xml.etree.ElementTree as ET
 
 MAP = {"IfcDoor": "door", "IfcWindow": "window", "IfcSpace": "room", "IfcWall": "wall", "IfcWallStandardCase": "wall",
        "IfcCurtainWall": "wall", "IfcStair": "stair", "IfcStairFlight": "stair", "IfcRamp": "ramp", "IfcColumn": "column",
        "IfcFurnishingElement": "furniture", "IfcFurniture": "furniture", "IfcRailing": "railing",
-       "IfcSanitaryTerminal": "sanitary fixture", "IfcFlowTerminal": "fixture", "IfcBeam": "beam"}
+       "IfcSanitaryTerminal": "sanitary fixture", "IfcFlowTerminal": "fixture", "IfcBeam": "beam",
+       "IfcTransportElement": "elevator"}
 SOURCE = "read from the file (IFC classes in the SVG export)"
+IFC_NS = "{http://www.ifcopenshell.org/ns}"
 _NUM = r"-?\d+(?:\.\d+)?(?:[eE]-?\d+)?"
 
 
@@ -35,39 +41,57 @@ def _subpaths(d):
     return [p for p in out if p]
 
 
+def _tag(e):
+    return e.tag.rsplit("}", 1)[-1]
+
+
 def read(svg_path, width_px, height_px):
     t = open(svg_path, encoding="utf-8", errors="replace").read()
-    vb = re.search(r'viewBox="\s*(' + _NUM + r')[\s,]+(' + _NUM + r')[\s,]+(' + _NUM + r')[\s,]+(' + _NUM + r')', t)
-    if not vb or 'class="Ifc' not in t:
+    if 'class="Ifc' not in t:
         return None
-    vx, vy, vw, vh = map(float, vb.groups())
+    root = ET.fromstring(t.encode("utf-8"))
+    vb = [float(x) for x in re.findall(_NUM, root.get("viewBox") or "")]
+    if len(vb) != 4:
+        return None
+    vx, vy, vw, vh = vb
     kx, ky = width_px / vw, height_px / vh
     P = lambda p: [round((p[0] - vx) * kx, 1), round((p[1] - vy) * ky, 1)]
-    classes = {}
-    for cls, attrs, body in re.findall(r'<g[^>]*class="(Ifc\w+)"([^>]*)>(.*?)</g>', t, re.S):
+    elems = {}  # product key -> dict(cls, name, guid, subpaths)
+    for g in root.iter():
+        if _tag(g) != "g":
+            continue
+        cls = (g.get("class") or "").split()[0] if g.get("class") else ""
         name = MAP.get(cls)
         if not name:
             continue
-        subs = [s for d in re.findall(r'\sd="([^"]+)"', body) for s in _subpaths(d)]
+        gid = g.get("id") or ""
+        m = re.search(r"product-([0-9a-fA-F-]{36})", gid)
+        guid = g.get("data-guid") or g.get(IFC_NS + "guid")
+        key = (m.group(1) if m else None) or guid or gid or str(id(g))
+        e = elems.setdefault(key, dict(cls=name, label=g.get("data-name") or g.get(IFC_NS + "name"), guid=guid, subs=[]))
+        for p in g.iter():
+            if _tag(p) == "path" and p.get("d"):
+                e["subs"] += _subpaths(p.get("d"))
+    classes = {}
+    for e in elems.values():
+        subs = e["subs"]
         pts = [p for s in subs for p in s]
         if len(pts) < 2:
             continue
         X, Y = [p[0] for p in pts], [p[1] for p in pts]
         it = dict(bbox=[*P((min(X), min(Y))), *P((max(X), max(Y)))])
-        m = re.search(r'data-name="([^"]*)"', attrs)
-        if m and m.group(1):
-            it["label"] = m.group(1)
-        g = re.search(r'data-guid="([^"]*)"', attrs)
-        if g:
-            it["guid"] = g.group(1)
-        if name in ("room", "wall"):
+        if e["label"]:
+            it["label"] = e["label"]
+        if e["guid"]:
+            it["guid"] = e["guid"]
+        if e["cls"] in ("room", "wall"):
             ring = max(subs, key=len)
             if len(ring) >= 3:
                 it["polygon"] = [P(p) for p in ring]
-                if name == "wall":
+                if e["cls"] == "wall":
                     from .segment import wall_axis
                     axis, thick = wall_axis(it["polygon"])
                     it.update(polyline=[axis[:2], axis[2:]], thickness_px=thick)
-        c = classes.setdefault(name, dict(name=name, source=SOURCE, geometry="polygon" if "polygon" in it else "box", items=[]))
+        c = classes.setdefault(e["cls"], dict(name=e["cls"], source=SOURCE, geometry="polygon" if "polygon" in it else "box", items=[]))
         c["items"].append(it)
     return list(classes.values()) or None
