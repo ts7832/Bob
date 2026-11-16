@@ -1,4 +1,4 @@
-# DrawQA: Junction 2026, Stoa challenge
+# Bob: Junction 2026, Stoa challenge
 
 Answers natural-language questions about construction drawings and BIM models, shows the evidence on the drawing, and
 says for every answer how it was obtained. This file is the entry point for any person or agent picking the project
